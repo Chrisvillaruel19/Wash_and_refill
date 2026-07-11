@@ -19,7 +19,7 @@ import {
 const menuItems = [
   {
     label: "Dashboard",
-    href: "/staff/staff_dashboard",
+    href: "/staff",
     icon: LayoutDashboard,
   },
   {
@@ -29,7 +29,7 @@ const menuItems = [
   },
    {
     label: "Services",
-    href: "/staff/services",
+    href: "/staff/service",
     icon: ClipboardList,
   },
    {
@@ -50,7 +50,7 @@ const menuItems = [
   },
   {
     label: "Shift Handover",
-    href: "/staff/shift_handover",
+    href: "/staff/shifthandover",
     icon: Users,
   },
   {
@@ -64,15 +64,15 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-56 min-h-screen bg-blue-700 text-white flex flex-col shadow-lg">
+    <aside className="w-56 min-h-screen bg-sky-600  text-white flex flex-col shadow-lg">
 
-      {/* Logo */}
+      
       <div className="flex flex-col items-center py-6 border-b border-blue-500">
         <Image
           src="/LOGO.png"
           alt="Logo"
-          width={80}
-          height={80}
+          width={100}
+          height={100}
           priority
           className="rounded-full"
         />
@@ -88,15 +88,19 @@ export default function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-4 px-6 py-4 transition-all duration-200
-                ${
-                  isActive
-                    ? "bg-blue-800 border-l-4 border-white font-semibold"
-                    : "hover:bg-blue-600"
-                }`}
+              className={`flex items-center gap-4 px-6 py-4 ${
+                isActive
+              }`}
             >
               <Icon size={22} />
-              <span>{item.label}</span>
+
+              <span
+                className={`inline-block ${
+                  isActive ? "border-b-2 border-white" : "border-b-2 border-transparent"
+                }`}
+              >
+                {item.label}
+              </span>
             </Link>
           );
         })}
@@ -104,7 +108,7 @@ export default function Sidebar() {
 
       {/* Logout */}
       <div className="p-5 border-t border-blue-500">
-        <button className="flex items-center justify-center gap-2 w-full bg-blue-900 hover:bg-blue-950 py-3 rounded-lg transition">
+        <button className="flex items-center justify-center gap-2 w-full bg-sky-700 hover:bg-sky-800 py-3 rounded-lg transition">
           <LogOut size={18} />
           Logout
         </button>

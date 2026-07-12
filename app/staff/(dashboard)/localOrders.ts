@@ -19,11 +19,20 @@ export function addStoredOrder(order: Order): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
 }
 
+export function updateOrderStatus(orderId: string, newStatus: Order["status"]): Order[] {
+  const existing = getStoredOrders();
+  const updated = existing.map((order) =>
+    order.id === orderId ? { ...order, status: newStatus } : order
+  );
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  return updated;
+}
+
 export function computeStatsFromOrders(
   orders: Order[]
 ): Pick<DashboardStats, "todaysSales" | "claimedToday" | "ready"> {
   const todaysSales = orders.reduce((sum, o) => sum + o.amount, 0);
-  const claimedToday = orders.filter((o) => o.payStatus === "Paid").length;
+  const claimedToday = orders.filter((o) => o.status === "Claimed").length;
   const ready = orders.filter((o) => o.status === "Ready").length;
   return { todaysSales, claimedToday, ready };
 }

@@ -8,12 +8,13 @@ interface OrdersTableProps {
   orders: Order[];
 }
 
-const filters: ("All" | OrderStatus)[] = ["All", "Pending", "In progress", "Ready"];
+const filters: ("All" | OrderStatus)[] = ["All", "Pending", "In progress", "Ready", "Claimed"];
 
 const statusStyles: Record<OrderStatus, string> = {
   Pending: "text-orange-500",
-  "In progress": "text-sky-600",
+  "In progress": "text-blue-600",
   Ready: "text-green-600",
+  Claimed: "text-gray-500",
 };
 
 export default function OrdersTable({ orders }: OrdersTableProps) {

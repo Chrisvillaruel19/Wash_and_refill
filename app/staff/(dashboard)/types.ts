@@ -19,7 +19,7 @@ export interface ActivityLog {
   timestamp: string;
 }
 
-export type OrderStatus = "Pending" | "In progress" | "Ready";
+export type OrderStatus = "Pending" | "In progress" | "Ready" | "Claimed";
 export type PayStatus = "Paid" | "UnPaid";
 
 export interface Order {
@@ -31,4 +31,5 @@ export interface Order {
   amount: number;
   payStatus: PayStatus;
   status: OrderStatus;
+  items?: string[];
 }

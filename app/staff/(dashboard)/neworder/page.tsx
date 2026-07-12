@@ -71,6 +71,7 @@ export default function NewOrderPage() {
       amount: total,
       payStatus: amountPaid >= total ? "Paid" : "UnPaid",
       status: "Pending",
+      items: cartItems.map((item) => item.name),
     };
 
     addStoredOrder(newOrder);

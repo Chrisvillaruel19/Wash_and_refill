@@ -8,7 +8,7 @@ export default function Home() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    router.push("/staff/staff_dashboard");
+    router.push("/staff");
   }
 
   return (

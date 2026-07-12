@@ -12,7 +12,7 @@ const filters: ("All" | OrderStatus)[] = ["All", "Pending", "In progress", "Read
 
 const statusStyles: Record<OrderStatus, string> = {
   Pending: "text-orange-500",
-  "In progress": "text-blue-600",
+  "In progress": "text-sky-600",
   Ready: "text-green-600",
 };
 
@@ -40,8 +40,8 @@ export default function OrdersTable({ orders }: OrdersTableProps) {
               onClick={() => setActiveFilter(f)}
               className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
                 activeFilter === f
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "text-gray-600 border-gray-300 hover:bg-gray-50"
+                  ? "bg-sky-600 text-white border-sky-600"
+                  : "text-sky-600 border-sky-600 hover:bg-gray-50"
               }`}
             >
               {f}

@@ -3,20 +3,19 @@
 import { CircleUserRound } from "lucide-react";
 import { usePathname } from "next/navigation";
 
-const pageTitles: Record<string, string> = {
-  "/staff": "Dashboard",
-  "/staff/new-order": "New Order",
-  "/staff/orders": "Orders",
-  "/staff/services": "Services",
-  "/staff/inventory": "Inventory",
-  "/staff/sales": "Sales",
-  "/staff/expenses": "Expenses",
-  "/staff/attendance": "Attendance",
-  "/staff/shift-handover": "Shift Handover",
-};
-
 export default function PageHeader() {
   const pathname = usePathname();
+
+  const pageTitles: Record<string, string> = {
+    "/staff": "Dashboard",
+    "/staff/neworder": "New Order",
+    "/staff/service": "Service",
+    "/staff/sales": "Sales",
+    "/staff/inventory": "Inventory",
+    "/staff/expense": "Expense",
+    "/staff/attendance": "Attendance",
+    "/staff/shifthandover": "Shift Handover",
+  };
 
   const title = pageTitles[pathname] ?? "Dashboard";
 

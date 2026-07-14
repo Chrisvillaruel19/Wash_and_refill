@@ -27,26 +27,26 @@ export default function OrderSummary({
 
   return (
     <div className="bg-white rounded-xl shadow-sm overflow-hidden flex flex-col h-full">
-      <div className="bg-blue-600 text-white flex items-center gap-2 px-5 py-3">
+      <div className="bg-blue-600 text-white flex items-center gap-2 px-4 sm:px-5 py-3">
         <ShoppingCart size={18} />
         <span className="font-semibold">Order Summary</span>
       </div>
 
-      <div className="flex-1 p-5 space-y-3 overflow-y-auto min-h-[200px]">
+      <div className="flex-1 p-4 sm:p-5 space-y-3 overflow-y-auto min-h-[150px] sm:min-h-[200px]">
         {cartItems.length > 0 ? (
           cartItems.map((item) => (
             <div
               key={item.id}
-              className="flex items-center justify-between border-b border-gray-100 pb-2"
+              className="flex items-center justify-between border-b border-gray-100 pb-2 gap-2"
             >
-              <div>
-                <p className="font-medium text-gray-800">{item.name}</p>
+              <div className="min-w-0">
+                <p className="font-medium text-gray-800 truncate">{item.name}</p>
                 <p className="text-xs text-gray-500">
                   {item.quantity} × ₱{item.price.toFixed(2)}
                 </p>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="font-semibold">
+              <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                <span className="font-semibold text-sm sm:text-base">
                   ₱{(item.price * item.quantity).toFixed(2)}
                 </span>
                 <button
@@ -63,8 +63,8 @@ export default function OrderSummary({
         )}
       </div>
 
-      <div className="p-5 border-t border-gray-100">
-        <div className="grid grid-cols-2 gap-4 mb-4">
+      <div className="p-4 sm:p-5 border-t border-gray-100">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
           <div>
             <label className="block text-sm text-gray-600 mb-1">Payment method:</label>
             <select

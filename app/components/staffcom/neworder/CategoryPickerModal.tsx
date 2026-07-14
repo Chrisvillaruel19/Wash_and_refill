@@ -22,8 +22,8 @@ export default function CategoryPickerModal({
   onClose,
 }: CategoryPickerModalProps) {
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl p-8 w-full max-w-md relative">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl p-5 sm:p-8 w-full max-w-md max-h-[85vh] overflow-y-auto relative">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-red-500 hover:text-red-700"
@@ -31,11 +31,11 @@ export default function CategoryPickerModal({
           <X size={24} />
         </button>
 
-        <h2 className="text-xl font-bold text-center mb-6">
+        <h2 className="text-lg sm:text-xl font-bold text-center mb-6 pr-8">
           Select Laundry Service
         </h2>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {categories.map((category) => {
             const Icon = iconMap[category.icon] || Shirt;
             return (

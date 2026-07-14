@@ -45,17 +45,17 @@ export default function ServiceItemFormModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl p-8 w-full max-w-lg">
-        <h2 className="text-2xl font-bold text-center uppercase mb-6">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl p-5 sm:p-8 w-full max-w-lg max-h-[85vh] overflow-y-auto">
+        <h2 className="text-xl sm:text-2xl font-bold text-center uppercase mb-6">
           {category.name}
         </h2>
 
-        <div className="grid grid-cols-2 gap-6 items-center mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6 sm:items-center mb-4">
           <select
             value={selectedItemId}
             onChange={(e) => setSelectedItemId(e.target.value)}
-            className="border border-gray-300 rounded-lg p-2"
+            className="border border-gray-300 rounded-lg p-2 w-full"
           >
             {itemOptions.map((item) => (
               <option key={item.id} value={item.id}>
@@ -64,12 +64,12 @@ export default function ServiceItemFormModal({
             ))}
           </select>
 
-          <p className="text-lg font-medium">
+          <p className="text-base sm:text-lg font-medium">
             Price: {selectedItem?.pricePerKg.toFixed(2)} / KG
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-6 items-center mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6 sm:items-center mb-4">
           <div>
             <label className="block mb-1 text-sm font-medium text-gray-700">
               Input Qty(kg):
@@ -84,7 +84,7 @@ export default function ServiceItemFormModal({
             />
           </div>
 
-          <p className="text-lg font-medium">
+          <p className="text-base sm:text-lg font-medium">
             Total: ₱{total.toFixed(2)}
           </p>
         </div>

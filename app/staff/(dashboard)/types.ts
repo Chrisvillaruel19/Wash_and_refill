@@ -32,4 +32,6 @@ export interface Order {
   payStatus: PayStatus;
   status: OrderStatus;
   items?: string[];
+  staffName?: string;
+
 }

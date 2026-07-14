@@ -38,7 +38,7 @@ export default function StaffDashboardPage() {
   const stats = computeStatsFromOrders(orders);
 
   return (
-    <div>
+    <div className="p-4 sm:p-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
         <StatCard
           label="Today's Sales"

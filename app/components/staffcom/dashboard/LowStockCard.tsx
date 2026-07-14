@@ -6,7 +6,7 @@ interface LowStockCardProps {
 
 export default function LowStockCard({ items }: LowStockCardProps) {
   return (
-    <div className="bg-white rounded-xl shadow-sm p-6">
+    <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6">
       <h2 className="text-lg font-bold text-gray-800 mb-4">Low Stock Items</h2>
 
       {items.length > 0 ? (

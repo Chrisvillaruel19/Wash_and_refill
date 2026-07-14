@@ -32,9 +32,9 @@ export default function OrdersTable({ orders }: OrdersTableProps) {
   }, [orders, activeFilter, search]);
 
   return (
-    <div className="bg-white rounded-xl shadow-sm p-6">
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-        <div className="flex gap-2">
+    <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-5 gap-3">
+    <div className="flex gap-2 flex-wrap">
           {filters.map((f) => (
             <button
               key={f}
@@ -50,19 +50,19 @@ export default function OrdersTable({ orders }: OrdersTableProps) {
           ))}
         </div>
 
-        <div className="relative">
-          <Search
-            size={16}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-          />
-          <input
-            type="text"
-            placeholder="Search name or Contact"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 pr-4 py-1.5 border border-gray-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
+       <div className="relative w-full sm:w-auto">
+    <Search
+      size={16}
+      className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+    />
+    <input
+      type="text"
+      placeholder="Search name or Contact"
+      value={search}
+      onChange={(e) => setSearch(e.target.value)}
+      className="w-full sm:w-auto pl-9 pr-4 py-1.5 border border-gray-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+    />
+</div>
       </div>
 
       <div className="overflow-x-auto">

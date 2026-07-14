@@ -72,6 +72,7 @@ export default function NewOrderPage() {
       payStatus: amountPaid >= total ? "Paid" : "UnPaid",
       status: "Pending",
       items: cartItems.map((item) => item.name),
+      staffName: "Eleno",
     };
 
     addStoredOrder(newOrder);
@@ -84,7 +85,9 @@ export default function NewOrderPage() {
   }
 
   return (
-    <div>
+    <div className="p-4 sm:p-6">
+      <h1 className="text-2xl font-bold text-gray-800 mb-6">New Order</h1>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <CustomerInfoForm
@@ -94,7 +97,7 @@ export default function NewOrderPage() {
             onPhoneChange={setPhoneNumber}
           />
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <button
               onClick={() => setShowCategoryModal(true)}
               className="border border-gray-300 rounded-xl p-4 flex flex-col items-center hover:border-blue-500 hover:bg-blue-50 transition-colors"

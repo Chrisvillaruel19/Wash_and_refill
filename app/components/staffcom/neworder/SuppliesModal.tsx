@@ -24,8 +24,8 @@ export default function SuppliesModal({ supplies, onAdd, onClose }: SuppliesModa
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl p-8 w-full max-w-lg max-h-[80vh] overflow-y-auto relative">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl p-5 sm:p-8 w-full max-w-lg max-h-[85vh] overflow-y-auto relative">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-red-500 hover:text-red-700"
@@ -33,21 +33,21 @@ export default function SuppliesModal({ supplies, onAdd, onClose }: SuppliesModa
           <X size={24} />
         </button>
 
-        <h2 className="text-xl font-bold text-center mb-6">Laundry Supplies</h2>
+        <h2 className="text-lg sm:text-xl font-bold text-center mb-6 pr-8">Laundry Supplies</h2>
 
         <div className="space-y-3">
           {supplies.map((supply) => (
             <div
               key={supply.id}
-              className="flex items-center justify-between border border-gray-200 rounded-lg px-4 py-3"
+              className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border border-gray-200 rounded-lg px-4 py-3"
             >
-              <div>
-                <p className="font-medium text-gray-800">{supply.name}</p>
+              <div className="min-w-0">
+                <p className="font-medium text-gray-800 truncate">{supply.name}</p>
                 <p className="text-xs text-gray-500">
                   ₱{supply.price.toFixed(2)} / {supply.unit}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 <input
                   type="number"
                   min={1}
@@ -59,7 +59,7 @@ export default function SuppliesModal({ supplies, onAdd, onClose }: SuppliesModa
                 />
                 <button
                   onClick={() => handleAdd(supply)}
-                  className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-blue-700"
+                  className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-blue-700 whitespace-nowrap"
                 >
                   Add
                 </button>

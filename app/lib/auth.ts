@@ -2,13 +2,14 @@ export interface StaffUser {
   username: string;
   password: string;
   name: string;
-  role: string;
+  role: "staff" | "admin";
 }
 
 // ⚠️ Temporary hardcoded accounts — replace with real backend login later.
 const STAFF_ACCOUNTS: StaffUser[] = [
   { username: "eleno", password: "1234", name: "Eleno", role: "staff" },
   { username: "chris", password: "1234", name: "Chris", role: "staff" },
+  { username: "admin", password: "admin123", name: "Admin", role: "admin" },
 ];
 
 const CURRENT_USER_KEY = "wrlms_current_user";
@@ -38,4 +39,7 @@ export function getCurrentUser(): StaffUser | null {
 export function logout(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(CURRENT_USER_KEY);
+}
+export function verifyAdminPassword(password: string): boolean {
+  return STAFF_ACCOUNTS.some((u) => u.role === "admin" && u.password === password);
 }

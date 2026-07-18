@@ -6,8 +6,8 @@ import StatCard from "../../components/staffcom/dashboard/StatCard";
 import LowStockCard from "../../components/staffcom/dashboard/LowStockCard";
 import RecentActivityCard from "../../components/staffcom/dashboard/RecentActivityCard";
 import OrdersTable from "../../components/staffcom/dashboard/OrdersTable";
-import { getLowStockItems, getRecentActivity } from "./api";
 import { getStoredOrders, computeStatsFromOrders } from "./localOrders";
+import { getLowStockItems, getActivityLogs } from "./localInventory";
 import { Order, LowStockItem, ActivityLog } from "./types";
 
 export default function StaffDashboardPage() {
@@ -17,22 +17,23 @@ export default function StaffDashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadData() {
-      const storedOrders = getStoredOrders();
-      const [lowStockData, activityData] = await Promise.all([
-        getLowStockItems(),
-        getRecentActivity(),
-      ]);
-      setOrders(storedOrders);
-      setLowStock(lowStockData);
-      setActivity(activityData);
-      setLoading(false);
-    }
-    loadData();
+    const storedOrders = getStoredOrders();
+    const lowStockItems = getLowStockItems().map((item) => ({
+      id: item.id,
+      name: item.name,
+      quantityRemaining: item.currentStock,
+      unit: item.unit,
+    }));
+    const activityLogs = getActivityLogs();
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOrders(storedOrders);
+    setLowStock(lowStockItems);
+    setActivity(activityLogs);
+    setLoading(false);
   }, []);
 
   if (loading) {
-    return <p className="text-gray-400">Loading dashboard...</p>;
+    return <p className="text-gray-400 p-6">Loading dashboard...</p>;
   }
 
   const stats = computeStatsFromOrders(orders);

@@ -35,3 +35,11 @@ export interface Order {
   staffName?: string;
 
 }
+export interface InventoryItem {
+  id: string;
+  name: string;
+  currentStock: number;
+  lowStockAlert: number;
+  unit: string;
+  price: number;
+}

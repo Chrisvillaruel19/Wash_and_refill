@@ -1,0 +1,346 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+
+// login page
+model User {
+  id              String @id @default(uuid())
+
+  username        String @unique
+  email           String @unique
+  password        String
+
+  role            Role @default(STAFF)
+  accountStatus   AccountStatus @default(ACTIVE)
+
+  orders          Order[]
+  attendances     Attendance[]
+  expenses        Expense[]
+  shifts          ShiftHandover[]
+  withdrawals     Withdrawal[]
+  auditLogs       AuditLog[]
+  tokens          Token[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+enum Role {
+  STAFF
+  ADMIN
+}
+
+enum AccountStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+// Token
+model Token {
+  id          String @id @default(uuid())
+
+  userId      String
+  user        User @relation(fields:[userId], references:[id], onDelete:Cascade)
+
+  token       String @unique
+  type        TokenType
+  expiresAt   DateTime
+
+  createdAt   DateTime @default(now())
+}
+enum TokenType {
+  REFRESH
+  VERIFY_EMAIL
+  RESET_PASSWORD
+}
+
+// Customer Data
+model Customer {
+  id            String @id @default(uuid())
+
+  customerName  String
+  phoneNumber   String
+
+  orders        Order[]
+
+  createdAt     DateTime @default(now())
+}
+
+// new Order
+model Order {
+  id              String @id @default(uuid())
+
+  customerId      String
+  customer        Customer @relation(fields:[customerId], references:[id])
+
+  userId          String
+  user            User @relation(fields:[userId], references:[id])
+
+  status          OrderStatus @default(PENDING)
+  paymentStatus   PaymentStatus @default(UNPAID)
+
+  amountPaid      Decimal @default(0)
+  totalAmount     Decimal
+
+  paymentDate     DateTime?
+  claimedDate     DateTime?
+
+  orderDetails    OrderDetail[]
+  consumptions    InventoryConsumption[]
+
+  createdAt       DateTime @default(now())
+}
+
+enum OrderStatus {
+  PENDING
+  IN_PROGRESS
+  READY
+  CLAIMED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PAID
+}
+// Order summary
+model OrderDetail {
+  id              String @id @default(uuid())
+
+  orderId         String
+  order           Order @relation(fields:[orderId], references:[id], onDelete:Cascade)
+
+  serviceId       String?
+  service         LaundryService? @relation(fields:[serviceId], references:[id])
+
+  packageId       String?
+  package         Package? @relation(fields:[packageId], references:[id])
+
+  inventoryId     String?
+  inventory       Inventory? @relation(fields:[inventoryId], references:[id])
+
+  weight          Decimal?
+  quantity        Int
+
+  subtotal        Decimal
+}
+
+// Laundry Service catalog
+model LaundryService {
+  id          String @id @default(uuid())
+
+  serviceName String
+  itemType    ItemType
+
+  price       Decimal
+  status      Boolean @default(true)
+
+  orderDetails OrderDetail[]
+}
+
+enum ItemType {
+  CLOTHES
+  HOUSEHOLD_ITEMS
+  DRY_CLEAN_7_DAYS
+  CARPET
+  RUGS_AND_FLEECE_BLANKET
+}
+
+// Package catalog
+model Package {
+  id          String @id @default(uuid())
+
+  packageName String
+  price       Decimal
+  color       String?
+
+  status      Boolean @default(true)
+
+  details     PackageDetail[]
+
+  orderDetails OrderDetail[]
+}
+
+// Package details
+model PackageDetail {
+  id          String @id @default(uuid())
+
+  packageId  String
+  package    Package @relation(fields:[packageId], references:[id], onDelete:Cascade)
+
+  inventoryId String
+  inventory   Inventory @relation(fields:[inventoryId], references:[id])
+
+  quantity    Int
+}
+
+// Inventory catalog
+model Inventory {
+  id          String @id @default(uuid())
+
+  itemName    String
+
+  quantity    Int
+  unit        String
+
+  unitPrice   Decimal
+
+  stockStatus StockStatus @default(AVAILABLE)
+
+  orderDetails OrderDetail[]
+  packageDetails PackageDetail[]
+  consumptions InventoryConsumption[]
+}
+
+enum StockStatus {
+  AVAILABLE
+  LOW_STOCK
+  OUT_OF_STOCK
+}
+// Inventory consumption 
+model InventoryConsumption {
+  id          String @id @default(uuid())
+
+  orderId     String
+  order       Order @relation(fields:[orderId], references:[id], onDelete:Cascade)
+
+  inventoryId String
+  inventory   Inventory @relation(fields:[inventoryId], references:[id])
+
+  quantityUsed Int
+
+  dateUsed DateTime @default(now())
+}
+
+// Attendance
+model Attendance {
+  id        String @id @default(uuid())
+
+  userId    String
+  user      User @relation(fields:[userId], references:[id], onDelete:Cascade)
+
+  date      DateTime
+  timeIn    DateTime?
+  timeOut   DateTime?
+
+  status    AttendanceStatus
+}
+
+enum AttendanceStatus {
+  PRESENT
+  LATE
+  ABSENT
+}
+
+// Expense
+model Expense {
+  id          String @id @default(uuid())
+
+  userId      String
+  user        User @relation(fields:[userId], references:[id])
+
+  amount      Decimal
+  category    ExpenseCategory
+
+  description String
+  receiptUrl  String?
+
+  expenseDate DateTime
+}
+
+enum ExpenseCategory {
+  SUPPLIES_AND_MATERIALS
+  TRANSPORTATION
+  EQUIPMENT_REPAIR
+  UTILITIES
+  FOOD_AND_BEVERAGE
+  PETTY_CASH
+  EMERGENCY_PURCHASES
+  OTHER
+}
+
+
+// Shift Handover
+model ShiftHandover {
+  id              String @id @default(uuid())
+
+  userId          String
+  user            User @relation(fields:[userId], references:[id])
+
+  startTime       DateTime
+  endTime         DateTime
+
+  laundryEarnings Decimal
+  supplySales     Decimal
+  expense         Decimal
+  withdrawal      Decimal
+
+  expectedBalance Decimal
+  actualCashCount Decimal?
+
+  cashStatus      CashStatus
+
+  notes           String?
+}
+
+enum CashStatus {
+  BALANCED
+  SHORTAGE
+  EXCESS
+}
+
+// Withdrawal
+model Withdrawal {
+  id              String @id @default(uuid())
+
+  userId          String
+  user            User @relation(fields:[userId], references:[id])
+
+  amount          Decimal
+  reason          String
+
+  withdrawalDate  DateTime
+}
+
+// Auditlog 
+model AuditLog {
+  id          String @id @default(uuid())
+
+  userId      String
+  user        User @relation(fields:[userId], references:[id])
+
+  action      AuditAction
+
+  module      String
+  description String?
+
+  oldValue    Json?
+  newValue    Json?
+
+  createdAt   DateTime @default(now())
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  ARCHIVE
+  RESTOCK
+  WITHDRAWAL
+  PAYMENT
+  CLAIM
+  LOGIN
+  LOGOUT
+  RESET_PASSWORD
+}

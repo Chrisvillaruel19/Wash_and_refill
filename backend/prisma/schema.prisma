@@ -71,7 +71,7 @@ model Customer {
   id            String @id @default(uuid())
 
   customerName  String
-  phoneNumber   String
+  phoneNumber   String?
 
   orders        Order[]
 
@@ -101,6 +101,7 @@ model Order {
   consumptions    InventoryConsumption[]
 
   createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 enum OrderStatus {
@@ -196,7 +197,7 @@ model Inventory {
 
   unitPrice   Decimal
 
-  stockStatus StockStatus @default(AVAILABLE)
+  stockStatus StockStatus @default(IN_STOCK)
 
   orderDetails OrderDetail[]
   packageDetails PackageDetail[]
@@ -204,7 +205,7 @@ model Inventory {
 }
 
 enum StockStatus {
-  AVAILABLE
+  IN_STOCK
   LOW_STOCK
   OUT_OF_STOCK
 }
@@ -220,7 +221,7 @@ model InventoryConsumption {
 
   quantityUsed Int
 
-  dateUsed DateTime @default(now())
+  createdAt DateTime @default(now())
 }
 
 // Attendance
@@ -229,12 +230,13 @@ model Attendance {
 
   userId    String
   user      User @relation(fields:[userId], references:[id], onDelete:Cascade)
-
-  date      DateTime
+  
+  date      DateTime @db.Date
   timeIn    DateTime?
   timeOut   DateTime?
 
   status    AttendanceStatus
+  @@unique([userId,date])
 }
 
 enum AttendanceStatus {
@@ -309,8 +311,8 @@ model Withdrawal {
 
   amount          Decimal
   reason          String
-
-  withdrawalDate  DateTime
+  remaining_cash  Decimal
+  withdrawalDate  DateTime @db.Date
 }
 
 // Auditlog 

@@ -20,7 +20,7 @@ export default function RestockModal({ item, onConfirm, onCancel }: RestockModal
           <X size={22} />
         </button>
 
-        <h2 className="text-lg font-bold mb-1">Restock Item</h2>
+        <h2 className="text-lg font-bold mb-1 text-gray-900">Restock Item</h2>
         <p className="text-gray-500 text-sm mb-5">{item.name}</p>
 
         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -31,7 +31,7 @@ export default function RestockModal({ item, onConfirm, onCancel }: RestockModal
           min={1}
           value={quantity}
           onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
-          className="w-full border border-gray-300 rounded-lg p-2 mb-6"
+          className="w-full border border-gray-300 rounded-lg p-2 mb-6 text-gray-900"
         />
 
         <div className="flex gap-3">

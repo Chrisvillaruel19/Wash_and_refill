@@ -31,7 +31,7 @@ export default function CategoryPickerModal({
           <X size={24} />
         </button>
 
-        <h2 className="text-lg sm:text-xl font-bold text-center mb-6 pr-8">
+        <h2 className="text-lg sm:text-xl font-bold text-center mb-6 pr-8 text-gray-900">
           Select Laundry Service
         </h2>
 

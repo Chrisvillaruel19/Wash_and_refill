@@ -27,7 +27,7 @@ export default function InventoryTable({
           placeholder="Search Item name"
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
         />
       </div>
 
@@ -51,11 +51,11 @@ export default function InventoryTable({
                   const isLow = item.currentStock <= item.lowStockAlert;
                   return (
                     <tr key={item.id} className="border-b last:border-0">
-                      <td className="p-3 sm:p-4 font-medium whitespace-nowrap">{item.name}</td>
-                      <td className="p-3 sm:p-4 whitespace-nowrap">{item.currentStock}</td>
-                      <td className="p-3 sm:p-4 whitespace-nowrap">{item.lowStockAlert}</td>
-                      <td className="p-3 sm:p-4 whitespace-nowrap">{item.unit}</td>
-                      <td className="p-3 sm:p-4 whitespace-nowrap">₱{item.price}</td>
+                      <td className="p-3 sm:p-4 font-medium whitespace-nowrap text-gray-900">{item.name}</td>
+                      <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">{item.currentStock}</td>
+                      <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">{item.lowStockAlert}</td>
+                      <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">{item.unit}</td>
+                      <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">₱{item.price}</td>
                       <td className="p-3 sm:p-4 whitespace-nowrap">
                         <span
                           className={`px-3 py-1 rounded-full text-xs font-medium border ${

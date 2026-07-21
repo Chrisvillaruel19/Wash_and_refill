@@ -102,13 +102,13 @@ export default function NewOrderPage() {
               onClick={() => setShowCategoryModal(true)}
               className="border border-gray-300 rounded-xl p-4 flex flex-col items-center hover:border-blue-500 hover:bg-blue-50 transition-colors"
             >
-              <span className="font-semibold">Laundry Services</span>
+              <span className="font-semibold text-gray-900">Laundry Services</span>
             </button>
             <button
               onClick={() => setShowSuppliesModal(true)}
               className="border border-gray-300 rounded-xl p-4 flex flex-col items-center hover:border-blue-500 hover:bg-blue-50 transition-colors"
             >
-              <span className="font-semibold">Laundry Supplies</span>
+              <span className="font-semibold text-gray-900">Laundry Supplies</span>
             </button>
           </div>
 

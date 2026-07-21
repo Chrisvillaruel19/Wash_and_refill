@@ -25,7 +25,7 @@ export default function EditItemModal({ item, onSave, onCancel }: EditItemModalP
           <X size={20} />
         </button>
 
-        <h2 className="text-base sm:text-lg font-bold mb-1">Edit Item</h2>
+        <h2 className="text-base sm:text-lg font-bold mb-1 text-gray-900">Edit Item</h2>
         <p className="text-gray-500 text-xs sm:text-sm mb-5">{item.name}</p>
 
         <div className="space-y-4 mb-6">
@@ -36,7 +36,7 @@ export default function EditItemModal({ item, onSave, onCancel }: EditItemModalP
               min={0}
               value={currentStock}
               onChange={(e) => setCurrentStock(parseInt(e.target.value) || 0)}
-              className="w-full border border-gray-300 rounded-lg p-2"
+              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             />
           </div>
           <div>
@@ -46,7 +46,7 @@ export default function EditItemModal({ item, onSave, onCancel }: EditItemModalP
               min={0}
               value={lowStockAlert}
               onChange={(e) => setLowStockAlert(parseInt(e.target.value) || 0)}
-              className="w-full border border-gray-300 rounded-lg p-2"
+              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             />
           </div>
           <div>
@@ -56,7 +56,7 @@ export default function EditItemModal({ item, onSave, onCancel }: EditItemModalP
               min={0}
               value={price}
               onChange={(e) => setPrice(parseFloat(e.target.value) || 0)}
-              className="w-full border border-gray-300 rounded-lg p-2"
+              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             />
           </div>
         </div>

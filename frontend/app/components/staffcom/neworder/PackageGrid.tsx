@@ -12,7 +12,7 @@ export default function PackageGrid({ packages, onAdd }: PackageGridProps) {
   return (
     <div>
       <div className="text-center mb-4">
-        <h3 className="text-xl font-bold">DROP OFF</h3>
+        <h3 className="text-xl font-bold text-gray-900">DROP OFF</h3>
         <p className="text-xs text-gray-500 uppercase">Same day release</p>
       </div>
 

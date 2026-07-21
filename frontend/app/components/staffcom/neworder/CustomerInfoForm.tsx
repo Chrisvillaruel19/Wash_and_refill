@@ -28,7 +28,7 @@ export default function CustomerInfoForm({
               placeholder="Enter customer name"
               value={customerName}
               onChange={(e) => onNameChange(e.target.value)}
-              className="w-full outline-none min-w-0"
+              className="w-full outline-none min-w-0 text-gray-900"
             />
           </div>
         </div>
@@ -42,7 +42,7 @@ export default function CustomerInfoForm({
               placeholder="Enter phone number"
               value={phoneNumber}
               onChange={(e) => onPhoneChange(e.target.value)}
-              className="w-full outline-none min-w-0"
+              className="w-full outline-none min-w-0 text-gray-900"
             />
           </div>
         </div>

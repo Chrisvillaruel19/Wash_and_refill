@@ -33,7 +33,7 @@ export default function AuthModal({ onAuthorized, onCancel }: AuthModalProps) {
 
         <div className="flex items-center gap-2 mb-2">
           <Lock size={18} className="text-gray-700 shrink-0" />
-          <h2 className="text-base sm:text-lg font-bold">Authorization Required</h2>
+          <h2 className="text-base sm:text-lg font-bold text-gray-900">Authorization Required</h2>
         </div>
         <p className="text-gray-500 text-xs sm:text-sm mb-4">
           Please enter the correct password to continue.
@@ -48,7 +48,7 @@ export default function AuthModal({ onAuthorized, onCancel }: AuthModalProps) {
             setError("");
           }}
           onKeyDown={(e) => e.key === "Enter" && handleConfirm()}
-          className="w-full border border-gray-300 rounded-lg p-2 text-sm mb-2"
+          className="w-full border border-gray-300 rounded-lg p-2 text-sm mb-2 text-gray-900"
         />
 
         {error && <p className="text-red-600 text-xs sm:text-sm mb-3">{error}</p>}

@@ -60,7 +60,7 @@ export default function OrdersTable({ orders }: OrdersTableProps) {
       placeholder="Search name or Contact"
       value={search}
       onChange={(e) => setSearch(e.target.value)}
-      className="w-full sm:w-auto pl-9 pr-4 py-1.5 border border-gray-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+      className="w-full sm:w-auto pl-9 pr-4 py-1.5 border border-gray-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
     />
 </div>
       </div>
@@ -82,12 +82,12 @@ export default function OrdersTable({ orders }: OrdersTableProps) {
             {filteredOrders.length > 0 ? (
               filteredOrders.map((order) => (
                 <tr key={order.id} className="border-b last:border-0">
-                  <td className="py-3 pr-4">{order.customer}</td>
-                  <td className="py-3 pr-4">{order.contact}</td>
-                  <td className="py-3 pr-4">{order.time}</td>
-                  <td className="py-3 pr-4">{order.date}</td>
-                  <td className="py-3 pr-4">₱{order.amount.toFixed(2)}</td>
-                  <td className="py-3 pr-4">{order.payStatus}</td>
+                  <td className="py-3 pr-4 text-gray-900">{order.customer}</td>
+                  <td className="py-3 pr-4 text-gray-900">{order.contact}</td>
+                  <td className="py-3 pr-4 text-gray-900">{order.time}</td>
+                  <td className="py-3 pr-4 text-gray-900">{order.date}</td>
+                  <td className="py-3 pr-4 text-gray-900">₱{order.amount.toFixed(2)}</td>
+                  <td className="py-3 pr-4 text-gray-900">{order.payStatus}</td>
                   <td className={`py-3 font-medium ${statusStyles[order.status]}`}>
                     {order.status}
                   </td>

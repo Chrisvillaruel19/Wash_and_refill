@@ -31,16 +31,16 @@ export default function SalesTable({ orders }: SalesTableProps) {
             {orders.length > 0 ? (
               orders.map((order) => (
                 <tr key={order.id} className="border-b last:border-0">
-                  <td className="p-3 sm:p-4 whitespace-nowrap">{order.customer}</td>
-                  <td className="p-3 sm:p-4 whitespace-nowrap">{order.date}</td>
-                  <td className="p-3 sm:p-4 whitespace-nowrap">{order.contact}</td>
-                  <td className="p-3 sm:p-4 whitespace-nowrap">{order.staffName || "N/A"}</td>
-                  <td className="p-3 sm:p-4 font-medium max-w-[200px] truncate">
+                  <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">{order.customer}</td>
+                  <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">{order.date}</td>
+                  <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">{order.contact}</td>
+                  <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">{order.staffName || "N/A"}</td>
+                  <td className="p-3 sm:p-4 font-medium max-w-[200px] truncate text-gray-900">
                     {order.items && order.items.length > 0
                       ? order.items.join(", ")
                       : "—"}
                   </td>
-                  <td className="p-3 sm:p-4 whitespace-nowrap">₱{order.amount.toFixed(2)}</td>
+                  <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">₱{order.amount.toFixed(2)}</td>
                   <td className={`p-3 sm:p-4 font-semibold whitespace-nowrap ${statusStyles[order.status]}`}>
                     {order.status}
                   </td>

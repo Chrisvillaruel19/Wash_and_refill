@@ -47,7 +47,7 @@ export default function ServiceItemFormModal({
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl p-5 sm:p-8 w-full max-w-lg max-h-[85vh] overflow-y-auto">
-        <h2 className="text-xl sm:text-2xl font-bold text-center uppercase mb-6">
+        <h2 className="text-xl sm:text-2xl font-bold text-center uppercase mb-6 text-gray-900">
           {category.name}
         </h2>
 
@@ -55,7 +55,7 @@ export default function ServiceItemFormModal({
           <select
             value={selectedItemId}
             onChange={(e) => setSelectedItemId(e.target.value)}
-            className="border border-gray-300 rounded-lg p-2 w-full"
+            className="border border-gray-300 rounded-lg p-2 w-full text-gray-900"
           >
             {itemOptions.map((item) => (
               <option key={item.id} value={item.id}>
@@ -64,7 +64,7 @@ export default function ServiceItemFormModal({
             ))}
           </select>
 
-          <p className="text-base sm:text-lg font-medium">
+          <p className="text-base sm:text-lg font-medium text-gray-900">
             Price: {selectedItem?.pricePerKg.toFixed(2)} / KG
           </p>
         </div>
@@ -80,11 +80,11 @@ export default function ServiceItemFormModal({
               step={0.25}
               value={quantityKg}
               onChange={(e) => setQuantityKg(parseFloat(e.target.value) || 0)}
-              className="border border-gray-300 rounded-lg p-2 w-full"
+              className="border border-gray-300 rounded-lg p-2 w-full text-gray-900"
             />
           </div>
 
-          <p className="text-base sm:text-lg font-medium">
+          <p className="text-base sm:text-lg font-medium text-gray-900">
             Total: ₱{total.toFixed(2)}
           </p>
         </div>
@@ -96,7 +96,7 @@ export default function ServiceItemFormModal({
           <select
             value={serviceType}
             onChange={(e) => setServiceType(e.target.value as ServiceType)}
-            className="border border-gray-300 rounded-lg p-2 w-full"
+            className="border border-gray-300 rounded-lg p-2 w-full text-gray-900"
           >
             {serviceTypes.map((type) => (
               <option key={type} value={type}>

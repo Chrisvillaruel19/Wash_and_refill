@@ -46,7 +46,7 @@ export default function OrderSummary({
                 </p>
               </div>
               <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                <span className="font-semibold text-sm sm:text-base">
+                <span className="font-semibold text-sm sm:text-base text-gray-900">
                   ₱{(item.price * item.quantity).toFixed(2)}
                 </span>
                 <button
@@ -70,7 +70,7 @@ export default function OrderSummary({
             <select
               value={paymentMethod}
               onChange={(e) => onPaymentMethodChange(e.target.value as PaymentMethod)}
-              className="w-full border border-gray-300 rounded-lg p-2"
+              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             >
               <option value="Cash">Cash</option>
               <option value="GCash">GCash</option>
@@ -83,18 +83,18 @@ export default function OrderSummary({
               placeholder="Input amount"
               value={amountPaid || ""}
               onChange={(e) => onAmountPaidChange(parseFloat(e.target.value) || 0)}
-              className="w-full border border-gray-300 rounded-lg p-2"
+              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             />
           </div>
         </div>
 
         <div className="flex justify-between text-sm mb-1">
           <span className="text-gray-600">Total</span>
-          <span className="font-semibold">₱{total.toFixed(2)}</span>
+          <span className="font-semibold text-gray-900">₱{total.toFixed(2)}</span>
         </div>
         <div className="flex justify-between text-sm mb-4">
           <span className="text-gray-600">Change</span>
-          <span className="font-semibold">₱{change > 0 ? change.toFixed(2) : "0.00"}</span>
+          <span className="font-semibold text-gray-900">₱{change > 0 ? change.toFixed(2) : "0.00"}</span>
         </div>
 
         <button

@@ -9,7 +9,7 @@ export default function ConfirmClaimModal({ onConfirm, onCancel }: ConfirmClaimM
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-2xl p-8 w-full max-w-md">
-        <h2 className="text-xl font-bold mb-2">Mark as Claimed</h2>
+        <h2 className="text-xl font-bold mb-2 text-gray-900">Mark as Claimed</h2>
         <p className="text-gray-600 mb-6">
           Are you sure this order has been claimed by the customer?
         </p>

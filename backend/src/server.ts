@@ -1,6 +1,16 @@
-import { app } from "./app";
-import { env } from "./config/env";
+import app from "@/app.js";
+import { ENV } from "@/config/env.js";
 
-app.listen(env.port, () => {
-  console.log(`[server] WRLMS backend listening on http://localhost:${env.port}`);
-});
+const startserver = () => {
+    try{
+    app.listen(ENV.PORT, () => {
+        console.log(`Server is running on port ${ENV.PORT}`);
+        console.log(`Backend URL: ${ENV.BACKEND_PORT}`);
+    });
+}catch (error) {
+        console.error("Could not start server:", error);
+        process.exit(1);
+    }
+};
+
+startserver();

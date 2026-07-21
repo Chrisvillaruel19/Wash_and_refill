@@ -1,15 +1,20 @@
-import cors from "cors";
 import express from "express";
-import { env } from "./config/env";
-import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
-import { apiRouter } from "./routes";
+import cors from "cors";
+import cookieParser from "cookie-parser";
+import routes from "@/routes/index.js";
 
-export const app = express();
+const app = express();
 
-app.use(cors({ origin: env.corsOrigin }));
+app.use(cors());
 app.use(express.json());
+app.use(cookieParser());
 
-app.use("/api", apiRouter);
+app.get("/", (req, res) => {
+  res.send("API is running");
+});
 
-app.use(notFoundHandler);
-app.use(errorHandler);
+app.use('/api', routes);
+
+
+
+export default app;

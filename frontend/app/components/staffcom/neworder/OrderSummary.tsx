@@ -26,7 +26,7 @@ export default function OrderSummary({
   const change = amountPaid - total;
 
   return (
-    <div className="bg-white rounded-xl shadow-sm overflow-hidden flex flex-col h-full">
+    <div className="bg-white rounded-xl shadow-md overflow-hidden flex flex-col h-full">
       <div className="bg-blue-600 text-white flex items-center gap-2 px-4 sm:px-5 py-3">
         <ShoppingCart size={18} />
         <span className="font-semibold">Order Summary</span>

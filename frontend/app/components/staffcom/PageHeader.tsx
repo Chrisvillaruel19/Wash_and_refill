@@ -28,7 +28,7 @@ export default function PageHeader() {
   const title = pageTitles[pathname] ?? "Dashboard";
 
   return (
-    <header className="flex items-center justify-between bg-white border-b border-gray-200 shadow-sm px-4 sm:px-8 py-4 sm:py-5">
+    <header className="flex items-center justify-between bg-white border-b border-gray-200 shadow-md px-4 sm:px-8 py-4 sm:py-5">
       <h1 className="text-xl sm:text-3xl font-bold text-gray-800 ml-12 md:ml-0">
         {title}
       </h1>

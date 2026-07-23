@@ -13,7 +13,7 @@ const statusStyles: Record<OrderStatus, string> = {
 
 export default function SalesTable({ orders }: SalesTableProps) {
   return (
-    <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+    <div className="bg-white rounded-xl shadow-md overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-sm text-left">
           <thead>

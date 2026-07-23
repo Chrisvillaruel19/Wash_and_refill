@@ -1,6 +1,10 @@
 import { DashboardStats, LowStockItem, ActivityLog, Order } from "./types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+// ⚠️ NOT YET WIRED IN — no page imports this file yet (pages currently use
+// localOrders.ts / localInventory.ts for local-only data). This is the
+// real-fetch version to switch to once you're ready to connect to the
+// actual backend (see /backend).
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
 export async function getDashboardStats(): Promise<DashboardStats> {
     const res= await fetch(`${API_BASE}/dashboard/stats`,{cache: "no-store"});

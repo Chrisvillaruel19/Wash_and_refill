@@ -24,7 +24,7 @@ export default function OrderCard({ order, onMoveBack, onMoveForward }: OrderCar
   const isLast = currentIndex === statusFlow.length - 1;
 
   return (
-    <div className="bg-white rounded-xl shadow-sm p-5 flex flex-wrap items-center justify-between gap-4">
+    <div className="bg-white rounded-xl shadow-md p-5 flex flex-wrap items-center justify-between gap-4">
       <div className="min-w-[160px]">
         <p className="font-bold text-gray-800">{order.customer}</p>
         <p className="text-sm text-gray-500">{order.contact}</p>
@@ -60,7 +60,7 @@ export default function OrderCard({ order, onMoveBack, onMoveForward }: OrderCar
           <button
             onClick={onMoveBack}
             disabled={isFirst}
-            className="border border-gray-300 rounded-lg p-2 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-50"
+            className="border border-gray-300 rounded-lg p-2 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-50 text-gray-700"
           >
             <ArrowLeft size={16} />
           </button>
@@ -74,7 +74,7 @@ export default function OrderCard({ order, onMoveBack, onMoveForward }: OrderCar
           <button
             onClick={onMoveForward}
             disabled={isLast}
-            className="border border-gray-300 rounded-lg p-2 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-50"
+            className="border border-gray-300 rounded-lg p-2 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-50 text-gray-700"
           >
             <ArrowRight size={16} />
           </button>

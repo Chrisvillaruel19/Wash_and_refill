@@ -27,11 +27,13 @@ export default function InventoryTable({
           placeholder="Search Item name"
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
+          name="inventory-search"
+          autoComplete="off"
           className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
         />
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl shadow-md overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead>

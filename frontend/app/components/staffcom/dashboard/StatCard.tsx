@@ -11,7 +11,7 @@ interface StatCardProps {
 
 export default function StatCard({ label, value, icon: Icon, iconColor, href }: StatCardProps) {
   const content = (
-   <div className="bg-white rounded-xl shadow-sm p-4 sm:p-5 flex items-center justify-between gap-3">
+   <div className="bg-white rounded-xl shadow-md p-4 sm:p-5 flex items-center justify-between gap-3">
     <div className="min-w-0">
         <p className="text-gray-500 text-xs sm:text-sm truncate">{label}</p>
         <p className="text-xl sm:text-2xl font-bold text-gray-800 mt-1 truncate">{value}</p>

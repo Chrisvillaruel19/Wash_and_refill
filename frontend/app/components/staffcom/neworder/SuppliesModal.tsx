@@ -33,7 +33,7 @@ export default function SuppliesModal({ supplies, onAdd, onClose }: SuppliesModa
           <X size={24} />
         </button>
 
-        <h2 className="text-lg sm:text-xl font-bold text-center mb-6 pr-8">Laundry Supplies</h2>
+        <h2 className="text-lg sm:text-xl font-bold text-center mb-6 pr-8 text-gray-900">Laundry Supplies</h2>
 
         <div className="space-y-3">
           {supplies.map((supply) => (
@@ -55,7 +55,7 @@ export default function SuppliesModal({ supplies, onAdd, onClose }: SuppliesModa
                   onChange={(e) =>
                     handleQuantityChange(supply.id, parseInt(e.target.value) || 1)
                   }
-                  className="w-16 border border-gray-300 rounded-lg p-1 text-center"
+                  className="w-16 border border-gray-300 rounded-lg p-1 text-center text-gray-900"
                 />
                 <button
                   onClick={() => handleAdd(supply)}

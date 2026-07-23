@@ -109,7 +109,7 @@ export default function ServiceItemFormModal({
         <div className="flex gap-4">
           <button
             onClick={onCancel}
-            className="flex-1 border border-gray-300 rounded-lg py-2 font-medium hover:bg-gray-50"
+            className="flex-1 border border-gray-300 rounded-lg py-2 font-medium hover:bg-gray-50 text-gray-900"
           >
             Cancel
           </button>

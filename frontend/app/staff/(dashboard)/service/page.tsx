@@ -127,6 +127,8 @@ export default function ServicePage() {
             placeholder="Search name or contact"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            name="service-order-search"
+            autoComplete="off"
             className="w-full sm:w-auto pl-9 pr-4 py-1.5 border border-gray-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
           />
         </div>

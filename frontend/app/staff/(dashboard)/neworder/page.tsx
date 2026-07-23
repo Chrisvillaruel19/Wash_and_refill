@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Shirt, LayoutGrid } from "lucide-react";
 import CustomerInfoForm from "../../../components/staffcom/neworder/CustomerInfoForm";
 import PackageGrid from "../../../components/staffcom/neworder/PackageGrid";
 import OrderSummary from "../../../components/staffcom/neworder/OrderSummary";
@@ -100,14 +101,16 @@ export default function NewOrderPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <button
               onClick={() => setShowCategoryModal(true)}
-              className="border border-gray-300 rounded-xl p-4 flex flex-col items-center hover:border-blue-500 hover:bg-blue-50 transition-colors"
+              className="border border-gray-300 rounded-xl p-4 flex flex-col items-center gap-2 hover:border-blue-500 hover:bg-blue-50 transition-colors"
             >
+              <Shirt size={22} className="text-blue-600" />
               <span className="font-semibold text-gray-900">Laundry Services</span>
             </button>
             <button
               onClick={() => setShowSuppliesModal(true)}
-              className="border border-gray-300 rounded-xl p-4 flex flex-col items-center hover:border-blue-500 hover:bg-blue-50 transition-colors"
+              className="border border-gray-300 rounded-xl p-4 flex flex-col items-center gap-2 hover:border-blue-500 hover:bg-blue-50 transition-colors"
             >
+              <LayoutGrid size={22} className="text-green-600" />
               <span className="font-semibold text-gray-900">Laundry Supplies</span>
             </button>
           </div>

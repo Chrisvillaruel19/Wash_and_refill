@@ -1,42 +1,42 @@
 import { Request, Response } from "express";
+import { AuthService } from "@/services/auth";
 
-export const login = (req: Request, res: Response) => {
-  return res.json({
-    message: "Login controller working",
-    body: req.body,
-  });
-};
+export class AuthController {
 
-export const register = (req: Request, res: Response) => {
-  return res.json({
-    message: "Register controller working",
-    body: req.body,
-  });
-};
+  public login = async (req: Request, res: Response) => {
+    try {
+      const { email, password } = req.body;
 
-export const logout = (req: Request, res: Response) => {
-  return res.json({
-    message: "Logout controller working",
-  });
-};
+      const result = await AuthService.login(email, password);
 
-export const forgotPassword = (req: Request, res: Response) => {
-  return res.json({
-    message: "Forgot password controller working",
-    body: req.body,
-  });
-};
+      const { accessToken, refreshToken } = result.tokens;
 
-export const verifyOtp = (req: Request, res: Response) => {
-  return res.json({
-    message: "Verify OTP controller working",
-    body: req.body,
-  });
-};
+      res.cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        secure: false,
+        sameSite: "lax",
+      });
 
-export const resetPassword = (req: Request, res: Response) => {
-  return res.json({
-    message: "Reset password controller working",
-    body: req.body,
-  });
-};
+      return res.status(200).json({
+        message: "Login successful",
+        data: {
+          user: result.user,
+          accessToken
+        }
+      });
+
+    } catch(error) {
+      if (error instanceof Error) {
+        return res.status(400).json({
+          message: "Invalid email or password",
+        });
+      }
+      
+      return res.status(500).json({
+        message: "Internal server error",
+      });
+
+    }
+  };
+
+}

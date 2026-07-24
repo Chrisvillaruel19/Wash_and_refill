@@ -10,6 +10,7 @@ import { ServiceCategory, CartItem, PaymentMethod } from "./types";
 import { Order } from "../types";
 import { packages, supplies, serviceCategories, serviceItemsByCategory } from "./data";
 import { addStoredOrder } from "../localOrders";
+import { getCurrentUser } from "../../../lib/auth";
 
 export default function NewOrderPage() {
   const [customerName, setCustomerName] = useState("");
@@ -22,8 +23,18 @@ export default function NewOrderPage() {
   const [showSuppliesModal, setShowSuppliesModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<ServiceCategory | null>(null);
 
-  function addToCart(item: CartItem) {
-    setCartItems((prev) => [...prev, item]);
+  function addToCart(newItem: CartItem) {
+    setCartItems((prev) => {
+      const existingIndex = prev.findIndex(
+        (item) => item.name === newItem.name && item.price === newItem.price
+      );
+      if (existingIndex !== -1) {
+        return prev.map((item, i) =>
+          i === existingIndex ? { ...item, quantity: item.quantity + newItem.quantity } : item
+        );
+      }
+      return [...prev, newItem];
+    });
   }
 
   function addItemToCart(name: string, price: number, quantity = 1) {
@@ -72,8 +83,10 @@ export default function NewOrderPage() {
       amount: total,
       payStatus: amountPaid >= total ? "Paid" : "UnPaid",
       status: "Pending",
-      items: cartItems.map((item) => item.name),
-      staffName: "Eleno",
+      items: cartItems.map((item) =>
+        item.quantity > 1 ? `${item.name} ×${item.quantity}` : item.name
+      ),
+      staffName: getCurrentUser()?.name || "Unknown",
     };
 
     addStoredOrder(newOrder);
@@ -87,8 +100,6 @@ export default function NewOrderPage() {
 
   return (
     <div className="p-4 sm:p-6">
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">New Order</h1>
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <CustomerInfoForm

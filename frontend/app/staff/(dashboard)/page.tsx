@@ -7,7 +7,8 @@ import LowStockCard from "../../components/staffcom/dashboard/LowStockCard";
 import RecentActivityCard from "../../components/staffcom/dashboard/RecentActivityCard";
 import OrdersTable from "../../components/staffcom/dashboard/OrdersTable";
 import { getStoredOrders, computeStatsFromOrders } from "./localOrders";
-import { getLowStockItems, getActivityLogs } from "./localInventory";
+import { getLowStockItems } from "./localInventory";
+import { getActivityLogs } from "./localActivity";
 import { Order, LowStockItem, ActivityLog } from "./types";
 
 export default function StaffDashboardPage() {
@@ -69,7 +70,7 @@ export default function StaffDashboardPage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 items-start">
         <LowStockCard items={lowStock} />
         <RecentActivityCard logs={activity} />
       </div>

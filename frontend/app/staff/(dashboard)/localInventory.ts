@@ -1,7 +1,7 @@
-import { InventoryItem, ActivityLog } from "./types";
+import { InventoryItem } from "./types";
+import { addActivityLog } from "./localActivity";
 
 const INVENTORY_KEY = "wrlms_inventory";
-const ACTIVITY_KEY = "wrlms_activity";
 
 const DEFAULT_INVENTORY: InventoryItem[] = [
   { id: "1", name: "Fabcon", currentStock: 15, lowStockAlert: 30, unit: "Liters", price: 30 },
@@ -34,22 +34,6 @@ export function getLowStockItems(): InventoryItem[] {
   return getStoredInventory().filter((item) => item.currentStock <= item.lowStockAlert);
 }
 
-export function getActivityLogs(): ActivityLog[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(ACTIVITY_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-function addActivityLog(log: ActivityLog) {
-  const logs = getActivityLogs();
-  const updated = [log, ...logs].slice(0, 20);
-  localStorage.setItem(ACTIVITY_KEY, JSON.stringify(updated));
-}
-
 export function restockItem(id: string, addQty: number, staffName: string): InventoryItem[] {
   const items = getStoredInventory();
   const item = items.find((i) => i.id === id);
@@ -61,10 +45,8 @@ export function restockItem(id: string, addQty: number, staffName: string): Inve
 
   if (item) {
     addActivityLog({
-      id: `${Date.now()}`,
       type: "restock",
       message: `Staff: ${staffName} has Restocked stock: ${addQty}x ${item.name}`,
-      timestamp: new Date().toISOString(),
     });
   }
 
@@ -85,10 +67,8 @@ export function updateItem(
 
   if (item && updates.currentStock !== undefined && updates.currentStock !== oldStock) {
     addActivityLog({
-      id: `${Date.now()}`,
       type: "update",
       message: `Staff: ${staffName} has Updated stock: ${item.name} ${oldStock} → ${updates.currentStock}`,
-      timestamp: new Date().toISOString(),
     });
   }
 

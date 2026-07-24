@@ -2,6 +2,7 @@
 
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Order, OrderStatus } from "../../../staff/(dashboard)/types";
+import GroupedItemsList from "../GroupedItemsList";
 
 interface OrderCardProps {
   order: Order;
@@ -25,24 +26,23 @@ export default function OrderCard({ order, onMoveBack, onMoveForward }: OrderCar
 
   return (
     <div className="bg-white rounded-xl shadow-md p-5 flex flex-wrap items-center justify-between gap-4">
-      <div className="min-w-[160px]">
-        <p className="font-bold text-gray-800">{order.customer}</p>
-        <p className="text-sm text-gray-500">{order.contact}</p>
+      <div className="min-w-[160px] max-w-[220px]">
+        <p className="font-bold text-gray-800 truncate" title={order.customer}>
+          {order.customer}
+        </p>
+        <p className="text-sm text-gray-500 truncate" title={order.contact}>
+          {order.contact}
+        </p>
         <p className="text-sm text-gray-500">{order.time}</p>
         <p className="text-sm text-gray-500">{order.date}</p>
       </div>
 
-      <div className="flex-1 min-w-[200px]">
+      <div className="flex-1 min-w-[200px] max-w-full">
         <p className="text-xs text-gray-400 mb-1">Service</p>
-        {order.items && order.items.length > 0 ? (
-          order.items.map((item, i) => (
-            <p key={i} className="font-medium text-gray-800 text-sm">
-              {item}
-            </p>
-          ))
-        ) : (
-          <p className="text-sm text-gray-400">No items listed</p>
-        )}
+        <GroupedItemsList
+          items={order.items || []}
+          itemClassName="font-medium text-gray-800 text-sm"
+        />
       </div>
 
       <div className="text-right">

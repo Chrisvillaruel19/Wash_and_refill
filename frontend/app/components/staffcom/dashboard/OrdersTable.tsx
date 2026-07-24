@@ -1,12 +1,15 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import { Search } from "lucide-react";
 import { Order, OrderStatus } from "../../../staff/(dashboard)/types";
 
 interface OrdersTableProps {
   orders: Order[];
 }
+
+const RECENT_LIMIT = 10;
 
 const filters: ("All" | OrderStatus)[] = ["All", "Pending", "In progress", "Ready", "Claimed"];
 
@@ -31,8 +34,19 @@ export default function OrdersTable({ orders }: OrdersTableProps) {
     });
   }, [orders, activeFilter, search]);
 
+  const isFiltering = activeFilter !== "All" || search !== "";
+  const displayedOrders = isFiltering ? filteredOrders : filteredOrders.slice(0, RECENT_LIMIT);
+
   return (
     <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-xs text-gray-400">
+          {isFiltering ? "Search results" : `${RECENT_LIMIT} most recent orders`}
+        </p>
+        <Link href="/staff/service" className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+          View all in Service →
+        </Link>
+      </div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-5 gap-3">
     <div className="flex gap-2 flex-wrap">
           {filters.map((f) => (
@@ -81,8 +95,8 @@ export default function OrdersTable({ orders }: OrdersTableProps) {
             </tr>
           </thead>
           <tbody>
-            {filteredOrders.length > 0 ? (
-              filteredOrders.map((order) => (
+            {displayedOrders.length > 0 ? (
+              displayedOrders.map((order) => (
                 <tr key={order.id} className="border-b last:border-0">
                   <td className="py-3 pr-4 text-gray-900">{order.customer}</td>
                   <td className="py-3 pr-4 text-gray-900">{order.contact}</td>
@@ -97,7 +111,7 @@ export default function OrdersTable({ orders }: OrdersTableProps) {
               ))
             ) : (
               <tr>
-                <td colSpan={7} className="py-6 text-center text-gray-400">
+                <td colSpan={7} className="p-8 text-center text-gray-400">
                   No orders found.
                 </td>
               </tr>

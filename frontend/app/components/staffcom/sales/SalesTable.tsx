@@ -1,4 +1,5 @@
 import { Order, OrderStatus } from "../../../staff/(dashboard)/types";
+import { formatGroupedItems } from "../../../lib/groupItems";
 
 interface SalesTableProps {
   orders: Order[];
@@ -35,9 +36,12 @@ export default function SalesTable({ orders }: SalesTableProps) {
                   <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">{order.date}</td>
                   <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">{order.contact}</td>
                   <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">{order.staffName || "N/A"}</td>
-                  <td className="p-3 sm:p-4 font-medium max-w-[200px] truncate text-gray-900">
+                  <td
+                    className="p-3 sm:p-4 font-medium max-w-[200px] truncate text-gray-900"
+                    title={order.items && order.items.length > 0 ? formatGroupedItems(order.items) : undefined}
+                  >
                     {order.items && order.items.length > 0
-                      ? order.items.join(", ")
+                      ? formatGroupedItems(order.items)
                       : "—"}
                   </td>
                   <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">₱{order.amount.toFixed(2)}</td>

@@ -14,7 +14,7 @@ export interface LowStockItem {
 
 export interface ActivityLog {
   id: string;
-  type: "update" | "restock" | "add";
+  type: "update" | "restock" | "add" | "order" | "expense" | "clockin" | "clockout" | "status";
   message: string;
   timestamp: string;
 }
@@ -42,4 +42,46 @@ export interface InventoryItem {
   lowStockAlert: number;
   unit: string;
   price: number;
+}
+
+export interface AttendanceRecord {
+  id: string;
+  staffName: string;
+  date: string;
+  timeIn: string;
+  timeOut: string | null;
+  totalHours: number | null;
+  status: "Present";
+}
+
+export type ExpenseCategory =
+  | "Supplies & Materials"
+  | "Utilities"
+  | "Equipment Repair"
+  | "Rent"
+  | "Other";
+
+export interface ExpenseRecord {
+  id: string;
+  timestamp: string;
+  amount: number;
+  category: ExpenseCategory;
+  description: string;
+  submittedBy: string;
+  imageDataUrl?: string;
+}
+
+export interface ShiftHandoverRecord {
+  id: string;
+  timestamp: string;
+  staffName: string;
+  cashDrawer: number;
+  laundrySales: number;
+  supplySales: number;
+  withdrawals: number;
+  expense: number;
+  expectedCash: number;
+  actualCashCounted: number;
+  shortage: number;
+  notes: string;
 }

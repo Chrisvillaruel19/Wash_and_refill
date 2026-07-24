@@ -4,8 +4,12 @@ import { useEffect, useState } from "react";
 import SalesStats from "../../../components/staffcom/sales/SalesStats";
 import SalesFilters, { SalesFilter } from "../../../components/staffcom/sales/SalesFilters";
 import SalesTable from "../../../components/staffcom/sales/SalesTable";
+import Pagination from "../../../components/staffcom/Pagination";
+import { usePagination } from "../../../lib/usePagination";
 import { getStoredOrders } from "../localOrders";
 import { Order } from "../types";
+
+const PAGE_SIZE = 8;
 
 export default function SalesPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -32,10 +36,14 @@ export default function SalesPage() {
     return matchesFilter && matchesDate;
   });
 
+  const { page, setPage, totalPages, paginatedItems } = usePagination(
+    filteredOrders,
+    PAGE_SIZE,
+    `${activeFilter}-${searchDate}`
+  );
+
   return (
     <div className="p-4 sm:p-6">
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">Sales</h1>
-
       <SalesStats
         totalPending={totalPending}
         totalInProgress={totalInProgress}
@@ -47,7 +55,8 @@ export default function SalesPage() {
         searchDate={searchDate}
         onSearchDateChange={setSearchDate}
       />
-      <SalesTable orders={filteredOrders} />
+      <SalesTable orders={paginatedItems} />
+      <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
     </div>
   );
 }

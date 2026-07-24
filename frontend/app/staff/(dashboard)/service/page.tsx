@@ -4,8 +4,13 @@ import { useState, useEffect } from "react";
 import { Clock, RefreshCw, CheckCircle2, ClipboardCheck, Search } from "lucide-react";
 import OrderCard from "../../../components/staffcom/service/OrderCard";
 import ConfirmClaimModal from "../../../components/staffcom/service/ConfirmClaimModal";
+import Pagination from "../../../components/staffcom/Pagination";
+import { usePagination } from "../../../lib/usePagination";
 import { getStoredOrders, updateOrderStatus } from "../localOrders";
+import { getCurrentUser } from "../../../lib/auth";
 import { Order, OrderStatus } from "../types";
+
+const PAGE_SIZE = 6;
 
 const statusFlow: OrderStatus[] = ["Pending", "In progress", "Ready", "Claimed"];
 
@@ -16,6 +21,8 @@ export default function ServicePage() {
   const [activeFilter, setActiveFilter] = useState<"All" | OrderStatus>("All");
   const [search, setSearch] = useState("");
   const [pendingClaimId, setPendingClaimId] = useState<string | null>(null);
+
+  const staffName = getCurrentUser()?.name || "Unknown";
 
   useEffect(() => {
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -37,13 +44,13 @@ export default function ServicePage() {
       return;
     }
 
-    const updated = updateOrderStatus(orderId, nextStatus);
+    const updated = updateOrderStatus(orderId, nextStatus, staffName);
     setOrders(updated);
   }
 
   function confirmClaim() {
     if (!pendingClaimId) return;
-    const updated = updateOrderStatus(pendingClaimId, "Claimed");
+    const updated = updateOrderStatus(pendingClaimId, "Claimed", staffName);
     setOrders(updated);
     setPendingClaimId(null);
   }
@@ -68,33 +75,39 @@ export default function ServicePage() {
   return matchesFilter && matchesSearch;
 });
 
+  const { page, setPage, totalPages, paginatedItems } = usePagination(
+    filteredOrders,
+    PAGE_SIZE,
+    `${activeFilter}-${search}`
+  );
+
   return (
-    <div>
+    <div className="p-4 sm:p-6">
       <h1 className="text-2xl font-bold text-gray-800 mb-6">Service Management</h1>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        <div className="bg-white rounded-xl shadow-sm p-4 sm:p-5 flex items-center justify-between">
+        <div className="bg-white rounded-xl shadow-md p-4 sm:p-5 flex items-center justify-between">
           <div>
             <p className="text-gray-500 text-sm">Pending</p>
             <p className="text-2xl font-bold text-orange-500 mt-1">{counts.Pending}</p>
           </div>
           <Clock size={28} className="text-orange-500 shrink-0" />
         </div>
-        <div className="bg-white rounded-xl shadow-sm p-4 sm:p-5 flex items-center justify-between">
+        <div className="bg-white rounded-xl shadow-md p-4 sm:p-5 flex items-center justify-between">
           <div>
             <p className="text-gray-500 text-sm">In Progress</p>
             <p className="text-2xl font-bold text-blue-600 mt-1">{counts["In progress"]}</p>
           </div>
           <RefreshCw size={28} className="text-blue-600 shrink-0" />
         </div>
-        <div className="bg-white rounded-xl shadow-sm p-4 sm:p-5 flex items-center justify-between">
+        <div className="bg-white rounded-xl shadow-md p-4 sm:p-5 flex items-center justify-between">
           <div>
             <p className="text-gray-500 text-sm">Ready</p>
             <p className="text-2xl font-bold text-green-600 mt-1">{counts.Ready}</p>
           </div>
           <CheckCircle2 size={28} className="text-green-600 shrink-0" />
         </div>
-        <div className="bg-white rounded-xl shadow-sm p-4 sm:p-5 flex items-center justify-between">
+        <div className="bg-white rounded-xl shadow-md p-4 sm:p-5 flex items-center justify-between">
           <div>
             <p className="text-gray-500 text-sm">Claimed</p>
             <p className="text-2xl font-bold text-gray-700 mt-1">{counts.Claimed}</p>
@@ -135,8 +148,8 @@ export default function ServicePage() {
       </div>
 
       <div className="space-y-4">
-        {filteredOrders.length > 0 ? (
-          filteredOrders.map((order) => (
+        {paginatedItems.length > 0 ? (
+          paginatedItems.map((order) => (
             <OrderCard
               key={order.id}
               order={order}
@@ -148,6 +161,8 @@ export default function ServicePage() {
           <p className="text-gray-400 text-center py-10">No orders found.</p>
         )}
       </div>
+
+      <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
 
       {pendingClaimId && (
         <ConfirmClaimModal

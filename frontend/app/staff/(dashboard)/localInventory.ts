@@ -74,3 +74,39 @@ export function updateItem(
 
   return updated;
 }
+
+export function addInventoryItem(item: Omit<InventoryItem, "id">): InventoryItem[] {
+  const items = getStoredInventory();
+
+  const newItem: InventoryItem = {
+    ...item,
+    id: `${Date.now()}`,
+  };
+
+  const updated = [newItem, ...items];
+  saveInventory(updated);
+
+  addActivityLog({
+    type: "add",
+    message: `Admin added a new catalog item: ${newItem.name}`,
+  });
+
+  return updated;
+}
+
+export function deleteInventoryItem(id: string): InventoryItem[] {
+  const items = getStoredInventory();
+  const target = items.find((i) => i.id === id);
+
+  const updated = items.filter((i) => i.id !== id);
+  saveInventory(updated);
+
+  if (target) {
+    addActivityLog({
+      type: "delete",
+      message: `Admin removed catalog item: ${target.name}`,
+    });
+  }
+
+  return updated;
+}

@@ -24,7 +24,8 @@ export interface ActivityLog {
     | "clockout"
     | "status"
     | "employee"
-    | "delete";
+    | "delete"
+    | "withdrawal";
   message: string;
   timestamp: string;
 }

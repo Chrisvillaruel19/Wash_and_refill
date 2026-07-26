@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 
 import {
@@ -18,6 +18,8 @@ import {
   X,
 } from "lucide-react";
 
+import { logout } from "../../lib/auth";
+
 const menuItems = [
   { label: "Dashboard", href: "/staff", icon: LayoutDashboard },
   { label: "New Order", href: "/staff/neworder", icon: ShoppingCart },
@@ -31,12 +33,18 @@ const menuItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
      // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsOpen(false);
   }, [pathname]);
+
+  function handleLogout() {
+    logout();
+    router.push("/");
+  }
 
   return (
     <>
@@ -102,7 +110,10 @@ export default function Sidebar() {
         </nav>
 
         <div className="p-5 border-t border-blue-500">
-          <button className="flex items-center justify-center gap-2 w-full bg-sky-700 hover:bg-sky-800 py-3 rounded-lg transition">
+          <button
+            onClick={handleLogout}
+            className="flex items-center justify-center gap-2 w-full bg-sky-700 hover:bg-sky-800 py-3 rounded-lg transition"
+          >
             <LogOut size={18} />
             Logout
           </button>

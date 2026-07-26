@@ -1,0 +1,277 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { Search } from "lucide-react";
+import { getActivityLogs } from "../../../staff/(dashboard)/localActivity";
+import { getStoredExpenses } from "../../../staff/(dashboard)/localExpense";
+import { getStoredWithdrawals, WithdrawalRecord } from "../../../lib/localWithdrawals";
+import { ActivityLog, ExpenseRecord } from "../../../staff/(dashboard)/types";
+import Pagination from "../../../components/staffcom/Pagination";
+import { usePagination } from "../../../lib/usePagination";
+
+const PAGE_SIZE = 8;
+
+type LogTab = "restock" | "expense" | "edited" | "withdrawal";
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString();
+}
+
+function formatTime(iso: string) {
+  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+export default function AdminLogsPage() {
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+  const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
+  const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>([]);
+  const [activeTab, setActiveTab] = useState<LogTab>("restock");
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setActivityLogs(getActivityLogs());
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setExpenses(getStoredExpenses());
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setWithdrawals(getStoredWithdrawals());
+  }, []);
+
+  const restockLogs = activityLogs.filter(
+    (l) => l.type === "restock" && l.message.toLowerCase().includes(search.toLowerCase())
+  );
+  const editedLogs = activityLogs.filter(
+    (l) => l.type === "update" && l.message.toLowerCase().includes(search.toLowerCase())
+  );
+  const filteredExpenses = expenses.filter(
+    (e) =>
+      e.category.toLowerCase().includes(search.toLowerCase()) ||
+      e.submittedBy.toLowerCase().includes(search.toLowerCase()) ||
+      e.description.toLowerCase().includes(search.toLowerCase())
+  );
+  const filteredWithdrawals = withdrawals.filter(
+    (w) =>
+      w.adminName.toLowerCase().includes(search.toLowerCase()) ||
+      w.reason.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const activityList = activeTab === "restock" ? restockLogs : editedLogs;
+
+  const {
+    page: activityPage,
+    setPage: setActivityPage,
+    totalPages: activityTotalPages,
+    paginatedItems: paginatedActivity,
+  } = usePagination(activityList, PAGE_SIZE, `${activeTab}-${search}`);
+
+  const {
+    page: expensePage,
+    setPage: setExpensePage,
+    totalPages: expenseTotalPages,
+    paginatedItems: paginatedExpenses,
+  } = usePagination(filteredExpenses, PAGE_SIZE, search);
+
+  const {
+    page: withdrawalPage,
+    setPage: setWithdrawalPage,
+    totalPages: withdrawalTotalPages,
+    paginatedItems: paginatedWithdrawals,
+  } = usePagination(filteredWithdrawals, PAGE_SIZE, search);
+
+  return (
+    <div className="p-4 sm:p-6">
+      <h1 className="text-2xl font-bold text-gray-800 mb-1">
+        {activeTab === "restock"
+          ? "Restock Logs"
+          : activeTab === "expense"
+          ? "Expense Logs"
+          : activeTab === "withdrawal"
+          ? "Withdrawal Logs"
+          : "Edited Logs"}
+      </h1>
+      <p className="text-gray-500 mb-6">
+        {activeTab === "expense" || activeTab === "withdrawal"
+          ? "Structured records — matches the underlying entity directly."
+          : "Activity log entries — shown as recorded, not reconstructed into extra columns."}
+      </p>
+
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-5 gap-3">
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={() => setActiveTab("restock")}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium border ${
+              activeTab === "restock"
+                ? "bg-blue-600 text-white border-blue-600"
+                : "text-gray-600 border-gray-300 hover:bg-gray-50"
+            }`}
+          >
+            View Restock Logs
+          </button>
+          <button
+            onClick={() => setActiveTab("expense")}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium border ${
+              activeTab === "expense"
+                ? "bg-blue-600 text-white border-blue-600"
+                : "text-gray-600 border-gray-300 hover:bg-gray-50"
+            }`}
+          >
+            View Expense Logs
+          </button>
+          <button
+            onClick={() => setActiveTab("edited")}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium border ${
+              activeTab === "edited"
+                ? "bg-blue-600 text-white border-blue-600"
+                : "text-gray-600 border-gray-300 hover:bg-gray-50"
+            }`}
+          >
+            View Edited Logs
+          </button>
+          <button
+            onClick={() => setActiveTab("withdrawal")}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium border ${
+              activeTab === "withdrawal"
+                ? "bg-blue-600 text-white border-blue-600"
+                : "text-gray-600 border-gray-300 hover:bg-gray-50"
+            }`}
+          >
+            View Withdrawal Logs
+          </button>
+        </div>
+
+        <div className="relative w-full sm:max-w-xs">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            name="logs-search"
+            autoComplete="off"
+            className="w-full pl-9 pr-4 py-1.5 border border-gray-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+          />
+        </div>
+      </div>
+
+      {activeTab === "expense" ? (
+        <>
+          <div className="bg-white rounded-xl shadow-md overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead>
+                  <tr className="text-gray-700 border-b bg-gray-50">
+                    <th className="p-3 whitespace-nowrap">Date</th>
+                    <th className="p-3 whitespace-nowrap">Time</th>
+                    <th className="p-3 whitespace-nowrap">Staff</th>
+                    <th className="p-3 whitespace-nowrap">Category</th>
+                    <th className="p-3 whitespace-nowrap">Amount</th>
+                    <th className="p-3 whitespace-nowrap">Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedExpenses.length > 0 ? (
+                    paginatedExpenses.map((e) => (
+                      <tr key={e.id} className="border-b last:border-0">
+                        <td className="p-3 whitespace-nowrap text-gray-900">{formatDate(e.timestamp)}</td>
+                        <td className="p-3 whitespace-nowrap text-gray-900">{formatTime(e.timestamp)}</td>
+                        <td className="p-3 whitespace-nowrap text-gray-900">{e.submittedBy}</td>
+                        <td className="p-3 whitespace-nowrap text-gray-900">{e.category}</td>
+                        <td className="p-3 whitespace-nowrap text-gray-900">₱{e.amount.toFixed(2)}</td>
+                        <td className="p-3 max-w-[240px] truncate text-gray-900" title={e.description}>
+                          {e.description}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-gray-400">
+                        No expense records found.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <Pagination page={expensePage} totalPages={expenseTotalPages} onPageChange={setExpensePage} />
+        </>
+      ) : activeTab === "withdrawal" ? (
+        <>
+          <div className="bg-white rounded-xl shadow-md overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead>
+                  <tr className="text-gray-700 border-b bg-gray-50">
+                    <th className="p-3 whitespace-nowrap">Date</th>
+                    <th className="p-3 whitespace-nowrap">Time</th>
+                    <th className="p-3 whitespace-nowrap">Admin</th>
+                    <th className="p-3 whitespace-nowrap">Amount</th>
+                    <th className="p-3">Reason</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedWithdrawals.length > 0 ? (
+                    paginatedWithdrawals.map((w) => (
+                      <tr key={w.id} className="border-b last:border-0">
+                        <td className="p-3 whitespace-nowrap text-gray-900">{formatDate(w.timestamp)}</td>
+                        <td className="p-3 whitespace-nowrap text-gray-900">{formatTime(w.timestamp)}</td>
+                        <td className="p-3 whitespace-nowrap text-gray-900">{w.adminName}</td>
+                        <td className="p-3 whitespace-nowrap text-gray-900">₱{w.amount.toFixed(2)}</td>
+                        <td className="p-3 text-gray-900">{w.reason}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={5} className="p-8 text-center text-gray-400">
+                        No withdrawal records found.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <Pagination
+            page={withdrawalPage}
+            totalPages={withdrawalTotalPages}
+            onPageChange={setWithdrawalPage}
+          />
+        </>
+      ) : (
+        <>
+          <div className="bg-white rounded-xl shadow-md overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead>
+                  <tr className="text-gray-700 border-b bg-gray-50">
+                    <th className="p-3 whitespace-nowrap">Date</th>
+                    <th className="p-3 whitespace-nowrap">Time</th>
+                    <th className="p-3">Details</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedActivity.length > 0 ? (
+                    paginatedActivity.map((l) => (
+                      <tr key={l.id} className="border-b last:border-0">
+                        <td className="p-3 whitespace-nowrap text-gray-900">{formatDate(l.timestamp)}</td>
+                        <td className="p-3 whitespace-nowrap text-gray-900">{formatTime(l.timestamp)}</td>
+                        <td className="p-3 text-gray-900">{l.message}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={3} className="p-8 text-center text-gray-400">
+                        No records found.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <Pagination page={activityPage} totalPages={activityTotalPages} onPageChange={setActivityPage} />
+        </>
+      )}
+    </div>
+  );
+}

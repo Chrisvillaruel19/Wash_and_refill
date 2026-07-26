@@ -1,3 +1,6 @@
+"use client";
+
+import { useRequireStaff } from "@/app/lib/useRequireStaff";
 import Sidebar from "@/app/components/staffcom/Sidebar";
 import PageHeader from "@/app/components/staffcom/PageHeader";
 
@@ -6,6 +9,12 @@ export default function StaffDashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const { checking } = useRequireStaff();
+
+  if (checking) {
+    return <p className="p-6 text-gray-400">Checking access...</p>;
+  }
+
   return (
     <div className="flex min-h-screen bg-sky-50">
       <Sidebar />

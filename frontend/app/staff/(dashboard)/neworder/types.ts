@@ -12,6 +12,13 @@ export interface ServiceItemOption {
   pricePerKg: number;
 }
 
+export interface ServiceItem {
+  id: string;
+  categoryId: string;
+  name: string;
+  pricePerKg: number;
+}
+
 export type ServiceType = "Wash & Dry" | "Wash Only" | "Dry Only";
 
 export interface Package {

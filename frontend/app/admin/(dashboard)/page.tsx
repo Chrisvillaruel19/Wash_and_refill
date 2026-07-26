@@ -8,6 +8,7 @@ import { getStoredOrders } from "../../staff/(dashboard)/localOrders";
 import { getLowStockItems } from "../../staff/(dashboard)/localInventory";
 import { getActivityLogs } from "../../staff/(dashboard)/localActivity";
 import { getStoredEmployees } from "../../lib/localEmployees";
+import { getStoredPackages } from "../../lib/localPackages";
 import {
   getOrderStatusCounts,
   getUnclaimedOrdersCount,
@@ -15,12 +16,14 @@ import {
   getBestSellingPackages,
 } from "../../lib/localStats";
 import { Order, LowStockItem, ActivityLog } from "../../staff/(dashboard)/types";
+import { Package } from "../../staff/(dashboard)/neworder/types";
 
 export default function AdminDashboardPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [lowStock, setLowStock] = useState<LowStockItem[]>([]);
   const [activity, setActivity] = useState<ActivityLog[]>([]);
   const [employeeCount, setEmployeeCount] = useState(0);
+  const [packages, setPackages] = useState<Package[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -33,12 +36,14 @@ export default function AdminDashboardPage() {
     }));
     const activityLogs = getActivityLogs();
     const employees = getStoredEmployees();
+    const storedPackages = getStoredPackages();
 
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setOrders(storedOrders);
     setLowStock(lowStockItems);
     setActivity(activityLogs);
     setEmployeeCount(employees.length);
+    setPackages(storedPackages);
     setLoading(false);
   }, []);
 
@@ -49,7 +54,7 @@ export default function AdminDashboardPage() {
   const totalCashToday = getTotalCashToday(orders);
   const unclaimedOrders = getUnclaimedOrdersCount(orders);
   const statusCounts = getOrderStatusCounts(orders);
-  const bestSelling = getBestSellingPackages(orders);
+  const bestSelling = getBestSellingPackages(orders, packages);
 
   return (
     <div className="p-4 sm:p-6">

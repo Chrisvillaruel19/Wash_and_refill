@@ -2,12 +2,14 @@
 
 interface ConfirmDeleteModalProps {
   itemName: string;
+  warning?: string;
   onConfirm: () => void;
   onCancel: () => void;
 }
 
 export default function ConfirmDeleteModal({
   itemName,
+  warning,
   onConfirm,
   onCancel,
 }: ConfirmDeleteModalProps) {
@@ -15,9 +17,14 @@ export default function ConfirmDeleteModal({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-2xl p-8 w-full max-w-md">
         <h2 className="text-xl font-bold mb-2 text-gray-900">Delete Item</h2>
-        <p className="text-gray-600 mb-6">
+        <p className="text-gray-600 mb-4">
           Are you sure you want to delete {itemName}? This cannot be undone.
         </p>
+        {warning && (
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg py-2 px-3 mb-4">
+            {warning}
+          </p>
+        )}
         <div className="flex justify-end gap-3">
           <button
             onClick={onCancel}

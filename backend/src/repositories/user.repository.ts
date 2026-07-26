@@ -1,5 +1,5 @@
-import { prisma } from "@/lib/prisma";
-
+import { prisma } from "../lib/prisma.js";
+import { Role } from "../../generated/prisma/client.js";
 export class UserRepository {
 
   async findByUsername(username: string) {
@@ -10,6 +10,7 @@ export class UserRepository {
       select: {
         id: true,
         username: true,
+        email: true,
         password: true,
         role: true,
         accountStatus: true,
@@ -32,12 +33,27 @@ export class UserRepository {
     });
   }
 
+  async findByEmail(email: string) {
+    return await prisma.user.findFirst({
+      where: {
+        email,
+      },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        password: true,
+        role: true,
+        accountStatus: true,
+      },
+    });
+  }
 
   async create(data: {
     username: string;
     email: string;
     password: string;
-    role?: "STAFF" | "ADMIN";
+    role?: Role;
   }) {
     return await prisma.user.create({
       data,
@@ -49,5 +65,24 @@ export class UserRepository {
       },
     });
   }
+
+
+
+  async updatePassword(id: string, password: string) {
+  return await prisma.user.update({
+    where: {
+      id,
+    },
+    data: {
+      password,
+    },
+    select: {
+      id: true,
+      username: true,
+      email: true,
+      role: true,
+    },
+  });
+}
 
 }

@@ -1,2 +1,5 @@
-export {loginSchema} from "@/schema/auth/login.schema";
-export {refreshTokenSchema} from "@/schema/auth/refresh-token.schema";
+export { loginSchema } from "./login.schema.js";
+export { refreshTokenSchema } from "./refresh-token.schema.js";
+export { forgotPasswordSchema } from "./forgot-password.schema.js";
+export { resetPasswordSchema } from "./reset-password.schema.js";
+

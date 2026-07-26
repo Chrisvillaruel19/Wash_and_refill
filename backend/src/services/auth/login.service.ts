@@ -1,11 +1,11 @@
-import { UserRepository } from "@/repositories/user.repository";
-import { TokenRepository } from "@/repositories/token.repository";
-// import { verifyPassword } from "@/utils/password";
+import { UserRepository } from "../../repositories/user.repository.js";
+import { TokenRepository } from "../../repositories/token.repository.js";
+import { verifyPassword } from "../../utils/password.js";
 import { 
   signAccessToken, 
   signRefreshToken, 
   TokenExpiry 
-} from "@/lib/jwt";
+} from "../../lib/jwt.js";
 
 const userRepository = new UserRepository();
 const tokenRepository = new TokenRepository();
@@ -29,13 +29,13 @@ export async function LoginService(
     }
 
 
-    // if (!verifyPassword(password, user.password)) {
-    //   return {
-    //     code: 401,
-    //     status: "error",
-    //     message: "Invalid username or password"
-    //   };
-    // }
+    if (!verifyPassword(password, user.password)) {
+      return {
+        code: 401,
+        status: "error",
+        message: "Invalid username or password"
+      };
+    }
 
 
     if (user.accountStatus !== "ACTIVE") {

@@ -1,15 +1,15 @@
 "use client";
 
-import { useRequireStaff } from "@/app/lib/useRequireStaff";
-import Sidebar from "@/app/components/staffcom/Sidebar";
-import PageHeader from "@/app/components/staffcom/PageHeader";
+import { useRequireAdmin } from "../../lib/useRequireAdmin";
+import AdminSidebar from "../../components/admincom/AdminSidebar";
+import AdminPageHeader from "../../components/admincom/AdminPageHeader";
 
-export default function StaffDashboardLayout({
+export default function AdminDashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { checking } = useRequireStaff();
+  const { checking } = useRequireAdmin();
 
   if (checking) {
     return <p className="p-6 text-gray-400">Checking access...</p>;
@@ -17,11 +17,9 @@ export default function StaffDashboardLayout({
 
   return (
     <div className="flex min-h-screen bg-sky-50">
-      <Sidebar />
-
+      <AdminSidebar />
       <main className="flex-1 flex flex-col min-w-0">
-        <PageHeader />
-
+        <AdminPageHeader />
         <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-x-hidden">
           {children}
         </div>

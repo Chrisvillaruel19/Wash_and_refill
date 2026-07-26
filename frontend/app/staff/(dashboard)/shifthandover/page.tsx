@@ -6,7 +6,8 @@ import { getStoredExpenses } from "../localExpense";
 import { getStoredInventory } from "../localInventory";
 import { submitShiftHandover, getStoredShiftHandovers } from "../localShiftHandover";
 import { getCurrentUser } from "../../../lib/auth";
-import { packages } from "../neworder/data";
+import { getStoredPackages } from "../../../lib/localPackages";
+import { Package } from "../neworder/types";
 import { Order, ExpenseRecord, InventoryItem, ShiftHandoverRecord } from "../types";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
@@ -22,6 +23,7 @@ export default function ShiftHandover() {
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [history, setHistory] = useState<ShiftHandoverRecord[]>([]);
+  const [packages, setPackages] = useState<Package[]>([]);
   const [actualCashCounted, setActualCashCounted] = useState(0);
   const [notes, setNotes] = useState("");
 
@@ -36,6 +38,8 @@ export default function ShiftHandover() {
     setInventory(getStoredInventory());
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setHistory(getStoredShiftHandovers());
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPackages(getStoredPackages());
   }, []);
 
   // Order items are stored as either the plain package name ("Basic") or,

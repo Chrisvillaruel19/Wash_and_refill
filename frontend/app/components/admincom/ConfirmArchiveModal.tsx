@@ -1,0 +1,39 @@
+"use client";
+
+interface ConfirmArchiveModalProps {
+  employeeName: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+export default function ConfirmArchiveModal({
+  employeeName,
+  onConfirm,
+  onCancel,
+}: ConfirmArchiveModalProps) {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl p-8 w-full max-w-md">
+        <h2 className="text-xl font-bold mb-2 text-gray-900">Archive Employee</h2>
+        <p className="text-gray-600 mb-6">
+          Are you sure you want to archive {employeeName}? They will no longer be
+          able to log in until restored.
+        </p>
+        <div className="flex justify-end gap-3">
+          <button
+            onClick={onCancel}
+            className="px-5 py-2 rounded-lg border border-gray-300 text-gray-600 font-medium hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-5 py-2 rounded-lg border border-red-400 text-red-500 font-medium hover:bg-red-50"
+          >
+            Archive
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

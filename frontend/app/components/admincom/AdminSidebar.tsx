@@ -7,11 +7,12 @@ import { useState, useEffect } from "react";
 
 import {
   LayoutDashboard,
-  ShoppingCart,
-  ClipboardList,
-  Package,
-  DollarSign,
   Users,
+  Package,
+  ClipboardList,
+  Archive,
+  FileText,
+  DollarSign,
   CalendarDays,
   LogOut,
   Menu,
@@ -21,23 +22,23 @@ import {
 import { logout } from "../../lib/auth";
 
 const menuItems = [
-  { label: "Dashboard", href: "/staff", icon: LayoutDashboard },
-  { label: "New Order", href: "/staff/neworder", icon: ShoppingCart },
-  { label: "Services", href: "/staff/service", icon: ClipboardList },
-  { label: "Sales", href: "/staff/sales", icon: DollarSign },
-  { label: "inventory", href: "/staff/inventory", icon: Package },
-  { label: "Expenses", href: "/staff/expense", icon: DollarSign },
-  { label: "Shift Handover", href: "/staff/shifthandover", icon: Users },
-  { label: "Attendance", href: "/staff/attendance", icon: CalendarDays },
+  { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
+  { label: "Employee", href: "/admin/employee", icon: Users },
+  { label: "Catalog", href: "/admin/catalog", icon: Package },
+  { label: "Laundry", href: "/admin/claim_monitoring", icon: ClipboardList },
+  { label: "Archive", href: "/admin/archive", icon: Archive },
+  { label: "Logs", href: "/admin/logs", icon: FileText },
+  { label: "Sales", href: "/admin/sales", icon: DollarSign },
+  { label: "Attendance", href: "/admin/attendance", icon: CalendarDays },
 ];
 
-export default function Sidebar() {
+export default function AdminSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
-     // eslint-disable-next-line react-hooks/set-state-in-effect
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsOpen(false);
   }, [pathname]);
 

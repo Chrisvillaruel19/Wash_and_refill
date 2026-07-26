@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Shirt, LayoutGrid } from "lucide-react";
 import CustomerInfoForm from "../../../components/staffcom/neworder/CustomerInfoForm";
 import PackageGrid from "../../../components/staffcom/neworder/PackageGrid";
 import OrderSummary from "../../../components/staffcom/neworder/OrderSummary";
 import NewOrderModals from "../../../components/staffcom/neworder/NewOrderModals";
-import { ServiceCategory, CartItem, PaymentMethod } from "./types";
+import { ServiceCategory, CartItem, PaymentMethod, Package, ServiceItem } from "./types";
 import { Order } from "../types";
-import { packages, supplies, serviceCategories, serviceItemsByCategory } from "./data";
+import { supplies, serviceCategories } from "./data";
+import { getStoredPackages } from "../../../lib/localPackages";
+import { getStoredServices } from "../../../lib/localServices";
 import { addStoredOrder } from "../localOrders";
 import { getCurrentUser } from "../../../lib/auth";
 
@@ -18,10 +20,19 @@ export default function NewOrderPage() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("Cash");
   const [amountPaid, setAmountPaid] = useState(0);
+  const [packages, setPackages] = useState<Package[]>([]);
+  const [services, setServices] = useState<ServiceItem[]>([]);
 
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showSuppliesModal, setShowSuppliesModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<ServiceCategory | null>(null);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPackages(getStoredPackages());
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setServices(getStoredServices());
+  }, []);
 
   function addToCart(newItem: CartItem) {
     setCartItems((prev) => {
@@ -148,7 +159,9 @@ export default function NewOrderPage() {
         categories={serviceCategories}
         onCategorySelect={handleCategorySelect}
         selectedCategory={selectedCategory}
-        itemOptions={selectedCategory ? serviceItemsByCategory[selectedCategory.id] || [] : []}
+        itemOptions={
+          selectedCategory ? services.filter((s) => s.categoryId === selectedCategory.id) : []
+        }
         onServiceConfirm={handleServiceConfirm}
         onServiceCancel={() => setSelectedCategory(null)}
         showSuppliesModal={showSuppliesModal}

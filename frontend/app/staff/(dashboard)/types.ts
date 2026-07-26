@@ -14,7 +14,18 @@ export interface LowStockItem {
 
 export interface ActivityLog {
   id: string;
-  type: "update" | "restock" | "add" | "order" | "expense" | "clockin" | "clockout" | "status";
+  type:
+    | "update"
+    | "restock"
+    | "add"
+    | "order"
+    | "expense"
+    | "clockin"
+    | "clockout"
+    | "status"
+    | "employee"
+    | "delete"
+    | "withdrawal";
   message: string;
   timestamp: string;
 }

@@ -1,19 +1,39 @@
 import { Router } from "express";
-import {
-  login,
-  register,
-  logout,
-  forgotPassword,
-  verifyOtp,
-  resetPassword,
-} from "@/controllers/auth.controller.js";
+import { loginSchema, refreshTokenSchema, forgotPasswordSchema, resetPasswordSchema } from "../schema/auth/index.js";
+import { AuthController } from "../controllers/auth.controller.js";
+import { validateSchema } from "../middlewares/validate-schema.js";
 
 const router = Router();
 
-router.post("/login", login);
-router.post("/logout", logout);
-router.post("/forgot-password", forgotPassword);
-router.post("/verify-otp", verifyOtp);
-router.post("/reset-password", resetPassword);
+const authController = new AuthController();
+
+router.post(
+  "/login",
+  validateSchema(loginSchema),
+  authController.login
+);
+
+router.post(
+  "/refresh-token",
+  validateSchema(refreshTokenSchema),
+  authController.refresh
+);
+
+router.post(
+  "/logout",
+  authController.logout
+);
+
+router.post(
+  "/forgot-password",
+  validateSchema(forgotPasswordSchema),
+  authController.forgotPassword
+);
+
+router.post(
+  "/reset-password",
+  validateSchema(resetPasswordSchema),
+  authController.resetPassword
+);
 
 export default router;

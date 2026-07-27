@@ -1,22 +1,18 @@
-﻿import { Router } from "express";
-import {
-  createEmployee,
-  getEmployees,
-  getEmployeeById,
-  updateEmployee,
-  resetEmployeePassword,
-  archiveEmployee,
-  recoverEmployee,
-} from "@/controllers/employee.controller.js";
+import { Router } from "express";
+import { EmployeeController } from "../controllers/employee.controller.js";
+import { validateSchema } from "../middlewares/validate-schema.js";
+import { createEmployeeSchema } from "../schema/employee/create-employee.schema.js";
 
 const router = Router();
 
-router.post("/", createEmployee);
-router.get("/", getEmployees);
-router.get("/:id", getEmployeeById);
-router.patch("/:id", updateEmployee);
-router.post("/:id/reset-password", resetEmployeePassword);
-router.patch("/:id/archive", archiveEmployee);
-router.patch("/:id/recover", recoverEmployee);
+const employeeController = new EmployeeController();
+
+
+router.post(
+  "/create",
+  validateSchema(createEmployeeSchema),
+  employeeController.create
+);
+
 
 export default router;

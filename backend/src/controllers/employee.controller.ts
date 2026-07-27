@@ -1,29 +1,46 @@
-﻿import { Request, Response } from "express";
+import { Request, Response } from "express";
+import { createEmployeeService } from "../services/employee/create-employee.service.js";
 
-export const createEmployee = (req: Request, res: Response) => {
-  return res.json({ message: "Create employee controller working", body: req.body });
-};
+export class EmployeeController {
 
-export const getEmployees = (req: Request, res: Response) => {
-  return res.json({ message: "Get employees controller working" });
-};
 
-export const getEmployeeById = (req: Request, res: Response) => {
-  return res.json({ message: "Get employee by ID controller working", id: req.params.id });
-};
+  public create = async (req: Request, res: Response) => {
 
-export const updateEmployee = (req: Request, res: Response) => {
-  return res.json({ message: "Update employee controller working", id: req.params.id, body: req.body });
-};
+    try {
 
-export const resetEmployeePassword = (req: Request, res: Response) => {
-  return res.json({ message: "Reset employee password controller working", id: req.params.id });
-};
+      const {
+        username,
+        email,
+        password,
+      } = req.body;
 
-export const archiveEmployee = (req: Request, res: Response) => {
-  return res.json({ message: "Archive employee controller working", id: req.params.id });
-};
+      const result = await createEmployeeService(
+        username,
+        email,
+        password
+      );
 
-export const recoverEmployee = (req: Request, res: Response) => {
-  return res.json({ message: "Recover employee controller working", id: req.params.id });
-};
+
+      return res
+        .status(result.code)
+        .json(result);
+
+
+    } catch(error) {
+
+      console.error(
+        "EmployeeController.create error:",
+        error
+      );
+
+
+      return res.status(500).json({
+        status: "error",
+        message: "Unable to create employee"
+      });
+
+    }
+
+  };
+
+}

@@ -58,7 +58,8 @@ model Token {
   type        TokenType
   expiresAt   DateTime
 
-  createdAt   DateTime @default(now())
+  consumedAt  DateTime?
+  revokedAt   DateTime?
 }
 enum TokenType {
   REFRESH

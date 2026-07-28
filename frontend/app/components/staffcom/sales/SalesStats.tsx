@@ -1,19 +1,21 @@
-import { Clock, RefreshCw, CheckCircle2 } from "lucide-react";
+import { Clock, RefreshCw, CheckCircle2, Wallet } from "lucide-react";
 import StatCard from "../dashboard/StatCard";
 
 interface SalesStatsProps {
   totalPending: number;
   totalInProgress: number;
   totalClaimed: number;
+  averageOrderValue: number;
 }
 
 export default function SalesStats({
   totalPending,
   totalInProgress,
   totalClaimed,
+  averageOrderValue,
 }: SalesStatsProps) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
       <StatCard
         label="Total pending"
         value={totalPending}
@@ -31,6 +33,12 @@ export default function SalesStats({
         value={totalClaimed}
         icon={CheckCircle2}
         iconColor="text-green-600 bg-green-100"
+      />
+      <StatCard
+        label="Average order value"
+        value={`₱${averageOrderValue.toFixed(2)}`}
+        icon={Wallet}
+        iconColor="text-purple-600 bg-purple-100"
       />
     </div>
   );

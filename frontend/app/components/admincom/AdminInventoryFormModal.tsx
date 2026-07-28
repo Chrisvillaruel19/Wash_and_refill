@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { InventoryItem } from "../../staff/(dashboard)/types";
+import { isCriticalInventoryItem } from "../../staff/(dashboard)/localInventory";
 
 export interface InventoryFormData {
   name: string;
@@ -45,9 +46,17 @@ export default function AdminInventoryFormModal({
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl p-6 sm:p-8 w-full max-w-md max-h-[90vh] overflow-y-auto">
-        <h2 className="text-xl font-bold mb-6 text-gray-900">
+        <h2 className="text-xl font-bold mb-2 text-gray-900">
           {isEdit ? "Edit Item" : "Add Item"}
         </h2>
+
+        {isEdit && initialItem && isCriticalInventoryItem(initialItem) && (
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg py-2 px-3 mb-4">
+            This item&apos;s name is used to match stock deductions to specific packages or
+            supplies sold at checkout. Renaming or deleting it will silently stop those
+            deductions from working correctly.
+          </p>
+        )}
 
         {error && (
           <p className="text-red-600 text-sm mb-4 bg-red-50 border border-red-200 rounded-lg py-2 px-3">

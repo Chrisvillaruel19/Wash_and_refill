@@ -1,18 +1,37 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Shirt, LayoutGrid } from "lucide-react";
 import CustomerInfoForm from "../../../components/staffcom/neworder/CustomerInfoForm";
 import PackageGrid from "../../../components/staffcom/neworder/PackageGrid";
 import OrderSummary from "../../../components/staffcom/neworder/OrderSummary";
 import NewOrderModals from "../../../components/staffcom/neworder/NewOrderModals";
-import { ServiceCategory, CartItem, PaymentMethod, Package, ServiceItem } from "./types";
+import { ServiceCategory, CartItem, PaymentMethod, Package, ServiceItem, SupplyItem } from "./types";
 import { Order } from "../types";
-import { supplies, serviceCategories } from "./data";
+import { serviceCategories } from "./data";
 import { getStoredPackages } from "../../../lib/localPackages";
 import { getStoredServices } from "../../../lib/localServices";
 import { addStoredOrder } from "../localOrders";
+import { applyOrderStockImpact, getStoredInventory } from "../localInventory";
 import { getCurrentUser } from "../../../lib/auth";
+
+// Demo-mode fix: Laundry Supplies now reads live Admin-managed inventory
+// instead of a hardcoded list, so new items Admin adds show up immediately.
+// Two rows are both named "Liquid Detergent" (Sachet vs Liters) — this
+// suffixes the unit only when a name collides, reproducing the exact same
+// "Liquid Detergent (Sachet)" / "Liquid Detergent (Liters)" labels shown
+// today, so nothing changes for the existing items.
+function buildSupplyMenu(): SupplyItem[] {
+  const inventory = getStoredInventory();
+  const nameCounts = new Map<string, number>();
+  inventory.forEach((i) => nameCounts.set(i.name, (nameCounts.get(i.name) || 0) + 1));
+  return inventory.map((i) => ({
+    id: i.id,
+    name: (nameCounts.get(i.name) || 0) > 1 ? `${i.name} (${i.unit})` : i.name,
+    price: i.price,
+    unit: i.unit,
+  }));
+}
 
 export default function NewOrderPage() {
   const [customerName, setCustomerName] = useState("");
@@ -22,7 +41,13 @@ export default function NewOrderPage() {
   const [amountPaid, setAmountPaid] = useState(0);
   const [packages, setPackages] = useState<Package[]>([]);
   const [services, setServices] = useState<ServiceItem[]>([]);
+  const [supplies, setSupplies] = useState<SupplyItem[]>([]);
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  // React state updates aren't guaranteed to re-render before a second click
+  // event is dispatched, so the actual re-entrancy guard is this ref (set
+  // synchronously, immediately) — isSubmitting state just drives the UI.
+  const isSubmittingRef = useRef(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showSuppliesModal, setShowSuppliesModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<ServiceCategory | null>(null);
@@ -32,6 +57,8 @@ export default function NewOrderPage() {
     setPackages(getStoredPackages());
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setServices(getStoredServices());
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSupplies(buildSupplyMenu());
   }, []);
 
   function addToCart(newItem: CartItem) {
@@ -80,7 +107,9 @@ export default function NewOrderPage() {
   }
 
   function handleFinishTransaction() {
-    if (cartItems.length === 0) return;
+    if (cartItems.length === 0 || isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
 
     const total = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const now = new Date();
@@ -91,8 +120,10 @@ export default function NewOrderPage() {
       contact: phoneNumber || "N/A",
       time: now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       date: now.toLocaleDateString(),
+      createdAt: now.toISOString(),
       amount: total,
       payStatus: amountPaid >= total ? "Paid" : "UnPaid",
+      paymentMethod,
       status: "Pending",
       items: cartItems.map((item) =>
         item.quantity > 1 ? `${item.name} ×${item.quantity}` : item.name
@@ -101,12 +132,15 @@ export default function NewOrderPage() {
     };
 
     addStoredOrder(newOrder);
+    applyOrderStockImpact(newOrder.items || [], 1);
 
     alert("Transaction completed! Check your dashboard.");
     setCartItems([]);
     setCustomerName("");
     setPhoneNumber("");
     setAmountPaid(0);
+    isSubmittingRef.current = false;
+    setIsSubmitting(false);
   }
 
   return (
@@ -149,6 +183,7 @@ export default function NewOrderPage() {
             amountPaid={amountPaid}
             onAmountPaidChange={setAmountPaid}
             onFinishTransaction={handleFinishTransaction}
+            isSubmitting={isSubmitting}
           />
         </div>
       </div>

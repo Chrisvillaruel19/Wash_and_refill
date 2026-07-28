@@ -1,21 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getStoredOrders } from "../localOrders";
 import { getStoredExpenses } from "../localExpense";
 import { getStoredInventory } from "../localInventory";
-import { submitShiftHandover, getStoredShiftHandovers } from "../localShiftHandover";
+import {
+  submitShiftHandover,
+  getStoredShiftHandovers,
+  getLastHandoverTimestamp,
+  getCashDrawerStart,
+} from "../localShiftHandover";
 import { getCurrentUser } from "../../../lib/auth";
 import { getStoredPackages } from "../../../lib/localPackages";
 import { Package } from "../neworder/types";
+import { supplies } from "../neworder/data";
 import { Order, ExpenseRecord, InventoryItem, ShiftHandoverRecord } from "../types";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
 
-// No cash-drawer tracking feature exists yet, so this is a fixed starting float
-// until that's built. Withdrawals aren't tracked anywhere yet either, so that
-// figure is 0 for now rather than fabricated.
-const CASH_DRAWER_START = 5000;
+// Withdrawals aren't tracked anywhere yet, so that figure is 0 for now
+// rather than fabricated.
 const PAGE_SIZE = 6;
 
 export default function ShiftHandover() {
@@ -26,6 +30,8 @@ export default function ShiftHandover() {
   const [packages, setPackages] = useState<Package[]>([]);
   const [actualCashCounted, setActualCashCounted] = useState(0);
   const [notes, setNotes] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   const staffName = getCurrentUser()?.name || "Unknown";
 
@@ -55,9 +61,52 @@ export default function ShiftHandover() {
     return 0;
   }
 
+  // Shift scoping (Option B, confirmed): "my current shift" = everything
+  // since MY most recently submitted handover, or everything if I've never
+  // submitted one. Shared with Attendance's clock-out guard via
+  // localShiftHandover.ts so both use the same "unreported" definition.
+  const lastHandoverTimestamp = getLastHandoverTimestamp(staffName, history);
+
+  // One shared physical drawer: starting cash = whatever the single most
+  // recent handover (any staff member) actually counted at close-out.
+  const cashDrawerStart = getCashDrawerStart(history);
+
+  // Orders created before the createdAt field existed have no reliable
+  // timestamp to compare — treated as outside the current shift rather
+  // than guessed at.
+  const shiftOrders = orders.filter(
+    (o) =>
+      o.staffName === staffName &&
+      !!o.createdAt &&
+      (!lastHandoverTimestamp || o.createdAt > lastHandoverTimestamp)
+  );
+
+  // Cash reconciliation only counts money actually collected — an UnPaid
+  // order hasn't put anything in the drawer yet, and a Cancelled order never
+  // happened at all. Same "Paid, not Cancelled" rule as computeStatsFromOrders.
+  const paidShiftOrders = shiftOrders.filter(
+    (o) => o.payStatus === "Paid" && o.status !== "Cancelled"
+  );
+
+  // GCash/digital payments don't put physical cash in the drawer — only
+  // Cash-method sales count toward the cash reconciliation below. Orders
+  // from before paymentMethod existed are treated as Cash, matching how
+  // every order was already implicitly counted before this field existed
+  // (not silently dropped from the cash count).
+  const cashPaidShiftOrders = paidShiftOrders.filter(
+    (o) => (o.paymentMethod ?? "Cash") === "Cash"
+  );
+  const cashSalesTotal = cashPaidShiftOrders.reduce((sum, o) => sum + o.amount, 0);
+
+  const shiftExpenses = expenses.filter(
+    (e) =>
+      e.submittedBy === staffName &&
+      (!lastHandoverTimestamp || e.timestamp > lastHandoverTimestamp)
+  );
+
   const dropOffSummary = packages
     .map((pkg) => {
-      const totalQty = orders.reduce((sum, o) => {
+      const totalQty = paidShiftOrders.reduce((sum, o) => {
         const orderQty = (o.items || []).reduce(
           (s, itemStr) => s + getItemQuantity(itemStr, pkg.name),
           0
@@ -73,27 +122,51 @@ export default function ShiftHandover() {
     })
     .filter((p) => p.totalOrders > 0);
 
-  const totalSales = orders.reduce((sum, o) => sum + o.amount, 0);
+  const totalSales = paidShiftOrders.reduce((sum, o) => sum + o.amount, 0);
+  const digitalSalesTotal = totalSales - cashSalesTotal;
   const laundrySales = dropOffSummary.reduce((sum, p) => sum + p.totalPrice, 0);
-  // Everything that isn't a recognized package (Basic/Double/Ultra/Legendary).
-  // This currently lumps custom per-kg laundry services in with supply sales
-  // since there's no separate "service revenue" category yet — labeled
-  // "Other sales" in the UI below rather than "Supply sales" so it isn't
-  // presented as more precise than it actually is.
-  const supplySales = Math.max(0, totalSales - laundrySales);
-  const withdrawals = 0;
-  const expenseTotal = expenses.reduce((sum, e) => sum + e.amount, 0);
 
-  const expectedCash =
-    CASH_DRAWER_START + laundrySales + supplySales - withdrawals - expenseTotal;
+  // Raw supplies sold individually (not part of a package) — matched the
+  // same way packages are matched above: exact name, or "name ×N" for
+  // multiples. Priced at each supply's current catalog price.
+  const supplySales = supplies.reduce((sum, supply) => {
+    const qty = paidShiftOrders.reduce((s, o) => {
+      const orderQty = (o.items || []).reduce(
+        (x, itemStr) => x + getItemQuantity(itemStr, supply.name),
+        0
+      );
+      return s + orderQty;
+    }, 0);
+    return sum + qty * supply.price;
+  }, 0);
+
+  // Custom per-kg services (rugs, carpets, bulk household items) don't have
+  // a fixed catalog entry the way packages/supplies do — price is set per
+  // order at checkout, so there's nothing to match by name. Their revenue is
+  // whatever's left after accounting for known packages and known supplies.
+  // Floored at 0 as a safety net.
+  const customServiceSales = Math.max(0, totalSales - laundrySales - supplySales);
+
+  const withdrawals = 0;
+  const expenseTotal = shiftExpenses.reduce((sum, e) => sum + e.amount, 0);
+
+  // Only Cash-method sales count toward the physical drawer — GCash sales
+  // are real revenue (shown above) but never touch this cash count.
+  const expectedCash = cashDrawerStart + cashSalesTotal - withdrawals - expenseTotal;
   const shortage = actualCashCounted - expectedCash;
 
   function handleSubmit() {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
+
     const updated = submitShiftHandover({
       staffName,
-      cashDrawer: CASH_DRAWER_START,
+      cashDrawer: cashDrawerStart,
       laundrySales,
       supplySales,
+      customServiceSales,
+      digitalSales: digitalSalesTotal,
       withdrawals,
       expense: expenseTotal,
       expectedCash,
@@ -104,6 +177,8 @@ export default function ShiftHandover() {
     setHistory(updated);
     setActualCashCounted(0);
     setNotes("");
+    isSubmittingRef.current = false;
+    setIsSubmitting(false);
   }
 
   const { page, setPage, totalPages, paginatedItems } = usePagination(history, PAGE_SIZE);
@@ -116,18 +191,22 @@ export default function ShiftHandover() {
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 mb-6">
         <h2 className="text-lg font-bold text-gray-900 mb-4">Current Shift Summary</h2>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
           <div>
             <p className="text-sm text-gray-500">Cash drawer</p>
-            <p className="text-lg font-bold text-gray-900">₱{CASH_DRAWER_START.toFixed(2)}</p>
+            <p className="text-lg font-bold text-gray-900">₱{cashDrawerStart.toFixed(2)}</p>
           </div>
           <div>
             <p className="text-sm text-gray-500">Laundry sales</p>
             <p className="text-lg font-bold text-gray-900">₱{laundrySales.toFixed(2)}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-500">Other sales</p>
+            <p className="text-sm text-gray-500">Supply sales</p>
             <p className="text-lg font-bold text-gray-900">₱{supplySales.toFixed(2)}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">Custom service sales</p>
+            <p className="text-lg font-bold text-gray-900">₱{customServiceSales.toFixed(2)}</p>
           </div>
           <div>
             <p className="text-sm text-gray-500">Expense</p>
@@ -207,7 +286,7 @@ export default function ShiftHandover() {
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
         <h2 className="text-lg font-bold text-gray-900 mb-4">Cash Reconciliation</h2>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-4">
           <div>
             <p className="text-sm text-gray-500">Expected Cash</p>
             <p className="text-xl font-bold text-gray-900">₱{expectedCash.toFixed(2)}</p>
@@ -228,6 +307,10 @@ export default function ShiftHandover() {
               ₱{shortage.toFixed(2)}
             </p>
           </div>
+          <div>
+            <p className="text-sm text-gray-500">GCash / digital (excluded above)</p>
+            <p className="text-xl font-bold text-gray-900">₱{digitalSalesTotal.toFixed(2)}</p>
+          </div>
         </div>
 
         <div className="mb-4">
@@ -242,9 +325,10 @@ export default function ShiftHandover() {
 
         <button
           onClick={handleSubmit}
-          className="w-full sm:w-auto bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700"
+          disabled={isSubmitting}
+          className="w-full sm:w-auto bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
         >
-          Submit records
+          {isSubmitting ? "Submitting..." : "Submit records"}
         </button>
       </div>
 

@@ -106,6 +106,11 @@ export default function AdminAttendancePage() {
                       <span className="px-3 py-1 rounded-full text-xs font-medium border text-green-600 border-green-300 bg-green-50">
                         {r.status}
                       </span>
+                      {r.autoClosed && (
+                        <span className="ml-1 px-3 py-1 rounded-full text-xs font-medium border text-amber-600 border-amber-300 bg-amber-50">
+                          Auto-closed
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))

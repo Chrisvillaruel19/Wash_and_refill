@@ -10,6 +10,7 @@ const statusStyles: Record<OrderStatus, string> = {
   "In progress": "text-blue-600",
   Ready: "text-purple-600",
   Claimed: "text-green-600",
+  Cancelled: "text-red-500",
 };
 
 export default function SalesTable({ orders }: SalesTableProps) {
@@ -25,6 +26,7 @@ export default function SalesTable({ orders }: SalesTableProps) {
               <th className="p-3 sm:p-4 whitespace-nowrap">Staff</th>
               <th className="p-3 sm:p-4 whitespace-nowrap">Laundry Items</th>
               <th className="p-3 sm:p-4 whitespace-nowrap">Total</th>
+              <th className="p-3 sm:p-4 whitespace-nowrap">Payment</th>
               <th className="p-3 sm:p-4 whitespace-nowrap">Status</th>
             </tr>
           </thead>
@@ -45,6 +47,18 @@ export default function SalesTable({ orders }: SalesTableProps) {
                       : "—"}
                   </td>
                   <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">₱{order.amount.toFixed(2)}</td>
+                  <td className="p-3 sm:p-4 whitespace-nowrap">
+                    <span
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
+                        order.payStatus === "Paid"
+                          ? "text-green-600 border-green-300 bg-green-50"
+                          : "text-red-600 border-red-300 bg-red-50"
+                      }`}
+                    >
+                      {order.payStatus}
+                      {order.payStatus === "Paid" && order.paymentMethod ? ` · ${order.paymentMethod}` : ""}
+                    </span>
+                  </td>
                   <td className={`p-3 sm:p-4 font-semibold whitespace-nowrap ${statusStyles[order.status]}`}>
                     {order.status}
                   </td>
@@ -52,7 +66,7 @@ export default function SalesTable({ orders }: SalesTableProps) {
               ))
             ) : (
               <tr>
-                <td colSpan={7} className="p-8 text-center text-gray-400">
+                <td colSpan={8} className="p-8 text-center text-gray-400">
                   No sales records found.
                 </td>
               </tr>

@@ -1,5 +1,6 @@
 import { InventoryItem } from "./types";
 import { addActivityLog } from "./localActivity";
+import { getStoredPackages } from "../../lib/localPackages";
 
 const INVENTORY_KEY = "wrlms_inventory";
 
@@ -91,6 +92,89 @@ export function addInventoryItem(item: Omit<InventoryItem, "id">): InventoryItem
     message: `Admin added a new catalog item: ${newItem.name}`,
   });
 
+  return updated;
+}
+
+// Scoped deliberately to ONLY the package-deduction dependency: these two
+// rows are matched directly by name (Downy) or name+unit (Sachet Liquid
+// Detergent) in applyOrderStockImpact's package loop below. Renaming or
+// deleting either one silently breaks every package sale's stock deduction.
+// Deliberately does NOT cover Fabcon/Bleach/Plastic/Liters-Liquid-Detergent —
+// those depend on a separate mechanism (the supply-deduction loop's static
+// catalog match), a distinct, larger architectural issue tracked separately
+// and not conflated with this warning. Exported purely to power an
+// editor-facing warning — it doesn't change any matching behavior.
+export function isCriticalInventoryItem(item: Pick<InventoryItem, "name" | "unit">): boolean {
+  if (item.name === "Downy") return true;
+  if (item.name === "Liquid Detergent" && item.unit === "Sachet") return true;
+  return false;
+}
+
+// Order items are stored as either a plain name ("Basic") or, when several
+// of the same item were added to one order, with a quantity suffix
+// ("Basic ×5"). Mirrors the identical helper already used by Shift Handover
+// and Admin Sales (see project_wrlms_known_issues on that duplication).
+function getItemQuantity(itemStr: string, name: string): number {
+  if (itemStr === name) return 1;
+  const prefix = `${name} ×`;
+  if (itemStr.startsWith(prefix)) {
+    const num = parseInt(itemStr.slice(prefix.length), 10);
+    return isNaN(num) ? 0 : num;
+  }
+  return 0;
+}
+
+// Applies (direction=1) or reverses (direction=-1) one order's raw-material
+// stock impact. Used both when an order is created (deduct) and when an
+// order is cancelled (restore) — same math, opposite sign, so the two paths
+// can never drift out of sync with each other.
+export function applyOrderStockImpact(items: string[], direction: 1 | -1): InventoryItem[] {
+  const inventory = getStoredInventory();
+  const packages = getStoredPackages();
+
+  // Two inventory items happen to share the name "Liquid Detergent" — one
+  // tracked in Sachets, one in Liters (a known duplicate-name data-model
+  // gap, see project_wrlms_known_issues). Packages' liquidDetergent counts
+  // (1-4) only make sense as sachets-per-load, so packages consume the
+  // Sachet-tracked item specifically, never the Liters one.
+  const detergentSachetItem = inventory.find(
+    (i) => i.name === "Liquid Detergent" && i.unit === "Sachet"
+  );
+  const downyItem = inventory.find((i) => i.name === "Downy");
+
+  const deltas = new Map<string, number>();
+  function addDelta(id: string | undefined, qty: number) {
+    if (!id || qty === 0) return;
+    deltas.set(id, (deltas.get(id) || 0) + qty * direction);
+  }
+
+  for (const pkg of packages) {
+    const qty = items.reduce((sum, itemStr) => sum + getItemQuantity(itemStr, pkg.name), 0);
+    if (qty === 0) continue;
+    addDelta(detergentSachetItem?.id, pkg.liquidDetergent * qty);
+    addDelta(downyItem?.id, pkg.downy * qty);
+  }
+
+  // Raw supplies sold directly (not part of a package) map 1:1 to whatever
+  // is currently in inventory (demo-mode fix: this used to match against a
+  // hardcoded list, which is why newly-added items were never deducted).
+  // Same "(Unit)" disambiguation as the checkout menu (neworder/page.tsx)
+  // for the two rows sharing the name "Liquid Detergent".
+  const nameCounts = new Map<string, number>();
+  inventory.forEach((i) => nameCounts.set(i.name, (nameCounts.get(i.name) || 0) + 1));
+  for (const invItem of inventory) {
+    const displayName =
+      (nameCounts.get(invItem.name) || 0) > 1 ? `${invItem.name} (${invItem.unit})` : invItem.name;
+    const qty = items.reduce((sum, itemStr) => sum + getItemQuantity(itemStr, displayName), 0);
+    addDelta(invItem.id, qty);
+  }
+
+  if (deltas.size === 0) return inventory;
+
+  const updated = inventory.map((i) =>
+    deltas.has(i.id) ? { ...i, currentStock: i.currentStock - (deltas.get(i.id) as number) } : i
+  );
+  saveInventory(updated);
   return updated;
 }
 

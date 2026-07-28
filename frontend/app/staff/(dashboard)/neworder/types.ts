@@ -44,4 +44,7 @@ export interface CartItem {
   quantity: number;
 }
 
-export type PaymentMethod = "Cash" | "GCash";
+// Canonical definition now lives on Order (../types.ts), since payment
+// method is persisted on the order itself. Re-exported here so existing
+// imports from this file (checkout UI) don't need to change.
+export type { PaymentMethod } from "../types";

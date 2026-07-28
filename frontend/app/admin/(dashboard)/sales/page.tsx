@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Wallet } from "lucide-react";
+import { Wallet, TrendingUp } from "lucide-react";
 import AdminStatCard from "../../../components/admincom/AdminStatCard";
 import AdminWithdrawalFormModal, {
   WithdrawalFormData,
@@ -10,7 +10,7 @@ import { getStoredOrders } from "../../../staff/(dashboard)/localOrders";
 import { getStoredPackages } from "../../../lib/localPackages";
 import { getStoredShiftHandovers } from "../../../staff/(dashboard)/localShiftHandover";
 import { getStoredWithdrawals, addWithdrawal } from "../../../lib/localWithdrawals";
-import { getTotalCashToday, getDropOffSummary } from "../../../lib/localStats";
+import { getTotalCashToday, getDropOffSummary, getAverageOrderValue } from "../../../lib/localStats";
 import { getCurrentUser } from "../../../lib/auth";
 import { Order, ShiftHandoverRecord } from "../../../staff/(dashboard)/types";
 import { Package } from "../../../staff/(dashboard)/neworder/types";
@@ -37,6 +37,7 @@ export default function AdminSalesPage() {
   }, []);
 
   const totalCashToday = getTotalCashToday(orders);
+  const averageOrderValue = getAverageOrderValue(orders);
   const dropOffSummary = getDropOffSummary(orders, packages);
 
   function handleWithdrawSave(data: WithdrawalFormData) {
@@ -52,12 +53,20 @@ export default function AdminSalesPage() {
   return (
     <div className="p-4 sm:p-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <AdminStatCard
-          label="Total Cash Today"
-          value={`₱${totalCashToday.toFixed(2)}`}
-          icon={Wallet}
-          iconColor="text-green-600 bg-green-100"
-        />
+        <div className="flex flex-col sm:flex-row gap-4">
+          <AdminStatCard
+            label="Total Cash Today"
+            value={`₱${totalCashToday.toFixed(2)}`}
+            icon={Wallet}
+            iconColor="text-green-600 bg-green-100"
+          />
+          <AdminStatCard
+            label="Average Order Value"
+            value={`₱${averageOrderValue.toFixed(2)}`}
+            icon={TrendingUp}
+            iconColor="text-purple-600 bg-purple-100"
+          />
+        </div>
         <button
           onClick={() => setShowWithdrawModal(true)}
           className="bg-blue-600 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-blue-700 whitespace-nowrap self-start sm:self-auto"
@@ -122,6 +131,16 @@ export default function AdminSalesPage() {
                 <p className="text-gray-500">
                   Supply Sales:{" "}
                   <span className="text-gray-900 font-medium">₱{h.supplySales.toFixed(2)}</span>
+                </p>
+                <p className="text-gray-500">
+                  Custom Service Sales:{" "}
+                  <span className="text-gray-900 font-medium">
+                    ₱{(h.customServiceSales ?? 0).toFixed(2)}
+                  </span>
+                </p>
+                <p className="text-gray-500">
+                  GCash / Digital:{" "}
+                  <span className="text-gray-900 font-medium">₱{(h.digitalSales ?? 0).toFixed(2)}</span>
                 </p>
                 <p className="text-gray-500">
                   Expense: <span className="text-gray-900 font-medium">₱{h.expense.toFixed(2)}</span>

@@ -26,6 +26,8 @@ export default function Expense() {
   const [category, setCategory] = useState<ExpenseCategory>("Supplies & Materials");
   const [description, setDescription] = useState("");
   const [imageDataUrl, setImageDataUrl] = useState<string | undefined>(undefined);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const staffName = getCurrentUser()?.name || "Unknown";
@@ -44,7 +46,9 @@ export default function Expense() {
   }
 
   function handleSubmit() {
-    if (amount <= 0) return;
+    if (amount <= 0 || isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
     const updated = addExpense({ amount, category, description, submittedBy: staffName, imageDataUrl });
     setExpenses(updated);
     setAmount(0);
@@ -52,6 +56,8 @@ export default function Expense() {
     setDescription("");
     setImageDataUrl(undefined);
     if (fileInputRef.current) fileInputRef.current.value = "";
+    isSubmittingRef.current = false;
+    setIsSubmitting(false);
   }
 
   const filteredExpenses = expenses.filter((e) =>
@@ -112,10 +118,10 @@ export default function Expense() {
           </div>
           <button
             onClick={handleSubmit}
-            disabled={amount <= 0}
+            disabled={amount <= 0 || isSubmitting}
             className="flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
-            <CheckCircle2 size={18} /> Submit Expense
+            <CheckCircle2 size={18} /> {isSubmitting ? "Submitting..." : "Submit Expense"}
           </button>
         </div>
 

@@ -1,5 +1,6 @@
 import { Order, DashboardStats } from "./types";
 import { addActivityLog } from "./localActivity";
+import { applyOrderStockImpact } from "./localInventory";
 
 const STORAGE_KEY = "wrlms_orders";
 
@@ -48,10 +49,39 @@ export function updateOrderStatus(
   return updated;
 }
 
+export function cancelOrder(orderId: string, staffName?: string): Order[] {
+  const existing = getStoredOrders();
+  const target = existing.find((order) => order.id === orderId);
+  if (!target || target.status === "Cancelled" || target.status === "Claimed") {
+    return existing;
+  }
+
+  const updated = existing.map((order) =>
+    order.id === orderId ? { ...order, status: "Cancelled" as const } : order
+  );
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+
+  // Whatever this order would have consumed, give it back — it never
+  // actually went out the door.
+  applyOrderStockImpact(target.items || [], -1);
+
+  addActivityLog({
+    type: "status",
+    message: `${staffName || "Staff"} cancelled ${target.customer}'s order`,
+  });
+
+  return updated;
+}
+
 export function computeStatsFromOrders(
   orders: Order[]
 ): Pick<DashboardStats, "todaysSales" | "claimedToday" | "ready"> {
-  const todaysSales = orders.reduce((sum, o) => sum + o.amount, 0);
+  // Revenue totals only count money actually received for orders that
+  // actually happened. UnPaid orders haven't been paid for yet, and
+  // Cancelled orders never went through — neither belongs in a sales figure.
+  const todaysSales = orders
+    .filter((o) => o.payStatus === "Paid" && o.status !== "Cancelled")
+    .reduce((sum, o) => sum + o.amount, 0);
   const claimedToday = orders.filter((o) => o.status === "Claimed").length;
   const ready = orders.filter((o) => o.status === "Ready").length;
   return { todaysSales, claimedToday, ready };

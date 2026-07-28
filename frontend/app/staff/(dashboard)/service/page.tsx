@@ -4,9 +4,10 @@ import { useState, useEffect } from "react";
 import { Clock, RefreshCw, CheckCircle2, ClipboardCheck, Search } from "lucide-react";
 import OrderCard from "../../../components/staffcom/service/OrderCard";
 import ConfirmClaimModal from "../../../components/staffcom/service/ConfirmClaimModal";
+import ConfirmCancelModal from "../../../components/staffcom/service/ConfirmCancelModal";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
-import { getStoredOrders, updateOrderStatus } from "../localOrders";
+import { getStoredOrders, updateOrderStatus, cancelOrder } from "../localOrders";
 import { getCurrentUser } from "../../../lib/auth";
 import { Order, OrderStatus } from "../types";
 
@@ -14,13 +15,21 @@ const PAGE_SIZE = 6;
 
 const statusFlow: OrderStatus[] = ["Pending", "In progress", "Ready", "Claimed"];
 
-const filters: ("All" | OrderStatus)[] = ["All", "Pending", "In progress", "Ready", "Claimed"];
+const filters: ("All" | OrderStatus)[] = [
+  "All",
+  "Pending",
+  "In progress",
+  "Ready",
+  "Claimed",
+  "Cancelled",
+];
 
 export default function ServicePage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [activeFilter, setActiveFilter] = useState<"All" | OrderStatus>("All");
   const [search, setSearch] = useState("");
   const [pendingClaimId, setPendingClaimId] = useState<string | null>(null);
+  const [pendingCancelId, setPendingCancelId] = useState<string | null>(null);
 
   const staffName = getCurrentUser()?.name || "Unknown";
 
@@ -55,6 +64,13 @@ export default function ServicePage() {
     setPendingClaimId(null);
   }
 
+  function confirmCancel() {
+    if (!pendingCancelId) return;
+    const updated = cancelOrder(pendingCancelId, staffName);
+    setOrders(updated);
+    setPendingCancelId(null);
+  }
+
   const counts = {
     Pending: orders.filter((o) => o.status === "Pending").length,
     "In progress": orders.filter((o) => o.status === "In progress").length,
@@ -65,7 +81,7 @@ export default function ServicePage() {
   const filteredOrders = orders.filter((order) => {
   const matchesFilter =
     activeFilter === "All"
-      ? order.status !== "Claimed"
+      ? order.status !== "Claimed" && order.status !== "Cancelled"
       : order.status === activeFilter;
 
   const matchesSearch =
@@ -155,6 +171,7 @@ export default function ServicePage() {
               order={order}
               onMoveBack={() => changeStatus(order.id, -1)}
               onMoveForward={() => changeStatus(order.id, 1)}
+              onCancel={() => setPendingCancelId(order.id)}
             />
           ))
         ) : (
@@ -168,6 +185,13 @@ export default function ServicePage() {
         <ConfirmClaimModal
           onConfirm={confirmClaim}
           onCancel={() => setPendingClaimId(null)}
+        />
+      )}
+
+      {pendingCancelId && (
+        <ConfirmCancelModal
+          onConfirm={confirmCancel}
+          onCancel={() => setPendingCancelId(null)}
         />
       )}
     </div>

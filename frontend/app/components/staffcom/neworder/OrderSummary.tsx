@@ -11,6 +11,7 @@ interface OrderSummaryProps {
   amountPaid: number;
   onAmountPaidChange: (amount: number) => void;
   onFinishTransaction: () => void;
+  isSubmitting: boolean;
 }
 
 export default function OrderSummary({
@@ -21,6 +22,7 @@ export default function OrderSummary({
   amountPaid,
   onAmountPaidChange,
   onFinishTransaction,
+  isSubmitting,
 }: OrderSummaryProps) {
   const total = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const change = amountPaid - total;
@@ -99,10 +101,10 @@ export default function OrderSummary({
 
         <button
           onClick={onFinishTransaction}
-          disabled={cartItems.length === 0}
+          disabled={cartItems.length === 0 || isSubmitting}
           className="w-full bg-blue-600 text-white rounded-lg py-3 font-semibold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
         >
-          Finish Transaction
+          {isSubmitting ? "Processing..." : "Finish Transaction"}
         </button>
       </div>
     </div>

@@ -35,7 +35,7 @@ export default function ServiceItemFormModal({
   }, [selectedItem, quantityKg]);
 
   function handleConfirm() {
-    if (!selectedItem) return;
+    if (!selectedItem || quantityKg <= 0) return;
     onConfirm({
       itemName: selectedItem.name,
       quantityKg,
@@ -115,7 +115,8 @@ export default function ServiceItemFormModal({
           </button>
           <button
             onClick={handleConfirm}
-            className="flex-1 bg-blue-600 text-white rounded-lg py-2 font-medium hover:bg-blue-700"
+            disabled={!selectedItem || quantityKg <= 0}
+            className="flex-1 bg-blue-600 text-white rounded-lg py-2 font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
             CONFIRM
           </button>

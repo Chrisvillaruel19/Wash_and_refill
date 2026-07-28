@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { getStoredAttendance, clockIn, clockOut } from "../localAttendance";
+import { getUnreportedActivity } from "../localShiftHandover";
 import { getCurrentUser } from "../../../lib/auth";
 import { AttendanceRecord } from "../types";
 import Pagination from "../../../components/staffcom/Pagination";
@@ -10,8 +12,12 @@ import { usePagination } from "../../../lib/usePagination";
 const PAGE_SIZE = 8;
 
 export default function Attendance() {
+  const router = useRouter();
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [now, setNow] = useState(new Date());
+  const [unreportedModal, setUnreportedModal] = useState<{ orders: number; expenses: number } | null>(
+    null
+  );
 
   const staffName = getCurrentUser()?.name || "Unknown";
 
@@ -42,6 +48,14 @@ export default function Attendance() {
 
   function handleTimeAction() {
     if (activeRecord) {
+      // Money math is on the line here, so this blocks outright rather than
+      // showing a dismissable warning — clocking out is not allowed until
+      // whatever's unreported gets reported via Shift Handover.
+      const { orders, expenses } = getUnreportedActivity(staffName);
+      if (orders.length > 0 || expenses.length > 0) {
+        setUnreportedModal({ orders: orders.length, expenses: expenses.length });
+        return;
+      }
       setRecords(clockOut(activeRecord.id));
     } else {
       setRecords(clockIn(staffName));
@@ -119,6 +133,11 @@ export default function Attendance() {
                       <span className="px-3 py-1 rounded-full text-xs font-medium border text-green-600 border-green-300 bg-green-50">
                         {r.status}
                       </span>
+                      {r.autoClosed && (
+                        <span className="ml-1 px-3 py-1 rounded-full text-xs font-medium border text-amber-600 border-amber-300 bg-amber-50">
+                          Auto-closed
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -134,6 +153,37 @@ export default function Attendance() {
         </div>
         <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </div>
+
+      {unreportedModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-lg max-w-sm w-full p-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Unreported Activity</h3>
+            <p className="text-sm text-gray-600 mb-5">
+              You have {unreportedModal.orders} unreported order
+              {unreportedModal.orders === 1 ? "" : "s"}
+              {unreportedModal.expenses > 0 &&
+                ` and ${unreportedModal.expenses} unreported expense${
+                  unreportedModal.expenses === 1 ? "" : "s"
+                }`}{" "}
+              since your last Shift Handover. Submit a Shift Handover before clocking out.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setUnreportedModal(null)}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 border border-gray-300 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => router.push("/staff/shifthandover")}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+              >
+                Go to Shift Handover
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

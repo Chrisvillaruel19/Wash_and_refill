@@ -20,7 +20,7 @@ export function getOrderStatusCounts(orders: Order[]): OrderStatusCounts {
 }
 
 export function getUnclaimedOrdersCount(orders: Order[]): number {
-  return orders.filter((o) => o.status !== "Claimed").length;
+  return orders.filter((o) => o.status !== "Claimed" && o.status !== "Cancelled").length;
 }
 
 // Wraps computeStatsFromOrders (localOrders.ts) rather than recomputing, so
@@ -34,6 +34,16 @@ export function getUnclaimedOrdersCount(orders: Order[]): number {
 // Dashboard depends on matching Staff's existing number exactly.
 export function getTotalCashToday(orders: Order[]): number {
   return computeStatsFromOrders(orders).todaysSales;
+}
+
+// Same "Paid, not Cancelled" revenue rule as computeStatsFromOrders — an
+// average built on any other order set would disagree with every other
+// revenue figure in the app for no good reason.
+export function getAverageOrderValue(orders: Order[]): number {
+  const paidOrders = orders.filter((o) => o.payStatus === "Paid" && o.status !== "Cancelled");
+  if (paidOrders.length === 0) return 0;
+  const total = paidOrders.reduce((sum, o) => sum + o.amount, 0);
+  return total / paidOrders.length;
 }
 
 export interface BestSellingPackage {
@@ -92,9 +102,13 @@ function getItemQuantity(itemStr: string, name: string): number {
 }
 
 export function getDropOffSummary(orders: Order[], packages: Package[]): DropOffSummaryRow[] {
+  // Revenue total (₱ per package) — same "Paid, not Cancelled" rule as
+  // computeStatsFromOrders in localOrders.ts, so this never disagrees with
+  // Dashboard's sales figure.
+  const paidOrders = orders.filter((o) => o.payStatus === "Paid" && o.status !== "Cancelled");
   return packages
     .map((pkg) => {
-      const totalQty = orders.reduce((sum, o) => {
+      const totalQty = paidOrders.reduce((sum, o) => {
         const orderQty = (o.items || []).reduce(
           (s, itemStr) => s + getItemQuantity(itemStr, pkg.name),
           0

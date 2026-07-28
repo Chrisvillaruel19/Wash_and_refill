@@ -20,6 +20,7 @@ const statusStyles: Record<OrderStatus, string> = {
   "In progress": "text-blue-600",
   Ready: "text-purple-600",
   Claimed: "text-green-600",
+  Cancelled: "text-red-500",
 };
 
 export default function ClaimMonitoringPage() {
@@ -40,7 +41,9 @@ export default function ClaimMonitoringPage() {
     const matchesFilter =
       activeFilter === "All" ||
       (activeFilter === "Claimed" && order.status === "Claimed") ||
-      (activeFilter === "Unclaimed" && order.status !== "Claimed");
+      (activeFilter === "Unclaimed" &&
+        order.status !== "Claimed" &&
+        order.status !== "Cancelled");
 
     const matchesDate = order.date.includes(searchDate);
 

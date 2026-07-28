@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, X } from "lucide-react";
 import { Order, OrderStatus } from "../../../staff/(dashboard)/types";
 import GroupedItemsList from "../GroupedItemsList";
 
@@ -8,6 +8,7 @@ interface OrderCardProps {
   order: Order;
   onMoveBack: () => void;
   onMoveForward: () => void;
+  onCancel: () => void;
 }
 
 const statusStyles: Record<OrderStatus, string> = {
@@ -15,14 +16,17 @@ const statusStyles: Record<OrderStatus, string> = {
   "In progress": "bg-blue-600",
   Ready: "bg-green-600",
   Claimed: "bg-gray-500",
+  Cancelled: "bg-red-500",
 };
 
 const statusFlow: OrderStatus[] = ["Pending", "In progress", "Ready", "Claimed"];
 
-export default function OrderCard({ order, onMoveBack, onMoveForward }: OrderCardProps) {
+export default function OrderCard({ order, onMoveBack, onMoveForward, onCancel }: OrderCardProps) {
   const currentIndex = statusFlow.indexOf(order.status);
-  const isFirst = currentIndex === 0;
-  const isLast = currentIndex === statusFlow.length - 1;
+  const isTerminal = order.status === "Claimed" || order.status === "Cancelled";
+  const isFirst = isTerminal || currentIndex === 0;
+  const isLast = isTerminal || currentIndex === statusFlow.length - 1;
+  const canCancel = order.status === "Pending" || order.status === "In progress" || order.status === "Ready";
 
   return (
     <div className="bg-white rounded-xl shadow-md p-5 flex flex-wrap items-center justify-between gap-4">
@@ -78,6 +82,16 @@ export default function OrderCard({ order, onMoveBack, onMoveForward }: OrderCar
           >
             <ArrowRight size={16} />
           </button>
+
+          {canCancel && (
+            <button
+              onClick={onCancel}
+              title="Cancel order"
+              className="border border-red-300 rounded-lg p-2 hover:bg-red-50 text-red-500"
+            >
+              <X size={16} />
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -18,6 +18,7 @@ const statusStyles: Record<OrderStatus, string> = {
   "In progress": "text-blue-600",
   Ready: "text-green-600",
   Claimed: "text-gray-500",
+  Cancelled: "text-red-500",
 };
 
 export default function OrdersTable({ orders }: OrdersTableProps) {

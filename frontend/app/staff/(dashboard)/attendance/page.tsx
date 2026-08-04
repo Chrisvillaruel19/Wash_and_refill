@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getStoredAttendance, clockIn, clockOut } from "../localAttendance";
-import { getUnreportedActivity } from "../localShiftHandover";
+import { getAttendanceRecords, clockIn, clockOut } from "../../../lib/services/attendanceApi.service";
+import { ApiError } from "../../../lib/apiClient";
 import { getCurrentUser } from "../../../lib/auth";
 import { AttendanceRecord } from "../types";
 import Pagination from "../../../components/staffcom/Pagination";
@@ -15,15 +15,28 @@ export default function Attendance() {
   const router = useRouter();
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [now, setNow] = useState(new Date());
-  const [unreportedModal, setUnreportedModal] = useState<{ orders: number; expenses: number } | null>(
-    null
-  );
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
+  const [unreportedModal, setUnreportedModal] = useState(false);
 
   const staffName = getCurrentUser()?.name || "Unknown";
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setRecords(getStoredAttendance());
+    async function load() {
+      try {
+        const data = await getAttendanceRecords();
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setRecords(data);
+      } catch {
+        setError("Unable to load attendance records. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
   }, []);
 
   useEffect(() => {
@@ -46,23 +59,47 @@ export default function Attendance() {
     return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
 
-  function handleTimeAction() {
-    if (activeRecord) {
-      // Money math is on the line here, so this blocks outright rather than
-      // showing a dismissable warning — clocking out is not allowed until
-      // whatever's unreported gets reported via Shift Handover.
-      const { orders, expenses } = getUnreportedActivity(staffName);
-      if (orders.length > 0 || expenses.length > 0) {
-        setUnreportedModal({ orders: orders.length, expenses: expenses.length });
-        return;
+  async function handleTimeAction() {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setSubmitting(true);
+    setActionError("");
+    try {
+      if (activeRecord) {
+        await clockOut(activeRecord.id);
+      } else {
+        await clockIn();
       }
-      setRecords(clockOut(activeRecord.id));
-    } else {
-      setRecords(clockIn(staffName));
+      const refreshed = await getAttendanceRecords();
+      setRecords(refreshed);
+    } catch (err) {
+      // The backend enforces the "no unreported orders/expenses since your
+      // last Shift Handover" rule server-side (money math, not a UX nicety —
+      // blocking outright, no "proceed anyway" option). It only returns a
+      // message, not counts, so the modal shows that message verbatim
+      // rather than fabricating a breakdown the backend doesn't provide.
+      if (err instanceof ApiError && err.status === 409 && /unreported/i.test(err.message)) {
+        setUnreportedModal(true);
+      } else if (err instanceof ApiError) {
+        setActionError(err.message);
+      } else {
+        setActionError("Unable to update attendance. Please try again.");
+      }
+    } finally {
+      isSubmittingRef.current = false;
+      setSubmitting(false);
     }
   }
 
   const { page, setPage, totalPages, paginatedItems } = usePagination(records, PAGE_SIZE);
+
+  if (loading) {
+    return <p className="text-gray-400 p-6">Loading attendance...</p>;
+  }
+
+  if (error) {
+    return <p className="text-red-500 p-6">{error}</p>;
+  }
 
   return (
     <div className="p-4 sm:p-6">
@@ -96,12 +133,14 @@ export default function Attendance() {
 
         <button
           onClick={handleTimeAction}
-          className={`w-full sm:w-auto px-6 py-3 rounded-lg font-semibold text-white transition-colors ${
+          disabled={submitting}
+          className={`w-full sm:w-auto px-6 py-3 rounded-lg font-semibold text-white transition-colors disabled:opacity-50 ${
             activeRecord ? "bg-red-500 hover:bg-red-600" : "bg-green-500 hover:bg-green-600"
           }`}
         >
-          {activeRecord ? "Time Out" : "Time In"}
+          {submitting ? "Please wait..." : activeRecord ? "Time Out" : "Time In"}
         </button>
+        {actionError && <p className="text-red-100 text-sm mt-3">{actionError}</p>}
       </div>
 
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
@@ -159,17 +198,12 @@ export default function Attendance() {
           <div className="bg-white rounded-xl shadow-lg max-w-sm w-full p-6">
             <h3 className="text-lg font-bold text-gray-900 mb-2">Unreported Activity</h3>
             <p className="text-sm text-gray-600 mb-5">
-              You have {unreportedModal.orders} unreported order
-              {unreportedModal.orders === 1 ? "" : "s"}
-              {unreportedModal.expenses > 0 &&
-                ` and ${unreportedModal.expenses} unreported expense${
-                  unreportedModal.expenses === 1 ? "" : "s"
-                }`}{" "}
-              since your last Shift Handover. Submit a Shift Handover before clocking out.
+              You have unreported orders or expenses since your last Shift Handover. Submit a Shift
+              Handover before clocking out.
             </p>
             <div className="flex gap-3 justify-end">
               <button
-                onClick={() => setUnreportedModal(null)}
+                onClick={() => setUnreportedModal(false)}
                 className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 border border-gray-300 hover:bg-gray-50"
               >
                 Cancel

@@ -1,17 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { getStoredOrders } from "../localOrders";
-import { getStoredExpenses } from "../localExpense";
-import { getStoredInventory } from "../localInventory";
+import { getStoredOrders } from "../../../lib/services/orders.service";
+import { getStoredExpenses } from "../../../lib/services/expenses.service";
+import { getStoredInventory } from "../../../lib/services/inventory.service";
 import {
   submitShiftHandover,
   getStoredShiftHandovers,
   getLastHandoverTimestamp,
   getCashDrawerStart,
-} from "../localShiftHandover";
+} from "../../../lib/services/shiftHandover.service";
 import { getCurrentUser } from "../../../lib/auth";
-import { getStoredPackages } from "../../../lib/localPackages";
+import { getStoredPackages } from "../../../lib/services/packages.service";
 import { Package } from "../neworder/types";
 import { supplies } from "../neworder/data";
 import { Order, ExpenseRecord, InventoryItem, ShiftHandoverRecord } from "../types";

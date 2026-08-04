@@ -14,8 +14,15 @@ export function useRequireAdmin(): { user: StaffUser | null; checking: boolean }
 
   useEffect(() => {
     const current = getCurrentUser();
-    if (!current || current.role !== "admin") {
+    if (!current) {
       router.replace("/");
+      return;
+    }
+    if (current.role !== "admin") {
+      // Authenticated, just the wrong role for this route — send them back
+      // to their own dashboard, not the login page (which looked like a
+      // logout even though the session was still valid).
+      router.replace("/staff");
       return;
     }
     setUser(current);

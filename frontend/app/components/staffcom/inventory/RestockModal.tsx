@@ -8,9 +8,11 @@ interface RestockModalProps {
   item: InventoryItem;
   onConfirm: (quantity: number) => void;
   onCancel: () => void;
+  submitting?: boolean;
+  error?: string;
 }
 
-export default function RestockModal({ item, onConfirm, onCancel }: RestockModalProps) {
+export default function RestockModal({ item, onConfirm, onCancel, submitting, error }: RestockModalProps) {
   const [quantity, setQuantity] = useState(1);
 
   return (
@@ -34,18 +36,22 @@ export default function RestockModal({ item, onConfirm, onCancel }: RestockModal
           className="w-full border border-gray-300 rounded-lg p-2 mb-6 text-gray-900"
         />
 
+        {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
+
         <div className="flex gap-3">
           <button
             onClick={onCancel}
-            className="flex-1 border border-gray-300 rounded-lg py-2 font-medium hover:bg-gray-50 text-gray-900"
+            disabled={submitting}
+            className="flex-1 border border-gray-300 rounded-lg py-2 font-medium hover:bg-gray-50 text-gray-900 disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             onClick={() => onConfirm(quantity)}
-            className="flex-1 bg-blue-600 text-white rounded-lg py-2 font-medium hover:bg-blue-700"
+            disabled={submitting}
+            className="flex-1 bg-blue-600 text-white rounded-lg py-2 font-medium hover:bg-blue-700 disabled:opacity-50"
           >
-            Confirm
+            {submitting ? "Restocking..." : "Confirm"}
           </button>
         </div>
       </div>

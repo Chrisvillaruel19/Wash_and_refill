@@ -49,6 +49,7 @@ export async function LoginService(
 
     const accessToken = signAccessToken(
       user.id,
+      user.role,
       TokenExpiry.ACCESS_TOKEN_EXPIRES
     );
 
@@ -79,6 +80,7 @@ export async function LoginService(
         user: {
           id: user.id,
           username: user.username,
+          name: user.name,
           role: user.role,
         },
       },

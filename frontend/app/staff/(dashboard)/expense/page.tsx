@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Search, CheckCircle2, Upload } from "lucide-react";
-import { getStoredExpenses, addExpense } from "../localExpense";
-import { getCurrentUser } from "../../../lib/auth";
+import { getExpenses, createExpense } from "../../../lib/services/expensesApi.service";
 import { ExpenseRecord, ExpenseCategory } from "../types";
 import ExpandableText from "../../../components/staffcom/ExpandableText";
 import Pagination from "../../../components/staffcom/Pagination";
@@ -29,12 +28,23 @@ export default function Expense() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isSubmittingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const staffName = getCurrentUser()?.name || "Unknown";
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [submitError, setSubmitError] = useState("");
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setExpenses(getStoredExpenses());
+    async function load() {
+      try {
+        const data = await getExpenses();
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setExpenses(data);
+      } catch {
+        setError("Unable to load expenses. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
   }, []);
 
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -45,19 +55,26 @@ export default function Expense() {
     reader.readAsDataURL(file);
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (amount <= 0 || isSubmittingRef.current) return;
     isSubmittingRef.current = true;
     setIsSubmitting(true);
-    const updated = addExpense({ amount, category, description, submittedBy: staffName, imageDataUrl });
-    setExpenses(updated);
-    setAmount(0);
-    setCategory("Supplies & Materials");
-    setDescription("");
-    setImageDataUrl(undefined);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-    isSubmittingRef.current = false;
-    setIsSubmitting(false);
+    setSubmitError("");
+    try {
+      await createExpense({ amount, category, description, imageDataUrl });
+      const refreshed = await getExpenses();
+      setExpenses(refreshed);
+      setAmount(0);
+      setCategory("Supplies & Materials");
+      setDescription("");
+      setImageDataUrl(undefined);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } catch {
+      setSubmitError("Unable to submit expense. Please try again.");
+    } finally {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
+    }
   }
 
   const filteredExpenses = expenses.filter((e) =>
@@ -69,6 +86,14 @@ export default function Expense() {
     PAGE_SIZE,
     search
   );
+
+  if (loading) {
+    return <p className="text-gray-400 p-6">Loading expenses...</p>;
+  }
+
+  if (error) {
+    return <p className="text-red-500 p-6">{error}</p>;
+  }
 
   return (
     <div className="p-4 sm:p-6">
@@ -124,6 +149,7 @@ export default function Expense() {
             <CheckCircle2 size={18} /> {isSubmitting ? "Submitting..." : "Submit Expense"}
           </button>
         </div>
+        {submitError && <p className="text-red-500 text-sm mb-2">{submitError}</p>}
 
         <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-4">
           <div>

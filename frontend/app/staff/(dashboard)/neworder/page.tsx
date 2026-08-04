@@ -9,10 +9,10 @@ import NewOrderModals from "../../../components/staffcom/neworder/NewOrderModals
 import { ServiceCategory, CartItem, PaymentMethod, Package, ServiceItem, SupplyItem } from "./types";
 import { Order } from "../types";
 import { serviceCategories } from "./data";
-import { getStoredPackages } from "../../../lib/localPackages";
-import { getStoredServices } from "../../../lib/localServices";
-import { addStoredOrder } from "../localOrders";
-import { applyOrderStockImpact, getStoredInventory } from "../localInventory";
+import { getStoredPackages } from "../../../lib/services/packages.service";
+import { getStoredServices } from "../../../lib/services/services.service";
+import { addStoredOrder } from "../../../lib/services/orders.service";
+import { applyOrderStockImpact, getStoredInventory } from "../../../lib/services/inventory.service";
 import { getCurrentUser } from "../../../lib/auth";
 
 // Demo-mode fix: Laundry Supplies now reads live Admin-managed inventory

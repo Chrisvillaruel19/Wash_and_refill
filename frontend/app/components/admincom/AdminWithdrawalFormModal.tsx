@@ -10,11 +10,15 @@ export interface WithdrawalFormData {
 interface AdminWithdrawalFormModalProps {
   onSave: (data: WithdrawalFormData) => void;
   onCancel: () => void;
+  submitting?: boolean;
+  submitError?: string;
 }
 
 export default function AdminWithdrawalFormModal({
   onSave,
   onCancel,
+  submitting,
+  submitError,
 }: AdminWithdrawalFormModalProps) {
   const [amount, setAmount] = useState(0);
   const [reason, setReason] = useState("");
@@ -40,14 +44,9 @@ export default function AdminWithdrawalFormModal({
       <div className="bg-white rounded-2xl p-6 sm:p-8 w-full max-w-md">
         <h2 className="text-xl font-bold mb-2 text-gray-900">Cash Withdrawal</h2>
 
-        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg py-2 px-3 mb-4">
-          Demo only — withdrawal amounts are not yet subtracted from Staff&apos;s Shift
-          Handover cash reconciliation. This will sync once a backend exists.
-        </p>
-
-        {error && (
+        {(error || submitError) && (
           <p className="text-red-600 text-sm mb-4 bg-red-50 border border-red-200 rounded-lg py-2 px-3">
-            {error}
+            {error || submitError}
           </p>
         )}
 
@@ -77,15 +76,17 @@ export default function AdminWithdrawalFormModal({
             <button
               type="button"
               onClick={onCancel}
-              className="px-5 py-2 rounded-lg border border-gray-300 text-gray-600 font-medium hover:bg-gray-50"
+              disabled={submitting}
+              className="px-5 py-2 rounded-lg border border-gray-300 text-gray-600 font-medium hover:bg-gray-50 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700"
+              disabled={submitting}
+              className="px-5 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
             >
-              Withdraw
+              {submitting ? "Withdrawing..." : "Withdraw"}
             </button>
           </div>
         </form>

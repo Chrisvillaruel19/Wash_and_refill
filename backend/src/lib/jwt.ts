@@ -1,16 +1,29 @@
 import jwt, { SignOptions } from "jsonwebtoken";
+import { Role } from "../../generated/prisma/client.js";
 
-export type JwtPayload = { sub: string; type: "access" | "refresh" };
-const jwtSecret = process.env.JWT_SECRET ? (process.env.JWT_SECRET as string) : "no-jwt-key";
+export type JwtPayload = { sub: string; type: "access" | "refresh"; role?: Role };
 
+// No fallback: signing tokens with a hardcoded, source-visible secret would
+// make every token forgeable. Fail fast at startup instead. Written as a
+// single expression (rather than an `if` guard above the functions below)
+// so `jwtSecret` is typed as `string`, not `string | undefined` — TS does
+// not narrow an outer const's type inside hoisted function declarations
+// that close over it, even after an early-return/throw guard.
+const jwtSecret: string =
+  process.env.JWT_SECRET ??
+  (() => {
+    throw new Error(
+      "JWT_SECRET environment variable is required but not set. Refusing to start with an insecure default."
+    );
+  })();
 
 export enum TokenExpiry {
   ACCESS_TOKEN_EXPIRES = "15m",
   REFRESH_TOKEN_EXPIRES = "7d",
 }
 
-export function signAccessToken(userId: string, duration: SignOptions["expiresIn"]) {
-  const payload: JwtPayload = { sub: userId, type: "access" };
+export function signAccessToken(userId: string, role: Role, duration: SignOptions["expiresIn"]) {
+  const payload: JwtPayload = { sub: userId, type: "access", role };
   return jwt.sign(payload, jwtSecret, { expiresIn: duration });
 }
 

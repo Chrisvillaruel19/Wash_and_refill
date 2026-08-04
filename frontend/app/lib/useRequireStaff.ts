@@ -15,8 +15,15 @@ export function useRequireStaff(): { user: StaffUser | null; checking: boolean }
 
   useEffect(() => {
     const current = getCurrentUser();
-    if (!current || current.role !== "staff") {
+    if (!current) {
       router.replace("/");
+      return;
+    }
+    if (current.role !== "staff") {
+      // Authenticated, just the wrong role for this route — send them back
+      // to their own dashboard, not the login page (which looked like a
+      // logout even though the session was still valid).
+      router.replace("/admin");
       return;
     }
     setUser(current);

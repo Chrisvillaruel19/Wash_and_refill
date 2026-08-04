@@ -1,8 +1,10 @@
 import { TokenRepository } from "../../repositories/token.repository.js";
+import { UserRepository } from "../../repositories/user.repository.js";
 import { signAccessToken, signRefreshToken, TokenExpiry, verifyRefreshToken } from "../../lib/jwt.js";
 
 export async function RefreshTokenService(refreshToken: string) {
   const tokenRepository = new TokenRepository();
+  const userRepository = new UserRepository();
 
   try {
     const payload = verifyRefreshToken(refreshToken);
@@ -15,12 +17,22 @@ export async function RefreshTokenService(refreshToken: string) {
       return { code: 401, status: "error", message: "Invalid or expired refresh token" };
     }
 
-    const newAccessToken = signAccessToken(payload.sub, TokenExpiry.ACCESS_TOKEN_EXPIRES);
-    const newRefreshToken = signRefreshToken(payload.sub, TokenExpiry.REFRESH_TOKEN_EXPIRES);
+    // Re-check the user's current status on every refresh — otherwise a
+    // deactivated account keeps working until its refresh token naturally
+    // expires (up to 7 days), regardless of when an Admin deactivated it.
+    // This also gets the user's current role, needed to embed a fresh role
+    // claim in the new access token below.
+    const user = await userRepository.findById(payload.sub);
+    if (!user || user.accountStatus !== "ACTIVE") {
+      return { code: 403, status: "error", message: "Account is not active" };
+    }
+
+    const newAccessToken = signAccessToken(user.id, user.role, TokenExpiry.ACCESS_TOKEN_EXPIRES);
+    const newRefreshToken = signRefreshToken(user.id, TokenExpiry.REFRESH_TOKEN_EXPIRES);
 
     await tokenRepository.consumeToken(storedToken.id);
     await tokenRepository.createRefreshToken({
-      userId: payload.sub,
+      userId: user.id,
       token: newRefreshToken,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     });

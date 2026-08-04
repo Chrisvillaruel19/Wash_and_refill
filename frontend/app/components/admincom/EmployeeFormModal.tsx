@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Employee } from "../../lib/localEmployees";
+import { Employee } from "../../lib/services/employeeApi.service";
 
 export interface EmployeeFormData {
   username: string;
@@ -16,12 +16,16 @@ interface EmployeeFormModalProps {
   initialEmployee?: Employee; // undefined = Add mode
   onSave: (data: EmployeeFormData) => void;
   onCancel: () => void;
+  submitting?: boolean;
+  submitError?: string;
 }
 
 export default function EmployeeFormModal({
   initialEmployee,
   onSave,
   onCancel,
+  submitting,
+  submitError,
 }: EmployeeFormModalProps) {
   const isEdit = !!initialEmployee;
 
@@ -48,6 +52,11 @@ export default function EmployeeFormModal({
       return;
     }
 
+    if ((!isEdit || (resetPassword && password)) && password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+
     const data: EmployeeFormData = { username, name, email, phone, hiredDate };
     if (!isEdit) {
       data.password = password;
@@ -65,9 +74,9 @@ export default function EmployeeFormModal({
           {isEdit ? "Edit Employee" : "Add Employee"}
         </h2>
 
-        {error && (
+        {(error || submitError) && (
           <p className="text-red-600 text-sm mb-4 bg-red-50 border border-red-200 rounded-lg py-2 px-3">
-            {error}
+            {error || submitError}
           </p>
         )}
 
@@ -132,13 +141,14 @@ export default function EmployeeFormModal({
 
           {!isEdit && (
             <div>
-              <label className="block text-sm text-gray-500 mb-1">Password</label>
+              <label className="block text-sm text-gray-500 mb-1">Password (min. 8 characters)</label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 name="employee-password"
                 autoComplete="new-password"
+                minLength={8}
                 className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
               />
             </div>
@@ -157,7 +167,7 @@ export default function EmployeeFormModal({
               ) : (
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-sm text-gray-500">New Password</label>
+                    <label className="block text-sm text-gray-500">New Password (min. 8 characters)</label>
                     <button
                       type="button"
                       onClick={() => {
@@ -175,6 +185,7 @@ export default function EmployeeFormModal({
                     onChange={(e) => setPassword(e.target.value)}
                     name="employee-new-password"
                     autoComplete="new-password"
+                    minLength={8}
                     placeholder="Leave blank to keep current password"
                     className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
                   />
@@ -187,15 +198,17 @@ export default function EmployeeFormModal({
             <button
               type="button"
               onClick={onCancel}
-              className="px-5 py-2 rounded-lg border border-gray-300 text-gray-600 font-medium hover:bg-gray-50"
+              disabled={submitting}
+              className="px-5 py-2 rounded-lg border border-gray-300 text-gray-600 font-medium hover:bg-gray-50 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700"
+              disabled={submitting}
+              className="px-5 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
             >
-              Save
+              {submitting ? "Saving..." : "Save"}
             </button>
           </div>
         </form>

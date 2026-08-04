@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import SalesStats from "../../../components/staffcom/sales/SalesStats";
-import SalesFilters, { SalesFilter, DatePreset } from "../../../components/staffcom/sales/SalesFilters";
+import SalesFilters, { SalesFilter } from "../../../components/staffcom/sales/SalesFilters";
 import SalesTable from "../../../components/staffcom/sales/SalesTable";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
-import { getStoredOrders } from "../localOrders";
-import { getStoredPackages } from "../../../lib/localPackages";
-import { getDropOffSummary, getAverageOrderValue } from "../../../lib/localStats";
+import { getStoredOrders } from "../../../lib/services/orders.service";
+import { getStoredPackages } from "../../../lib/services/packages.service";
+import { getDropOffSummary, getAverageOrderValue } from "../../../lib/services/stats.service";
 import { Order } from "../types";
 import { Package } from "../neworder/types";
 
@@ -40,21 +40,6 @@ export default function SalesPage() {
   const totalPending = orders.filter((o) => o.status === "Pending").length;
   const totalInProgress = orders.filter((o) => o.status === "In progress").length;
   const totalClaimed = orders.filter((o) => o.status === "Claimed").length;
-
-  function handlePresetSelect(preset: DatePreset) {
-    const today = new Date();
-    if (preset === "all") {
-      setDateFrom("");
-      setDateTo("");
-      return;
-    }
-    const from = new Date(today);
-    if (preset === "week") from.setDate(from.getDate() - 6);
-    if (preset === "month") from.setDate(from.getDate() - 29);
-    // "today" leaves from === to
-    setDateFrom(toDateInputValue(from));
-    setDateTo(toDateInputValue(today));
-  }
 
   const filteredOrders = orders.filter((order) => {
     const matchesFilter =
@@ -104,7 +89,6 @@ export default function SalesPage() {
         dateTo={dateTo}
         onDateFromChange={setDateFrom}
         onDateToChange={setDateTo}
-        onPresetSelect={handlePresetSelect}
       />
 
       {packageBreakdown.length > 0 && (

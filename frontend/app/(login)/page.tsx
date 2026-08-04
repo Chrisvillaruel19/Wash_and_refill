@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { login } from "../lib/auth";
@@ -10,20 +10,37 @@ export default function Home() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  // Same re-entrancy guard pattern used in New Order: state updates aren't
+  // guaranteed to re-render before a second click event fires, so the real
+  // guard is this ref, set synchronously.
+  const isSubmittingRef = useRef(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const user = login(username, password);
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
+    setError("");
 
-    if (!user) {
-      setError("Invalid username or password.");
-      return;
-    }
+    try {
+      const user = await login(username, password);
 
-    if (user.role === "admin") {
-      router.push("/admin");
-    } else {
-      router.push("/staff");
+      if (!user) {
+        setError("Invalid username or password.");
+        return;
+      }
+
+      if (user.role === "admin") {
+        router.push("/admin");
+      } else {
+        router.push("/staff");
+      }
+    } catch {
+      setError("Unable to sign in right now. Please try again.");
+    } finally {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
     }
   }
 
@@ -96,9 +113,10 @@ export default function Home() {
 
             <button
               type="submit"
-              className="w-full bg-blue-600 text-white font-semibold py-3 rounded-lg hover:bg-blue-700 transition-colors"
+              disabled={isSubmitting}
+              className="w-full bg-blue-600 text-white font-semibold py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
-              Sign In
+              {isSubmitting ? "Signing in..." : "Sign In"}
             </button>
           </form>
 

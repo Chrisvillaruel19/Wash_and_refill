@@ -3,25 +3,28 @@
 import { useEffect, useState } from "react";
 import { Search, Pencil, Trash2 } from "lucide-react";
 import {
-  getStoredInventory,
-  addInventoryItem,
-  updateItem,
+  getInventory,
+  createInventoryItem,
+  updateInventoryItem,
   deleteInventoryItem,
-  isCriticalInventoryItem,
-} from "../../../staff/(dashboard)/localInventory";
+} from "../../../lib/services/inventoryApi.service";
+// isCriticalInventoryItem is a pure name/unit check with no localStorage
+// dependency — still imported from the old seam since that's the single
+// canonical definition AdminInventoryFormModal itself also relies on.
+import { isCriticalInventoryItem } from "../../../lib/services/inventory.service";
 import { InventoryItem } from "../../../staff/(dashboard)/types";
 import {
-  getStoredPackages,
-  addPackage,
+  getPackages,
+  createPackage,
   updatePackage,
   deletePackage,
-} from "../../../lib/localPackages";
+} from "../../../lib/services/packageApi.service";
 import {
-  getStoredServices,
-  addService,
+  getServices,
+  createService,
   updateService,
   deleteService,
-} from "../../../lib/localServices";
+} from "../../../lib/services/laundryServiceApi.service";
 import { Package, ServiceItem } from "../../../staff/(dashboard)/neworder/types";
 import { serviceCategories } from "../../../staff/(dashboard)/neworder/data";
 import AdminInventoryFormModal, {
@@ -36,7 +39,6 @@ import AdminServiceFormModal, {
 import ConfirmDeleteModal from "../../../components/admincom/ConfirmDeleteModal";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
-import { getCurrentUser } from "../../../lib/auth";
 
 const PAGE_SIZE = 8;
 
@@ -54,6 +56,10 @@ const SERVICE_HISTORICAL_WARNING =
 
 export default function AdminCatalogPage() {
   const [activeTab, setActiveTab] = useState<CatalogTab>("supplies");
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [actionSubmitting, setActionSubmitting] = useState(false);
+  const [actionError, setActionError] = useState("");
 
   // Supplies (Laundry Supplies) state
   const [items, setItems] = useState<InventoryItem[]>([]);
@@ -77,15 +83,27 @@ export default function AdminCatalogPage() {
   const [editServiceTarget, setEditServiceTarget] = useState<ServiceItem | null>(null);
   const [deleteServiceTarget, setDeleteServiceTarget] = useState<ServiceItem | null>(null);
 
-  const adminName = getCurrentUser()?.name || "Admin";
-
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setItems(getStoredInventory());
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPackages(getStoredPackages());
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setServices(getStoredServices());
+    async function load() {
+      try {
+        const [inventoryData, packagesData, servicesData] = await Promise.all([
+          getInventory(),
+          getPackages(),
+          getServices(),
+        ]);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setItems(inventoryData);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setPackages(packagesData);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setServices(servicesData);
+      } catch {
+        setLoadError("Unable to load catalog data. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
   }, []);
 
   const filteredItems = items.filter((item) =>
@@ -115,64 +133,144 @@ export default function AdminCatalogPage() {
     paginatedItems: paginatedServices,
   } = usePagination(filteredServices, PAGE_SIZE, `${serviceFilter}-${serviceSearch}`);
 
-  function handleAddSave(data: InventoryFormData) {
-    const updated = addInventoryItem(data);
-    setItems(updated);
-    setShowAddModal(false);
+  async function handleAddSave(data: InventoryFormData) {
+    setActionSubmitting(true);
+    setActionError("");
+    try {
+      const created = await createInventoryItem(data);
+      setItems((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+      setShowAddModal(false);
+    } catch {
+      setActionError("Unable to add item. Please try again.");
+    } finally {
+      setActionSubmitting(false);
+    }
   }
 
-  function handleEditSave(data: InventoryFormData) {
+  async function handleEditSave(data: InventoryFormData) {
     if (!editTarget) return;
-    const updated = updateItem(editTarget.id, data, adminName);
-    setItems(updated);
-    setEditTarget(null);
+    setActionSubmitting(true);
+    setActionError("");
+    try {
+      const updated = await updateInventoryItem(editTarget.id, data);
+      setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+      setEditTarget(null);
+    } catch {
+      setActionError("Unable to update item. Please try again.");
+    } finally {
+      setActionSubmitting(false);
+    }
   }
 
-  function handleDeleteConfirm() {
+  async function handleDeleteConfirm() {
     if (!deleteTarget) return;
-    const updated = deleteInventoryItem(deleteTarget.id);
-    setItems(updated);
-    setDeleteTarget(null);
+    setActionSubmitting(true);
+    setActionError("");
+    try {
+      await deleteInventoryItem(deleteTarget.id);
+      setItems((prev) => prev.filter((i) => i.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch {
+      setActionError("Unable to delete item. Please try again.");
+    } finally {
+      setActionSubmitting(false);
+    }
   }
 
-  function handleAddPackageSave(data: PackageFormData) {
-    const updated = addPackage(data);
-    setPackages(updated);
-    setShowAddPackageModal(false);
+  async function handleAddPackageSave(data: PackageFormData) {
+    setActionSubmitting(true);
+    setActionError("");
+    try {
+      const created = await createPackage(data);
+      setPackages((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+      setShowAddPackageModal(false);
+    } catch {
+      setActionError("Unable to add package. Please try again.");
+    } finally {
+      setActionSubmitting(false);
+    }
   }
 
-  function handleEditPackageSave(data: PackageFormData) {
+  async function handleEditPackageSave(data: PackageFormData) {
     if (!editPackageTarget) return;
-    const updated = updatePackage(editPackageTarget.id, data);
-    setPackages(updated);
-    setEditPackageTarget(null);
+    setActionSubmitting(true);
+    setActionError("");
+    try {
+      const updated = await updatePackage(editPackageTarget.id, data);
+      setPackages((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+      setEditPackageTarget(null);
+    } catch {
+      setActionError("Unable to update package. Please try again.");
+    } finally {
+      setActionSubmitting(false);
+    }
   }
 
-  function handleDeletePackageConfirm() {
+  async function handleDeletePackageConfirm() {
     if (!deletePackageTarget) return;
-    const updated = deletePackage(deletePackageTarget.id);
-    setPackages(updated);
-    setDeletePackageTarget(null);
+    setActionSubmitting(true);
+    setActionError("");
+    try {
+      await deletePackage(deletePackageTarget.id);
+      setPackages((prev) => prev.filter((p) => p.id !== deletePackageTarget.id));
+      setDeletePackageTarget(null);
+    } catch {
+      setActionError("Unable to delete package. Please try again.");
+    } finally {
+      setActionSubmitting(false);
+    }
   }
 
-  function handleAddServiceSave(data: ServiceFormData) {
-    const updated = addService(data);
-    setServices(updated);
-    setShowAddServiceModal(false);
+  async function handleAddServiceSave(data: ServiceFormData) {
+    setActionSubmitting(true);
+    setActionError("");
+    try {
+      const created = await createService(data);
+      setServices((prev) => [...prev, created]);
+      setShowAddServiceModal(false);
+    } catch {
+      setActionError("Unable to add service. Please try again.");
+    } finally {
+      setActionSubmitting(false);
+    }
   }
 
-  function handleEditServiceSave(data: ServiceFormData) {
+  async function handleEditServiceSave(data: ServiceFormData) {
     if (!editServiceTarget) return;
-    const updated = updateService(editServiceTarget.id, data);
-    setServices(updated);
-    setEditServiceTarget(null);
+    setActionSubmitting(true);
+    setActionError("");
+    try {
+      const updated = await updateService(editServiceTarget.id, data);
+      setServices((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+      setEditServiceTarget(null);
+    } catch {
+      setActionError("Unable to update service. Please try again.");
+    } finally {
+      setActionSubmitting(false);
+    }
   }
 
-  function handleDeleteServiceConfirm() {
+  async function handleDeleteServiceConfirm() {
     if (!deleteServiceTarget) return;
-    const updated = deleteService(deleteServiceTarget.id);
-    setServices(updated);
-    setDeleteServiceTarget(null);
+    setActionSubmitting(true);
+    setActionError("");
+    try {
+      await deleteService(deleteServiceTarget.id);
+      setServices((prev) => prev.filter((s) => s.id !== deleteServiceTarget.id));
+      setDeleteServiceTarget(null);
+    } catch {
+      setActionError("Unable to delete service. Please try again.");
+    } finally {
+      setActionSubmitting(false);
+    }
+  }
+
+  if (loading) {
+    return <p className="text-gray-400 p-6">Loading catalog...</p>;
+  }
+
+  if (loadError) {
+    return <p className="text-red-500 p-6">{loadError}</p>;
   }
 
   return (
@@ -263,7 +361,10 @@ export default function AdminCatalogPage() {
               />
             </div>
             <button
-              onClick={() => setShowAddServiceModal(true)}
+              onClick={() => {
+                setActionError("");
+                setShowAddServiceModal(true);
+              }}
               className="bg-blue-600 text-white px-5 py-2 rounded-lg font-semibold hover:bg-blue-700 whitespace-nowrap"
             >
               + Add Item
@@ -298,14 +399,20 @@ export default function AdminCatalogPage() {
                           <td className="p-3 sm:p-4 whitespace-nowrap">
                             <div className="flex items-center gap-3">
                               <button
-                                onClick={() => setEditServiceTarget(svc)}
+                                onClick={() => {
+                                  setActionError("");
+                                  setEditServiceTarget(svc);
+                                }}
                                 className="text-gray-500 hover:text-blue-600"
                                 title="Edit"
                               >
                                 <Pencil size={16} />
                               </button>
                               <button
-                                onClick={() => setDeleteServiceTarget(svc)}
+                                onClick={() => {
+                                  setActionError("");
+                                  setDeleteServiceTarget(svc);
+                                }}
                                 className="text-gray-500 hover:text-red-600"
                                 title="Delete"
                               >
@@ -347,7 +454,10 @@ export default function AdminCatalogPage() {
               />
             </div>
             <button
-              onClick={() => setShowAddModal(true)}
+              onClick={() => {
+                setActionError("");
+                setShowAddModal(true);
+              }}
               className="bg-blue-600 text-white px-5 py-2 rounded-lg font-semibold hover:bg-blue-700 whitespace-nowrap"
             >
               + Add Item
@@ -399,14 +509,20 @@ export default function AdminCatalogPage() {
                           <td className="p-3 sm:p-4 whitespace-nowrap">
                             <div className="flex items-center gap-3">
                               <button
-                                onClick={() => setEditTarget(item)}
+                                onClick={() => {
+                                  setActionError("");
+                                  setEditTarget(item);
+                                }}
                                 className="text-gray-500 hover:text-blue-600"
                                 title="Edit"
                               >
                                 <Pencil size={16} />
                               </button>
                               <button
-                                onClick={() => setDeleteTarget(item)}
+                                onClick={() => {
+                                  setActionError("");
+                                  setDeleteTarget(item);
+                                }}
                                 className="text-gray-500 hover:text-red-600"
                                 title="Delete"
                               >
@@ -448,7 +564,10 @@ export default function AdminCatalogPage() {
               />
             </div>
             <button
-              onClick={() => setShowAddPackageModal(true)}
+              onClick={() => {
+                setActionError("");
+                setShowAddPackageModal(true);
+              }}
               className="bg-blue-600 text-white px-5 py-2 rounded-lg font-semibold hover:bg-blue-700 whitespace-nowrap"
             >
               + Add Item
@@ -462,14 +581,20 @@ export default function AdminCatalogPage() {
                   <div key={pkg.id} className={`${pkg.color} text-white rounded-xl p-4 sm:p-5 relative`}>
                     <div className="absolute top-3 right-3 sm:top-4 sm:right-4 flex gap-1">
                       <button
-                        onClick={() => setEditPackageTarget(pkg)}
+                        onClick={() => {
+                          setActionError("");
+                          setEditPackageTarget(pkg);
+                        }}
                         className="bg-white/20 hover:bg-white/30 rounded-full p-1 transition-colors"
                         title="Edit"
                       >
                         <Pencil size={16} />
                       </button>
                       <button
-                        onClick={() => setDeletePackageTarget(pkg)}
+                        onClick={() => {
+                          setActionError("");
+                          setDeletePackageTarget(pkg);
+                        }}
                         className="bg-white/20 hover:bg-white/30 rounded-full p-1 transition-colors"
                         title="Delete"
                       >
@@ -491,7 +616,12 @@ export default function AdminCatalogPage() {
       )}
 
       {showAddModal && (
-        <AdminInventoryFormModal onSave={handleAddSave} onCancel={() => setShowAddModal(false)} />
+        <AdminInventoryFormModal
+          onSave={handleAddSave}
+          onCancel={() => setShowAddModal(false)}
+          submitting={actionSubmitting}
+          submitError={actionError}
+        />
       )}
 
       {editTarget && (
@@ -499,6 +629,8 @@ export default function AdminCatalogPage() {
           initialItem={editTarget}
           onSave={handleEditSave}
           onCancel={() => setEditTarget(null)}
+          submitting={actionSubmitting}
+          submitError={actionError}
         />
       )}
 
@@ -508,6 +640,8 @@ export default function AdminCatalogPage() {
           warning={isCriticalInventoryItem(deleteTarget) ? INVENTORY_CRITICAL_WARNING : undefined}
           onConfirm={handleDeleteConfirm}
           onCancel={() => setDeleteTarget(null)}
+          submitting={actionSubmitting}
+          submitError={actionError}
         />
       )}
 
@@ -515,6 +649,8 @@ export default function AdminCatalogPage() {
         <AdminPackageFormModal
           onSave={handleAddPackageSave}
           onCancel={() => setShowAddPackageModal(false)}
+          submitting={actionSubmitting}
+          submitError={actionError}
         />
       )}
 
@@ -523,6 +659,8 @@ export default function AdminCatalogPage() {
           initialPackage={editPackageTarget}
           onSave={handleEditPackageSave}
           onCancel={() => setEditPackageTarget(null)}
+          submitting={actionSubmitting}
+          submitError={actionError}
         />
       )}
 
@@ -532,6 +670,8 @@ export default function AdminCatalogPage() {
           warning={HISTORICAL_WARNING}
           onConfirm={handleDeletePackageConfirm}
           onCancel={() => setDeletePackageTarget(null)}
+          submitting={actionSubmitting}
+          submitError={actionError}
         />
       )}
 
@@ -540,6 +680,8 @@ export default function AdminCatalogPage() {
           categories={serviceCategories}
           onSave={handleAddServiceSave}
           onCancel={() => setShowAddServiceModal(false)}
+          submitting={actionSubmitting}
+          submitError={actionError}
         />
       )}
 
@@ -549,6 +691,8 @@ export default function AdminCatalogPage() {
           initialService={editServiceTarget}
           onSave={handleEditServiceSave}
           onCancel={() => setEditServiceTarget(null)}
+          submitting={actionSubmitting}
+          submitError={actionError}
         />
       )}
 
@@ -558,6 +702,8 @@ export default function AdminCatalogPage() {
           warning={SERVICE_HISTORICAL_WARNING}
           onConfirm={handleDeleteServiceConfirm}
           onCancel={() => setDeleteServiceTarget(null)}
+          submitting={actionSubmitting}
+          submitError={actionError}
         />
       )}
     </div>

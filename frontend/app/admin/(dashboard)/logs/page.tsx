@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
-import { getActivityLogs } from "../../../staff/(dashboard)/localActivity";
-import { getStoredExpenses } from "../../../staff/(dashboard)/localExpense";
-import { getStoredWithdrawals, WithdrawalRecord } from "../../../lib/localWithdrawals";
+import { getRestockLogs, getEditedLogs } from "../../../lib/services/auditLogApi.service";
+import { getExpenses } from "../../../lib/services/expensesApi.service";
+import { getWithdrawals, WithdrawalRecord } from "../../../lib/services/withdrawalApi.service";
 import { ActivityLog, ExpenseRecord } from "../../../staff/(dashboard)/types";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
@@ -22,26 +22,46 @@ function formatTime(iso: string) {
 }
 
 export default function AdminLogsPage() {
-  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+  const [restockLogsAll, setRestockLogsAll] = useState<ActivityLog[]>([]);
+  const [editedLogsAll, setEditedLogsAll] = useState<ActivityLog[]>([]);
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>([]);
   const [activeTab, setActiveTab] = useState<LogTab>("restock");
   const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setActivityLogs(getActivityLogs());
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setExpenses(getStoredExpenses());
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setWithdrawals(getStoredWithdrawals());
+    async function load() {
+      try {
+        const [restockData, editedData, expensesData, withdrawalsData] = await Promise.all([
+          getRestockLogs(),
+          getEditedLogs(),
+          getExpenses(),
+          getWithdrawals(),
+        ]);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setRestockLogsAll(restockData);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setEditedLogsAll(editedData);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setExpenses(expensesData);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setWithdrawals(withdrawalsData);
+      } catch {
+        setLoadError("Unable to load logs. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
   }, []);
 
-  const restockLogs = activityLogs.filter(
-    (l) => l.type === "restock" && l.message.toLowerCase().includes(search.toLowerCase())
+  const restockLogs = restockLogsAll.filter((l) =>
+    l.message.toLowerCase().includes(search.toLowerCase())
   );
-  const editedLogs = activityLogs.filter(
-    (l) => l.type === "update" && l.message.toLowerCase().includes(search.toLowerCase())
+  const editedLogs = editedLogsAll.filter((l) =>
+    l.message.toLowerCase().includes(search.toLowerCase())
   );
   const filteredExpenses = expenses.filter(
     (e) =>
@@ -77,6 +97,14 @@ export default function AdminLogsPage() {
     totalPages: withdrawalTotalPages,
     paginatedItems: paginatedWithdrawals,
   } = usePagination(filteredWithdrawals, PAGE_SIZE, search);
+
+  if (loading) {
+    return <p className="text-gray-400 p-6">Loading logs...</p>;
+  }
+
+  if (loadError) {
+    return <p className="text-red-500 p-6">{loadError}</p>;
+  }
 
   return (
     <div className="p-4 sm:p-6">

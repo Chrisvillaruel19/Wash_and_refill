@@ -5,7 +5,7 @@ import { Clock, RefreshCw, CheckCircle2, Search } from "lucide-react";
 import AdminStatCard from "../../../components/admincom/AdminStatCard";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
-import { getStoredOrders } from "../../../staff/(dashboard)/localOrders";
+import { getOrders } from "../../../lib/services/ordersApi.service";
 import { formatGroupedItems } from "../../../lib/groupItems";
 import { Order, OrderStatus } from "../../../staff/(dashboard)/types";
 
@@ -27,10 +27,22 @@ export default function ClaimMonitoringPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [activeFilter, setActiveFilter] = useState<MonitoringFilter>("All");
   const [searchDate, setSearchDate] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setOrders(getStoredOrders());
+    async function load() {
+      try {
+        const data = await getOrders();
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setOrders(data);
+      } catch {
+        setError("Unable to load orders. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
   }, []);
 
   const totalPending = orders.filter((o) => o.status === "Pending").length;
@@ -55,6 +67,14 @@ export default function ClaimMonitoringPage() {
     PAGE_SIZE,
     `${activeFilter}-${searchDate}`
   );
+
+  if (loading) {
+    return <p className="text-gray-400 p-6">Loading orders...</p>;
+  }
+
+  if (error) {
+    return <p className="text-red-500 p-6">{error}</p>;
+  }
 
   return (
     <div className="p-4 sm:p-6">

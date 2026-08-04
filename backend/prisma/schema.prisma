@@ -21,6 +21,10 @@ model User {
   email           String @unique
   password        String
 
+  name            String
+  phone           String?
+  hiredDate       DateTime?
+
   role            Role @default(STAFF)
   accountStatus   AccountStatus @default(ACTIVE)
 
@@ -72,7 +76,10 @@ model Customer {
   id            String @id @default(uuid())
 
   customerName  String
-  phoneNumber   String?
+  // Required + unique so order creation can always find-or-create a
+  // customer by phone number without ever producing duplicate rows for
+  // the same real person.
+  phoneNumber   String @unique
 
   orders        Order[]
 
@@ -91,6 +98,7 @@ model Order {
 
   status          OrderStatus @default(PENDING)
   paymentStatus   PaymentStatus @default(UNPAID)
+  paymentMethod   PaymentMethod?
 
   amountPaid      Decimal @default(0)
   totalAmount     Decimal
@@ -101,6 +109,12 @@ model Order {
   orderDetails    OrderDetail[]
   consumptions    InventoryConsumption[]
 
+  // Claim-based reconciliation: null means "not yet reconciled by any
+  // Shift Handover." Set atomically, once, when a handover claims it —
+  // never inferred from comparing timestamps.
+  shiftHandoverId String?
+  shiftHandover   ShiftHandover? @relation(fields: [shiftHandoverId], references: [id])
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
@@ -110,11 +124,17 @@ enum OrderStatus {
   IN_PROGRESS
   READY
   CLAIMED
+  CANCELLED
 }
 
 enum PaymentStatus {
   UNPAID
   PAID
+}
+
+enum PaymentMethod {
+  CASH
+  GCASH
 }
 // Order summary
 model OrderDetail {
@@ -198,7 +218,17 @@ model Inventory {
 
   unitPrice   Decimal
 
+  // Per-item configurable threshold: quantity at or below this is "low
+  // stock." Frontend's equivalent is InventoryItem.lowStockAlert.
+  lowStockThreshold Int
+
   stockStatus StockStatus @default(IN_STOCK)
+
+  // Soft-delete flag, matching Package/LaundryService's existing pattern.
+  // "Deleting" an item sets this false instead of removing the row, so
+  // historical OrderDetail/InventoryConsumption references never lose their
+  // link to what was actually sold or consumed.
+  isActive    Boolean @default(true)
 
   orderDetails OrderDetail[]
   packageDetails PackageDetail[]
@@ -236,6 +266,18 @@ model Attendance {
   timeIn    DateTime?
   timeOut   DateTime?
 
+  // Stored, not recomputed later — clock-out freezes the real elapsed
+  // hours; an auto-closed session freezes the capped ceiling instead (see
+  // autoClosed below). Frontend's equivalent: AttendanceRecord.totalHours.
+  totalHours Decimal?
+
+  // True when the system closed this session automatically because it sat
+  // clocked-in past the forgotten-clock-out threshold, rather than the
+  // staff member actually clocking out. Kept visible, never hidden, so
+  // Admin can spot and correct it for payroll. Frontend's equivalent:
+  // AttendanceRecord.autoClosed.
+  autoClosed Boolean @default(false)
+
   status    AttendanceStatus
   @@unique([userId,date])
 }
@@ -260,16 +302,16 @@ model Expense {
   receiptUrl  String?
 
   expenseDate DateTime
+
+  shiftHandoverId String?
+  shiftHandover   ShiftHandover? @relation(fields: [shiftHandoverId], references: [id])
 }
 
 enum ExpenseCategory {
   SUPPLIES_AND_MATERIALS
-  TRANSPORTATION
-  EQUIPMENT_REPAIR
   UTILITIES
-  FOOD_AND_BEVERAGE
-  PETTY_CASH
-  EMERGENCY_PURCHASES
+  EQUIPMENT_REPAIR
+  RENT
   OTHER
 }
 
@@ -286,6 +328,8 @@ model ShiftHandover {
 
   laundryEarnings Decimal
   supplySales     Decimal
+  customServiceSales Decimal @default(0)
+  digitalSales    Decimal @default(0)
   expense         Decimal
   withdrawal      Decimal
 
@@ -295,6 +339,13 @@ model ShiftHandover {
   cashStatus      CashStatus
 
   notes           String?
+
+  // Claim-based reconciliation: the permanent, queryable record of exactly
+  // which transactions this handover reconciled — an audit fact, not a
+  // recomputation.
+  claimedOrders      Order[]
+  claimedExpenses    Expense[]
+  claimedWithdrawals Withdrawal[]
 }
 
 enum CashStatus {
@@ -312,11 +363,28 @@ model Withdrawal {
 
   amount          Decimal
   reason          String
-  remaining_cash  Decimal
-  withdrawalDate  DateTime @db.Date
+  remainingCash   Decimal
+  // Full timestamp, not date-only: cash-reconciliation ordering (Shift
+  // Handover/Withdrawal math) needs to compare this against other
+  // timestamps precisely, including same-day cases.
+  withdrawalDate  DateTime
+
+  shiftHandoverId String?
+  shiftHandover   ShiftHandover? @relation(fields: [shiftHandoverId], references: [id])
 }
 
-// Auditlog 
+// Serialization point for the one shared cash drawer. Exactly one row
+// exists (id = 1, seeded by migration — never created by application code).
+// createShiftHandoverService and createWithdrawalService each acquire
+// SELECT ... FOR UPDATE on this row as their first statement, before any
+// other read, so the two operations that must agree on "what is the
+// current state of the drawer" are fully serialized against each other.
+// Order/Expense creation never touches this lock.
+model DrawerState {
+  id Int @id
+}
+
+// Auditlog
 model AuditLog {
   id          String @id @default(uuid())
 

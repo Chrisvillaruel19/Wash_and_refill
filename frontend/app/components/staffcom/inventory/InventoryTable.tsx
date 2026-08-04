@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Boxes, Pencil } from "lucide-react";
+import { Search, Boxes } from "lucide-react";
 import { InventoryItem } from "../../../staff/(dashboard)/types";
 
 interface InventoryTableProps {
@@ -8,7 +8,6 @@ interface InventoryTableProps {
   search: string;
   onSearchChange: (value: string) => void;
   onRestockClick: (item: InventoryItem) => void;
-  onEditClick: (item: InventoryItem) => void;
 }
 
 export default function InventoryTable({
@@ -16,7 +15,6 @@ export default function InventoryTable({
   search,
   onSearchChange,
   onRestockClick,
-  onEditClick,
 }: InventoryTableProps) {
   return (
     <div>
@@ -76,12 +74,6 @@ export default function InventoryTable({
                             className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs font-medium"
                           >
                             <Boxes size={16} /> Restock
-                          </button>
-                          <button
-                            onClick={() => onEditClick(item)}
-                            className="text-gray-500 hover:text-gray-800"
-                          >
-                            <Pencil size={16} />
                           </button>
                         </div>
                       </td>

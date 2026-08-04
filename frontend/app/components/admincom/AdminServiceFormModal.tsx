@@ -14,6 +14,8 @@ interface AdminServiceFormModalProps {
   initialService?: ServiceItem; // undefined = Add mode
   onSave: (data: ServiceFormData) => void;
   onCancel: () => void;
+  submitting?: boolean;
+  submitError?: string;
 }
 
 export default function AdminServiceFormModal({
@@ -21,6 +23,8 @@ export default function AdminServiceFormModal({
   initialService,
   onSave,
   onCancel,
+  submitting,
+  submitError,
 }: AdminServiceFormModalProps) {
   const isEdit = !!initialService;
 
@@ -54,9 +58,9 @@ export default function AdminServiceFormModal({
           </p>
         )}
 
-        {error && (
+        {(error || submitError) && (
           <p className="text-red-600 text-sm mb-4 bg-red-50 border border-red-200 rounded-lg py-2 px-3">
-            {error}
+            {error || submitError}
           </p>
         )}
 
@@ -103,15 +107,17 @@ export default function AdminServiceFormModal({
             <button
               type="button"
               onClick={onCancel}
-              className="px-5 py-2 rounded-lg border border-gray-300 text-gray-600 font-medium hover:bg-gray-50"
+              disabled={submitting}
+              className="px-5 py-2 rounded-lg border border-gray-300 text-gray-600 font-medium hover:bg-gray-50 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700"
+              disabled={submitting}
+              className="px-5 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
             >
-              Save
+              {submitting ? "Saving..." : "Save"}
             </button>
           </div>
         </form>

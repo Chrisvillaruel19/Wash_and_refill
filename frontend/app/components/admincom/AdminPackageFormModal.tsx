@@ -15,6 +15,8 @@ interface AdminPackageFormModalProps {
   initialPackage?: Package; // undefined = Add mode
   onSave: (data: PackageFormData) => void;
   onCancel: () => void;
+  submitting?: boolean;
+  submitError?: string;
 }
 
 const colorOptions = [
@@ -28,6 +30,8 @@ export default function AdminPackageFormModal({
   initialPackage,
   onSave,
   onCancel,
+  submitting,
+  submitError,
 }: AdminPackageFormModalProps) {
   const isEdit = !!initialPackage;
 
@@ -62,9 +66,9 @@ export default function AdminPackageFormModal({
           </p>
         )}
 
-        {error && (
+        {(error || submitError) && (
           <p className="text-red-600 text-sm mb-4 bg-red-50 border border-red-200 rounded-lg py-2 px-3">
-            {error}
+            {error || submitError}
           </p>
         )}
 
@@ -133,15 +137,17 @@ export default function AdminPackageFormModal({
             <button
               type="button"
               onClick={onCancel}
-              className="px-5 py-2 rounded-lg border border-gray-300 text-gray-600 font-medium hover:bg-gray-50"
+              disabled={submitting}
+              className="px-5 py-2 rounded-lg border border-gray-300 text-gray-600 font-medium hover:bg-gray-50 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700"
+              disabled={submitting}
+              className="px-5 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
             >
-              Save
+              {submitting ? "Saving..." : "Save"}
             </button>
           </div>
         </form>

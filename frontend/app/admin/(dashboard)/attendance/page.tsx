@@ -25,7 +25,7 @@ export default function AdminAttendancePage() {
     async function load() {
       try {
         const data = await getAttendanceRecords();
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+         
         setRecords(data);
       } catch {
         setError("Unable to load attendance records. Please try again.");

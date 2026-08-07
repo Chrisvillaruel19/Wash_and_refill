@@ -17,6 +17,19 @@ const adapter = new PrismaPg({
   statement_timeout: 15000,
   idle_in_transaction_session_timeout: 10000,
 });
-const prisma = new PrismaClient({ adapter });
+
+// Prisma's interactive-transaction defaults (maxWait: 2000ms, timeout: 5000ms)
+// assume an always-warm connection pool. Neon's serverless compute
+// autosuspends when idle, so the first request after any lull (start of
+// shift, after a lunch break, overnight) can take longer than 2s just to
+// wake the compute and hand back a connection — every $transaction call in
+// this app (order creation, withdrawals, shift handover, etc.) would fail
+// with P2028 before the query even runs. Reproduced live during testing.
+// maxWait raised to comfortably absorb a cold wake; timeout raised to match
+// the adapter's own statement_timeout above.
+const prisma = new PrismaClient({
+  adapter,
+  transactionOptions: { maxWait: 10000, timeout: 15000 },
+});
 
 export { prisma };

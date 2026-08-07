@@ -56,12 +56,21 @@ function mapShiftHandover(h: BackendShiftHandover): ShiftHandoverRecord {
   };
 }
 
-// Read-only for now — GET /shift-handover is shared, role-open state that
-// already existed for Module 8. The staff-side create flow (Shift Handover
-// page itself) is separate, not-yet-migrated scope.
+// GET /shift-handover is shared, role-open state — every authenticated user
+// sees every handover (one physical drawer, not private per-user data).
 export async function getShiftHandovers(): Promise<ShiftHandoverRecord[]> {
   const { shiftHandovers } = await apiClient.get<{ shiftHandovers: BackendShiftHandover[] }>(
     "/shift-handover"
   );
   return shiftHandovers.map(mapShiftHandover);
+}
+
+// The response's shiftHandover object has no `staffName` (create doesn't
+// join User the way list does) — callers should re-fetch via
+// getShiftHandovers() afterward, same pattern as Expense/Withdrawal create.
+export async function createShiftHandover(data: {
+  actualCashCounted: number;
+  notes?: string;
+}): Promise<void> {
+  await apiClient.post("/shift-handover", data);
 }

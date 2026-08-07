@@ -23,6 +23,8 @@ export default function AdminPageHeader() {
     "/admin/logs": "Logs monitoring",
     "/admin/sales": "Sales Summary",
     "/admin/attendance": "Attendance",
+    "/admin/customers": "Customers",
+    "/admin/expenses": "Expenses",
   };
 
   const title = pageTitles[pathname] ?? "Dashboard";

@@ -25,7 +25,11 @@ export function useRequireAdmin(): { user: StaffUser | null; checking: boolean }
       router.replace("/staff");
       return;
     }
+    // One-time client-only read (localStorage) that must stay in an effect
+    // to avoid an SSR/hydration mismatch; see the useRequireStaff.ts mirror.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setUser(current);
+     
     setChecking(false);
   }, [router]);
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useEscapeKey } from "../../lib/useEscapeKey";
 
 export interface WithdrawalFormData {
   amount: number;
@@ -20,6 +21,7 @@ export default function AdminWithdrawalFormModal({
   submitting,
   submitError,
 }: AdminWithdrawalFormModalProps) {
+  useEscapeKey(onCancel);
   const [amount, setAmount] = useState(0);
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
@@ -31,12 +33,17 @@ export default function AdminWithdrawalFormModal({
       setError("Enter an amount greater than zero.");
       return;
     }
-    if (!reason.trim()) {
+    const trimmedReason = reason.trim();
+    if (!trimmedReason) {
       setError("A reason is required.");
       return;
     }
+    if (trimmedReason.length > 500) {
+      setError("Reason must be at most 500 characters.");
+      return;
+    }
 
-    onSave({ amount, reason: reason.trim() });
+    onSave({ amount, reason: trimmedReason });
   }
 
   return (
@@ -68,6 +75,7 @@ export default function AdminWithdrawalFormModal({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               rows={2}
+              maxLength={500}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900 resize-none"
             />
           </div>

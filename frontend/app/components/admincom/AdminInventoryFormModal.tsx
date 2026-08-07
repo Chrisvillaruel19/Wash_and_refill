@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { InventoryItem } from "../../staff/(dashboard)/types";
-import { isCriticalInventoryItem } from "../../lib/services/inventory.service";
+import { isCriticalInventoryItem } from "../../lib/inventoryRules";
+import { useEscapeKey } from "../../lib/useEscapeKey";
 
 export interface InventoryFormData {
   name: string;
@@ -27,6 +28,7 @@ export default function AdminInventoryFormModal({
   submitting,
   submitError,
 }: AdminInventoryFormModalProps) {
+  useEscapeKey(onCancel);
   const isEdit = !!initialItem;
 
   const [name, setName] = useState(initialItem?.name ?? "");
@@ -39,12 +41,35 @@ export default function AdminInventoryFormModal({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!name || !unit) {
+    const trimmedName = name.trim();
+    const trimmedUnit = unit.trim();
+
+    if (!trimmedName || !trimmedUnit) {
       setError("Item name and unit are required.");
       return;
     }
+    if (trimmedName.length > 100) {
+      setError("Item name must be at most 100 characters.");
+      return;
+    }
+    if (trimmedUnit.length > 20) {
+      setError("Unit must be at most 20 characters.");
+      return;
+    }
+    if (currentStock < 0 || !Number.isInteger(currentStock)) {
+      setError("Current stock must be a whole number, zero or greater.");
+      return;
+    }
+    if (lowStockAlert < 0 || !Number.isInteger(lowStockAlert)) {
+      setError("Low stock alert must be a whole number, zero or greater.");
+      return;
+    }
+    if (price <= 0) {
+      setError("Price must be greater than zero.");
+      return;
+    }
 
-    onSave({ name, currentStock, lowStockAlert, unit, price });
+    onSave({ name: trimmedName, currentStock, lowStockAlert, unit: trimmedUnit, price });
   }
 
   return (
@@ -77,6 +102,7 @@ export default function AdminInventoryFormModal({
               onChange={(e) => setName(e.target.value)}
               name="inventory-item-name"
               autoComplete="off"
+              maxLength={100}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             />
           </div>
@@ -111,6 +137,7 @@ export default function AdminInventoryFormModal({
               onChange={(e) => setUnit(e.target.value)}
               name="inventory-item-unit"
               autoComplete="off"
+              maxLength={20}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             />
           </div>
@@ -119,7 +146,8 @@ export default function AdminInventoryFormModal({
             <label className="block text-sm text-gray-500 mb-1">Price</label>
             <input
               type="number"
-              min={0}
+              min={0.01}
+              step={0.01}
               value={price}
               onChange={(e) => setPrice(parseFloat(e.target.value) || 0)}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"

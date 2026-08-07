@@ -35,7 +35,7 @@ function mapPackage(p: BackendPackage): Package {
 
 // Packages only ever consume these two specific Inventory rows — same
 // name+unit disambiguation the frontend already relies on elsewhere (see
-// isCriticalInventoryItem in inventory.service.ts). Looked up by name/unit
+// isCriticalInventoryItem in lib/inventoryRules.ts). Looked up by name/unit
 // rather than a stored id since the form only exposes simple quantity
 // fields, not a full ingredient picker.
 async function buildDetails(

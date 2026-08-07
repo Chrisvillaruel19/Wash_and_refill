@@ -1,18 +1,48 @@
-// Real backend source for Order data. Deliberately separate from
-// orders.service.ts (which still wraps localOrders.ts unchanged) — that
-// file is shared by pages not integrated yet (New Order, Service, Sales),
-// and touching it now would risk breaking them before their own phase.
-// Future integration phases for those pages should consume this file too,
-// and orders.service.ts itself can be pointed here once every consumer is
-// ready, rather than each page reimplementing this mapping separately.
+// Real backend source for Order data — the single source every page reads
+// orders from (Dashboard, Claim Monitoring, Service, Sales, New Order,
+// Shift Handover). The old localStorage-backed orders.service.ts/
+// localOrders.ts have been removed; every consumer now goes through here.
 import { apiClient } from "../apiClient";
 import { Order, OrderStatus, PayStatus, PaymentMethod } from "../../staff/(dashboard)/types";
+import { ServiceType } from "../../staff/(dashboard)/neworder/types";
 
 interface BackendOrderDetail {
   quantity: number;
+  subtotal: string;
+  serviceType: string | null;
   service: { serviceName: string } | null;
   package: { packageName: string } | null;
   inventory: { itemName: string } | null;
+}
+
+const SERVICE_TYPE_TO_BACKEND: Record<ServiceType, string> = {
+  "Wash & Dry": "WASH_AND_DRY",
+  "Wash Only": "WASH_ONLY",
+  "Dry Only": "DRY_ONLY",
+};
+
+const SERVICE_TYPE_FROM_BACKEND: Record<string, ServiceType> = {
+  WASH_AND_DRY: "Wash & Dry",
+  WASH_ONLY: "Wash Only",
+  DRY_ONLY: "Dry Only",
+};
+
+// One entry per OrderDetail line, carrying the real classification +
+// subtotal Shift Handover needs to reproduce the backend's own
+// summarizeOrders() breakdown exactly — distinct from `items` (Order,
+// below), which flattens to a display string and loses type/subtotal.
+export interface OrderDetailLine {
+  type: "PACKAGE" | "SERVICE" | "INVENTORY";
+  name: string;
+  quantity: number;
+  subtotal: number;
+}
+
+function mapOrderDetailLine(detail: BackendOrderDetail): OrderDetailLine {
+  const type = detail.package ? "PACKAGE" : detail.service ? "SERVICE" : "INVENTORY";
+  const name =
+    detail.package?.packageName ?? detail.service?.serviceName ?? detail.inventory?.itemName ?? "Item";
+  return { type, name, quantity: detail.quantity, subtotal: Number(detail.subtotal) };
 }
 
 interface BackendOrder {
@@ -23,6 +53,7 @@ interface BackendOrder {
   amountPaid: string;
   totalAmount: string;
   createdAt: string;
+  shiftHandoverId: string | null;
   customer: { customerName: string; phoneNumber: string };
   user?: { id: string; name: string };
   orderDetails?: BackendOrderDetail[];
@@ -60,7 +91,9 @@ const STATUS_TO_BACKEND: Record<OrderStatus, string> = {
 function mapOrderDetail(detail: BackendOrderDetail): string {
   const name =
     detail.package?.packageName ?? detail.service?.serviceName ?? detail.inventory?.itemName ?? "Item";
-  return detail.quantity > 1 ? `${name} ×${detail.quantity}` : name;
+  const serviceTypeLabel = detail.serviceType ? SERVICE_TYPE_FROM_BACKEND[detail.serviceType] : null;
+  const label = serviceTypeLabel ? `${name} (${serviceTypeLabel})` : name;
+  return detail.quantity > 1 ? `${label} ×${detail.quantity}` : label;
 }
 
 function mapOrder(order: BackendOrder): Order {
@@ -78,6 +111,7 @@ function mapOrder(order: BackendOrder): Order {
     staffName: order.user?.name,
     createdAt: order.createdAt,
     paymentMethod: order.paymentMethod ? PAYMENT_METHOD_MAP[order.paymentMethod] : undefined,
+    shiftHandoverId: order.shiftHandoverId,
   };
 }
 
@@ -96,6 +130,15 @@ export async function getOrderDetail(id: string): Promise<Order> {
   return mapOrder(result.order);
 }
 
+// Same endpoint as getOrderDetail, but returns the typed line items instead
+// of the flattened display strings — Shift Handover needs the real
+// PACKAGE/SERVICE/INVENTORY classification to reproduce the backend's own
+// reconciliation math, not just something to render as text.
+export async function getOrderDetailLines(id: string): Promise<OrderDetailLine[]> {
+  const result = await apiClient.get<{ order: BackendOrder }>(`/orders/${id}`);
+  return (result.order.orderDetails ?? []).map(mapOrderDetailLine);
+}
+
 // The status-update/cancel responses come from a plain repository .update()
 // with no relation include, so they lack customer/user — mapOrder would
 // crash on order.customer.customerName if applied here. Callers should
@@ -108,3 +151,37 @@ export async function updateOrderStatus(id: string, status: OrderStatus): Promis
 export async function cancelOrder(id: string): Promise<void> {
   await apiClient.post(`/orders/${id}/cancel`);
 }
+
+// Mirrors backend/src/schema/order/order-item.schema.ts's discriminated
+// union exactly — one of these three shapes per cart line.
+export type NewOrderItemInput =
+  | { type: "PACKAGE"; packageId: string; quantity: number }
+  | { type: "SERVICE"; serviceId: string; weight: number; quantity: number; serviceType?: ServiceType }
+  | { type: "INVENTORY"; inventoryId: string; quantity: number };
+
+export async function createOrder(data: {
+  customerName: string;
+  phoneNumber: string;
+  paymentMethod: PaymentMethod;
+  amountPaid: number;
+  items: NewOrderItemInput[];
+}): Promise<Order> {
+  const items = data.items.map((item) =>
+    item.type === "SERVICE" && item.serviceType
+      ? { ...item, serviceType: SERVICE_TYPE_TO_BACKEND[item.serviceType] }
+      : item
+  );
+  const { order } = await apiClient.post<{ order: BackendOrder }>("/orders", {
+    customerName: data.customerName,
+    phoneNumber: data.phoneNumber,
+    paymentMethod: PAYMENT_METHOD_MAP_TO_BACKEND[data.paymentMethod],
+    amountPaid: data.amountPaid,
+    items,
+  });
+  return mapOrder(order);
+}
+
+const PAYMENT_METHOD_MAP_TO_BACKEND: Record<PaymentMethod, string> = {
+  Cash: "CASH",
+  GCash: "GCASH",
+};

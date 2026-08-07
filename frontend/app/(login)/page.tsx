@@ -19,6 +19,12 @@ export default function Home() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (isSubmittingRef.current) return;
+
+    if (!username.trim() || !password) {
+      setError("Username and password are both required.");
+      return;
+    }
+
     isSubmittingRef.current = true;
     setIsSubmitting(true);
     setError("");

@@ -1,21 +1,37 @@
+import { prisma } from "../../lib/prisma.js";
 import { CustomerRepository } from "../../repositories/customer.repository.js";
 import { isForeignKeyRestrictError } from "../../lib/prisma-errors.js";
+import { AuditAction } from "../../../generated/prisma/client.js";
+import { writeAuditLog } from "../../lib/audit-log.js";
 
 const customerRepository = new CustomerRepository();
 
-export async function deleteCustomerService(id: string) {
+export async function deleteCustomerService(actorUserId: string, id: string) {
   try {
-    const existing = await customerRepository.findById(id);
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await customerRepository.findById(id, tx);
+      if (!existing) return null;
 
-    if (!existing) {
+      await customerRepository.delete(id, tx);
+
+      await writeAuditLog(tx, {
+        userId: actorUserId,
+        action: AuditAction.DELETE,
+        module: "Customer",
+        description: `Removed customer "${existing.customerName}"`,
+        oldValue: { customerName: existing.customerName, phoneNumber: existing.phoneNumber },
+      });
+
+      return true;
+    });
+
+    if (!result) {
       return {
         code: 404,
         status: "error",
         message: "Customer not found",
       };
     }
-
-    await customerRepository.delete(id);
 
     return {
       code: 200,

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { packageDetailSchema } from "./package-detail.schema.js";
+import { shortTextRule } from "../common/validation-rules.js";
 
 export const updatePackageSchema = z.object({
   params: z.object({
@@ -7,8 +8,8 @@ export const updatePackageSchema = z.object({
   }),
   body: z
     .object({
-      packageName: z.string().min(1, "Package name is required").optional(),
-      price: z.number().nonnegative("Price cannot be negative").optional(),
+      packageName: shortTextRule("Package name").optional(),
+      price: z.number().positive("Price must be greater than zero").optional(),
       color: z.string().min(1, "Color cannot be empty").optional(),
       // Omitted entirely = leave existing recipe untouched. Present (even as
       // an empty array) = replace the recipe with exactly this list.

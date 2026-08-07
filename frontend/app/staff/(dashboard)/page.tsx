@@ -22,7 +22,7 @@ export default function StaffDashboardPage() {
     async function load() {
       try {
         const [dashboard, orderList] = await Promise.all([getStaffDashboard(), getOrders()]);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+         
         setStats({ todaysSales: dashboard.todaysSales, claimedToday: dashboard.claimedToday, ready: dashboard.ready });
         setLowStock(dashboard.lowStock);
         setOrders(orderList);

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ServiceItem, ServiceCategory } from "../../staff/(dashboard)/neworder/types";
+import { useEscapeKey } from "../../lib/useEscapeKey";
 
 export interface ServiceFormData {
   categoryId: string;
@@ -26,6 +27,7 @@ export default function AdminServiceFormModal({
   submitting,
   submitError,
 }: AdminServiceFormModalProps) {
+  useEscapeKey(onCancel);
   const isEdit = !!initialService;
 
   const [categoryId, setCategoryId] = useState(initialService?.categoryId ?? categories[0]?.id ?? "");
@@ -36,12 +38,22 @@ export default function AdminServiceFormModal({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!name || !categoryId) {
+    const trimmedName = name.trim();
+
+    if (!trimmedName || !categoryId) {
       setError("Type and name are required.");
       return;
     }
+    if (trimmedName.length > 100) {
+      setError("Service name must be at most 100 characters.");
+      return;
+    }
+    if (pricePerKg <= 0) {
+      setError("Price must be greater than zero.");
+      return;
+    }
 
-    onSave({ categoryId, name, pricePerKg });
+    onSave({ categoryId, name: trimmedName, pricePerKg });
   }
 
   return (
@@ -88,6 +100,7 @@ export default function AdminServiceFormModal({
               onChange={(e) => setName(e.target.value)}
               name="service-name"
               autoComplete="off"
+              maxLength={100}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             />
           </div>
@@ -96,7 +109,8 @@ export default function AdminServiceFormModal({
             <label className="block text-sm text-gray-500 mb-1">Price per Kg</label>
             <input
               type="number"
-              min={0}
+              min={0.01}
+              step={0.01}
               value={pricePerKg}
               onChange={(e) => setPricePerKg(parseFloat(e.target.value) || 0)}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"

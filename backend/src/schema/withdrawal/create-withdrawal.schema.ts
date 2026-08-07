@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { longTextRule } from "../common/validation-rules.js";
 
 // remainingCash/withdrawalDate/userId are server-computed — never accepted
 // from the client.
@@ -8,8 +9,6 @@ export const createWithdrawalSchema = z.object({
       .number({ message: "Amount is required" })
       .positive("Amount must be greater than zero"),
 
-    reason: z
-      .string({ message: "Reason is required" })
-      .min(1, "Reason is required"),
+    reason: longTextRule("Reason"),
   }),
 });

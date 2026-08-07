@@ -4,6 +4,7 @@ import { acquireDrawerLock } from "../../lib/drawer-lock.js";
 import { getCurrentDrawerBalance } from "../shift-handover/reconciliation.util.js";
 import { AuditAction } from "../../../generated/prisma/client.js";
 import { writeAuditLog } from "../../lib/audit-log.js";
+import { InsufficientFundsError } from "./withdrawal-errors.js";
 
 const withdrawalRepository = new WithdrawalRepository();
 
@@ -22,6 +23,17 @@ export async function createWithdrawalService(
 
       const currentBalance = await getCurrentDrawerBalance(tx);
       const remainingCash = currentBalance - data.amount;
+
+      // Rounded to the nearest centavo before the guard: currentBalance is a
+      // chain of floating-point money sums (see the identical issue in
+      // Shift Handover's cashStatus check), so a withdrawal that exactly
+      // drains the drawer could otherwise land a fraction of a centavo
+      // below zero and be falsely rejected as insufficient funds.
+      if (Math.round(remainingCash * 100) / 100 < 0) {
+        throw new InsufficientFundsError(
+          `Insufficient funds: current drawer balance is ₱${currentBalance.toFixed(2)}, cannot withdraw ₱${data.amount.toFixed(2)}`
+        );
+      }
 
       // Left unclaimed (shiftHandoverId stays null) — this withdrawal
       // will be swept into whichever Shift Handover reconciles it next.
@@ -55,6 +67,10 @@ export async function createWithdrawalService(
       data: { withdrawal: created },
     };
   } catch (error) {
+    if (error instanceof InsufficientFundsError) {
+      return { code: 409, status: "error", message: error.message };
+    }
+
     console.error("createWithdrawalService error", error);
     return {
       code: 500,

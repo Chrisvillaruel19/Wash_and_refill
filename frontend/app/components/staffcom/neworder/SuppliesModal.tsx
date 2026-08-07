@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import { SupplyItem } from "../../../staff/(dashboard)/neworder/types";
+import { useEscapeKey } from "../../../lib/useEscapeKey";
 
 interface SuppliesModalProps {
   supplies: SupplyItem[];
@@ -11,6 +12,7 @@ interface SuppliesModalProps {
 }
 
 export default function SuppliesModal({ supplies, onAdd, onClose }: SuppliesModalProps) {
+  useEscapeKey(onClose);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
 
   function handleQuantityChange(id: string, value: number) {

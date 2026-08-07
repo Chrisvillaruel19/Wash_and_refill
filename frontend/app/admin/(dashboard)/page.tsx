@@ -22,7 +22,7 @@ export default function AdminDashboardPage() {
     async function load() {
       try {
         const dashboard = await getAdminDashboard();
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+         
         setTotalCashToday(dashboard.totalCashToday);
         setUnclaimedOrders(dashboard.unclaimedOrders);
         setStatusCounts(dashboard.statusCounts);

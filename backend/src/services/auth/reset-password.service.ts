@@ -1,6 +1,5 @@
 import {UserRepository} from "../../repositories/user.repository.js";
 import {TokenRepository} from "../../repositories/token.repository.js";
-import {verifyPassword} from "../../utils/password.js";
 import {hashPassword} from "../../utils/password.js";
 
 

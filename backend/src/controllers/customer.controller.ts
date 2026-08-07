@@ -7,12 +7,16 @@ import {
   updateCustomerService,
   deleteCustomerService,
 } from "../services/customer/index.js";
+import { JwtPayload } from "../lib/jwt.js";
+
+type AuthenticatedRequest = Request & { user?: JwtPayload };
 
 export class CustomerController {
   public findOrCreate = async (req: Request, res: Response) => {
     try {
+      const actorUserId = (req as AuthenticatedRequest).user?.sub as string;
       const { customerName, phoneNumber } = req.body;
-      const result = await findOrCreateCustomerService({ customerName, phoneNumber });
+      const result = await findOrCreateCustomerService(actorUserId, { customerName, phoneNumber });
       return res.status(result.code).json(result);
     } catch (error) {
       console.error("CustomerController.findOrCreate error", error);
@@ -70,9 +74,10 @@ export class CustomerController {
 
   public update = async (req: Request, res: Response) => {
     try {
+      const actorUserId = (req as AuthenticatedRequest).user?.sub as string;
       const id = req.params.id as string;
       const { customerName } = req.body;
-      const result = await updateCustomerService(id, customerName);
+      const result = await updateCustomerService(actorUserId, id, customerName);
       return res.status(result.code).json(result);
     } catch (error) {
       console.error("CustomerController.update error", error);
@@ -86,8 +91,9 @@ export class CustomerController {
 
   public remove = async (req: Request, res: Response) => {
     try {
+      const actorUserId = (req as AuthenticatedRequest).user?.sub as string;
       const id = req.params.id as string;
-      const result = await deleteCustomerService(id);
+      const result = await deleteCustomerService(actorUserId, id);
       return res.status(result.code).json(result);
     } catch (error) {
       console.error("CustomerController.remove error", error);

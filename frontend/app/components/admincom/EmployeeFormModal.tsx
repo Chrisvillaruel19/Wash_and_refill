@@ -2,6 +2,21 @@
 
 import { useState } from "react";
 import { Employee } from "../../lib/services/employeeApi.service";
+import { useEscapeKey } from "../../lib/useEscapeKey";
+import {
+  isValidName,
+  NAME_ERROR_MESSAGE,
+  sanitizeNameInput,
+  isValidUsername,
+  USERNAME_ERROR_MESSAGE,
+  isValidPhone,
+  PHONE_ERROR_MESSAGE,
+  sanitizePhoneInput,
+  isValidPassword,
+  PASSWORD_ERROR_MESSAGE,
+} from "../../lib/validation";
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export interface EmployeeFormData {
   username: string;
@@ -27,6 +42,7 @@ export default function EmployeeFormModal({
   submitting,
   submitError,
 }: EmployeeFormModalProps) {
+  useEscapeKey(onCancel);
   const isEdit = !!initialEmployee;
 
   const [username, setUsername] = useState(initialEmployee?.username ?? "");
@@ -42,8 +58,33 @@ export default function EmployeeFormModal({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!username || !name || !hiredDate) {
+    const trimmedUsername = username.trim();
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+    const trimmedPhone = phone.trim();
+
+    if (!trimmedUsername || !trimmedName || !hiredDate) {
       setError("Username, name, and hired date are required.");
+      return;
+    }
+
+    if (!isValidUsername(trimmedUsername)) {
+      setError(USERNAME_ERROR_MESSAGE);
+      return;
+    }
+
+    if (!isValidName(trimmedName)) {
+      setError(NAME_ERROR_MESSAGE);
+      return;
+    }
+
+    if (trimmedEmail && !EMAIL_PATTERN.test(trimmedEmail)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    if (trimmedPhone && !isValidPhone(trimmedPhone)) {
+      setError(PHONE_ERROR_MESSAGE);
       return;
     }
 
@@ -52,12 +93,18 @@ export default function EmployeeFormModal({
       return;
     }
 
-    if ((!isEdit || (resetPassword && password)) && password.length < 8) {
-      setError("Password must be at least 8 characters.");
+    if ((!isEdit || (resetPassword && password)) && !isValidPassword(password)) {
+      setError(PASSWORD_ERROR_MESSAGE);
       return;
     }
 
-    const data: EmployeeFormData = { username, name, email, phone, hiredDate };
+    const data: EmployeeFormData = {
+      username: trimmedUsername,
+      name: trimmedName,
+      email: trimmedEmail,
+      phone: trimmedPhone,
+      hiredDate,
+    };
     if (!isEdit) {
       data.password = password;
     } else if (resetPassword && password) {
@@ -86,9 +133,10 @@ export default function EmployeeFormModal({
             <input
               type="text"
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, ""))}
               name="employee-username"
               autoComplete="off"
+              maxLength={30}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             />
           </div>
@@ -98,9 +146,10 @@ export default function EmployeeFormModal({
             <input
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => setName(sanitizeNameInput(e.target.value))}
               name="employee-name"
               autoComplete="off"
+              maxLength={100}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             />
           </div>
@@ -113,6 +162,7 @@ export default function EmployeeFormModal({
               onChange={(e) => setEmail(e.target.value)}
               name="employee-email"
               autoComplete="off"
+              maxLength={254}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             />
           </div>
@@ -121,10 +171,12 @@ export default function EmployeeFormModal({
             <label className="block text-sm text-gray-500 mb-1">Phone</label>
             <input
               type="text"
+              inputMode="numeric"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => setPhone(sanitizePhoneInput(e.target.value))}
               name="employee-phone"
               autoComplete="off"
+              placeholder="11-digit phone number (optional)"
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             />
           </div>

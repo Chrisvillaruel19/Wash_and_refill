@@ -2,6 +2,7 @@ import { prisma } from "../../lib/prisma.js";
 import { AttendanceRepository } from "../../repositories/attendance.repository.js";
 import { Prisma, AttendanceStatus, AuditAction } from "../../../generated/prisma/client.js";
 import { writeAuditLog } from "../../lib/audit-log.js";
+import { getBusinessDateOnly } from "../../lib/business-timezone.js";
 
 const attendanceRepository = new AttendanceRepository();
 
@@ -10,8 +11,10 @@ export async function clockInService(userId: string) {
     const created = await prisma.$transaction(async (tx) => {
       const now = new Date();
       // Date-only, matching the column's @db.Date type and the
-      // @@unique([userId, date]) constraint this relies on.
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      // @@unique([userId, date]) constraint this relies on. Computed in the
+      // business's own timezone (see business-timezone.ts), not the server
+      // process's ambient local time.
+      const today = getBusinessDateOnly(now);
 
       const record = await attendanceRepository.create(
         { userId, date: today, timeIn: now, status: AttendanceStatus.PRESENT },

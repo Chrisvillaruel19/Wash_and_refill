@@ -32,6 +32,7 @@ type BackendExpense = {
   receiptUrl?: string | null;
   expenseDate: string;
   submittedBy: string;
+  shiftHandoverId: string | null;
 };
 
 function mapExpense(e: BackendExpense): ExpenseRecord {
@@ -43,6 +44,7 @@ function mapExpense(e: BackendExpense): ExpenseRecord {
     description: e.description,
     submittedBy: e.submittedBy,
     imageDataUrl: e.receiptUrl ?? undefined,
+    shiftHandoverId: e.shiftHandoverId,
   };
 }
 

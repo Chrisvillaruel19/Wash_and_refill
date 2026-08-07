@@ -6,6 +6,7 @@ import SuppliesModal from "./SuppliesModal";
 import {
   ServiceCategory,
   ServiceItemOption,
+  ServiceType,
   SupplyItem,
 } from "../../../staff/(dashboard)/neworder/types";
 
@@ -18,9 +19,10 @@ interface NewOrderModalsProps {
   selectedCategory: ServiceCategory | null;
   itemOptions: ServiceItemOption[];
   onServiceConfirm: (result: {
+    itemId: string;
     itemName: string;
     quantityKg: number;
-    serviceType: string;
+    serviceType: ServiceType;
     total: number;
   }) => void;
   onServiceCancel: () => void;

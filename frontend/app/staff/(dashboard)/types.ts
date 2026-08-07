@@ -1,10 +1,3 @@
-export interface DashboardStats {
-  todaysSales: number;
-  claimedToday: number;
-  ready: number;
-  lowStockCount: number;
-}
-
 export interface LowStockItem {
   id: string;
   name: string;
@@ -56,6 +49,11 @@ export interface Order {
   // (matching how every order was already implicitly treated before this
   // field existed), not silently excluded.
   paymentMethod?: PaymentMethod;
+  // null = not yet reconciled by any Shift Handover. Present on the real
+  // backend response but previously unmapped — Shift Handover is the first
+  // consumer that needs it (its "unclaimed" definition, not a timestamp
+  // window). undefined for records mapped before this field existed.
+  shiftHandoverId?: string | null;
 }
 export interface InventoryItem {
   id: string;
@@ -95,6 +93,8 @@ export interface ExpenseRecord {
   category: ExpenseCategory;
   description: string;
   submittedBy: string;
+  // null = not yet reconciled by any Shift Handover. See Order.shiftHandoverId.
+  shiftHandoverId?: string | null;
   imageDataUrl?: string;
 }
 

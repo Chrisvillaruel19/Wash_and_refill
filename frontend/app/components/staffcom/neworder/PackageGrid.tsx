@@ -18,21 +18,20 @@ export default function PackageGrid({ packages, onAdd }: PackageGridProps) {
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4">
         {packages.map((pkg) => (
-          <div
+          <button
             key={pkg.id}
-            className={`${pkg.color} text-white rounded-xl p-4 sm:p-5 relative`}
+            type="button"
+            onClick={() => onAdd(pkg)}
+            className={`${pkg.color} text-white rounded-xl p-4 sm:p-5 relative text-left w-full hover:brightness-110 transition-[filter] cursor-pointer`}
           >
-            <button
-              onClick={() => onAdd(pkg)}
-              className="absolute top-3 right-3 sm:top-4 sm:right-4 bg-white/20 hover:bg-white/30 rounded-full p-1 transition-colors"
-            >
+            <span className="absolute top-3 right-3 sm:top-4 sm:right-4 bg-white/20 rounded-full p-1">
               <Plus size={18} />
-            </button>
+            </span>
             <h4 className="text-base sm:text-lg font-bold mb-2">{pkg.name}</h4>
             <p className="text-xl sm:text-2xl font-bold mb-2">₱ {pkg.price.toFixed(2)}</p>
             <p className="text-xs opacity-90">Liquid Detergent: {pkg.liquidDetergent}</p>
             <p className="text-xs opacity-90">Downy: {pkg.downy}</p>
-          </div>
+          </button>
         ))}
       </div>
     </div>

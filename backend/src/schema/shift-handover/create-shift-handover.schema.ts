@@ -9,6 +9,6 @@ export const createShiftHandoverSchema = z.object({
       .number({ message: "Actual cash counted is required" })
       .nonnegative("Actual cash counted cannot be negative"),
 
-    notes: z.string().optional(),
+    notes: z.string().trim().max(500, "Notes must be at most 500 characters").optional(),
   }),
 });

@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma.js";
-import { Prisma, OrderStatus, PaymentStatus, PaymentMethod } from "../../generated/prisma/client.js";
+import { Prisma, OrderStatus, PaymentStatus, PaymentMethod, ServiceType } from "../../generated/prisma/client.js";
 
 type PrismaClientOrTx = typeof prisma | Prisma.TransactionClient;
 
@@ -50,6 +50,7 @@ export class OrderRepository {
     orderId: string,
     details: {
       serviceId?: string;
+      serviceType?: ServiceType;
       packageId?: string;
       inventoryId?: string;
       weight?: number;

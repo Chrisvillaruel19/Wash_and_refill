@@ -3,10 +3,9 @@ import { AuditLogRepository } from "../../repositories/audit-log.repository.js";
 const auditLogRepository = new AuditLogRepository();
 const RECENT_ACTIVITY_LIMIT = 10;
 
-// Reads directly from AuditLog. No module writes to it yet (that's Module
-// 10's job) — this correctly returns an empty array until then, and the
-// frontend shows its normal empty state. No temporary/duplicate logging
-// introduced to make this "look populated" in the meantime.
+// Reads directly from AuditLog — every module writes to it via the shared
+// writeAuditLog() helper, so this is always a real, live feed, never a
+// separate/duplicate logging path of its own.
 export async function getRecentActivityService() {
   try {
     const logs = await auditLogRepository.findRecent(RECENT_ACTIVITY_LIMIT);

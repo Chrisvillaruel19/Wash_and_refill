@@ -40,13 +40,13 @@ export default function AdminLogsPage() {
           getExpenses(),
           getWithdrawals(),
         ]);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+         
         setRestockLogsAll(restockData);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+         
         setEditedLogsAll(editedData);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+         
         setExpenses(expensesData);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+         
         setWithdrawals(withdrawalsData);
       } catch {
         setLoadError("Unable to load logs. Please try again.");

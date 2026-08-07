@@ -5,7 +5,9 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
 const ACCESS_TOKEN_KEY = "wrlms_access_token";
 
-export function getAccessToken(): string | null {
+// Not exported — only request() below needs it. Every other file goes
+// through apiClient.get/post/patch/delete, which attach the token itself.
+function getAccessToken(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem(ACCESS_TOKEN_KEY);
 }

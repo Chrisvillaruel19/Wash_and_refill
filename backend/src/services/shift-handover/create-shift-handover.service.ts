@@ -70,8 +70,16 @@ export async function createShiftHandoverService(
       const expectedBalance = drawerStart + cashSalesTotal - withdrawalTotal - expenseTotal;
       const actualCashCount = data.actualCashCounted;
 
+      // Compared to the nearest centavo, not with raw ===: expectedBalance
+      // is a chain of floating-point sums/subtractions over money values
+      // (e.g. per-kg service subtotals), so it can land a fraction of a
+      // centavo off an otherwise-exact match (classic 0.1 + 0.2 !== 0.3
+      // issue). A staff member who counts the till correctly shouldn't see
+      // a false SHORTAGE/EXCESS over a rounding artifact smaller than the
+      // smallest coin in circulation.
+      const roundToCentavo = (n: number) => Math.round(n * 100) / 100;
       const cashStatus =
-        actualCashCount === expectedBalance
+        roundToCentavo(actualCashCount) === roundToCentavo(expectedBalance)
           ? CashStatus.BALANCED
           : actualCashCount < expectedBalance
           ? CashStatus.SHORTAGE

@@ -1,11 +1,13 @@
 import { Router } from "express";
-import { loginSchema, refreshTokenSchema, forgotPasswordSchema, resetPasswordSchema } from "../schema/auth/index.js";
+import { loginSchema, refreshTokenSchema, forgotPasswordSchema, resetPasswordSchema, verifyPasswordSchema } from "../schema/auth/index.js";
 import { AuthController } from "../controllers/auth.controller.js";
 import { validateSchema } from "../middlewares/validate-schema.js";
+import { AuthMiddleware } from "../middlewares/auth-middleware.js";
 
 const router = Router();
 
 const authController = new AuthController();
+const authMiddleware = new AuthMiddleware();
 
 router.post(
   "/login",
@@ -34,6 +36,15 @@ router.post(
   "/reset-password",
   validateSchema(resetPasswordSchema),
   authController.resetPassword
+);
+
+// Manager-override check (e.g. Staff Inventory's restock re-auth) — must
+// already be logged in as someone to call this at all.
+router.post(
+  "/verify-password",
+  authMiddleware.execute,
+  validateSchema(verifyPasswordSchema),
+  authController.verifyPassword
 );
 
 export default router;

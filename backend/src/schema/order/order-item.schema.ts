@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ServiceType } from "../../../generated/prisma/client.js";
 
 // Three independent line-item types, mirroring the frontend's three
 // independent add-to-cart entry points (Package / Laundry Service /
@@ -24,6 +25,9 @@ const serviceItemSchema = z.object({
     .int("Quantity must be a whole number")
     .positive("Quantity must be greater than zero")
     .default(1),
+  // Optional, not required — older/other callers omitting it just store
+  // null, matching the column's nullable default.
+  serviceType: z.enum(ServiceType, { message: "Invalid service type" }).optional(),
 });
 
 const inventoryItemSchema = z.object({

@@ -1,7 +1,5 @@
-// Real backend source for Attendance data. Separate from
-// attendance.service.ts (still wraps localAttendance.ts, used by the Staff
-// Attendance page's clock-in/out flow — Phase 3, not yet integrated) for
-// the same reason ordersApi.service.ts is separate from orders.service.ts.
+// Real backend source for Attendance data — the single source both the
+// Staff and Admin Attendance pages read from.
 import { apiClient } from "../apiClient";
 import { AttendanceRecord } from "../../staff/(dashboard)/types";
 

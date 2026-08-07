@@ -1,5 +1,7 @@
 "use client";
 
+import { useEscapeKey } from "../../lib/useEscapeKey";
+
 interface ConfirmArchiveModalProps {
   employeeName: string;
   onConfirm: () => void;
@@ -15,6 +17,8 @@ export default function ConfirmArchiveModal({
   submitting,
   error,
 }: ConfirmArchiveModalProps) {
+  useEscapeKey(onCancel);
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-2xl p-8 w-full max-w-md">

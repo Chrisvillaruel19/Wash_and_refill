@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ExpenseCategory } from "../../../generated/prisma/client.js";
+import { longTextRule } from "../common/validation-rules.js";
 
 export const createExpenseSchema = z.object({
   body: z.object({
@@ -9,9 +10,7 @@ export const createExpenseSchema = z.object({
 
     category: z.enum(ExpenseCategory, { message: "Invalid expense category" }),
 
-    description: z
-      .string({ message: "Description is required" })
-      .min(1, "Description is required"),
+    description: longTextRule("Description"),
 
     // Base64 data URL from the frontend's file input — stored as-is, no
     // external file storage (approved capstone-scale tradeoff).

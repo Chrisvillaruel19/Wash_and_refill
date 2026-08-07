@@ -5,6 +5,7 @@ import {
   LogoutService,
   forgotPasswordService,
   resetPasswordService,
+  verifyPasswordService,
 } from "../services/auth/index.js";
 import { toMilliseconds, TokenExpiry } from "../lib/jwt.js";
 
@@ -109,6 +110,23 @@ export class AuthController {
 
       return res.status(500).json({
         message: "Unable to reset password",
+      });
+    }
+  };
+
+//verify-password method (manager-override check — no tokens, no cookies)
+  public verifyPassword = async (req: Request, res: Response) => {
+    try {
+      const { username, password } = req.body;
+
+      const result = await verifyPasswordService(username, password);
+
+      return res.status(result.code).json(result);
+    } catch (error) {
+      console.error("AuthController.verifyPassword error", error);
+
+      return res.status(500).json({
+        message: "Unable to verify credentials",
       });
     }
   };

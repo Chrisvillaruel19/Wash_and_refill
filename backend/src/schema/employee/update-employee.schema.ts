@@ -1,12 +1,5 @@
 import { z } from "zod";
-import { phoneNumberRule } from "../customer/phone-param.schema.js";
-
-// See create-employee.schema.ts — "" from a blank <input> must behave like
-// omitted, not fail phoneNumberRule's min-length/regex checks.
-const optionalPhone = z.preprocess(
-  (val) => (val === "" ? undefined : val),
-  phoneNumberRule.optional()
-);
+import { optionalPhoneNumberRule, nameRule, usernameRule, passwordRule } from "../common/validation-rules.js";
 
 export const updateEmployeeSchema = z.object({
   params: z.object({
@@ -14,13 +7,13 @@ export const updateEmployeeSchema = z.object({
   }),
   body: z
     .object({
-      username: z.string().min(3, "Username must be at least 3 characters long").optional(),
-      name: z.string().min(1, "Name is required").optional(),
-      email: z.string().email("Invalid email format").optional(),
-      phone: optionalPhone,
+      username: usernameRule.optional(),
+      name: nameRule.optional(),
+      email: z.string().trim().max(254, "Email must be at most 254 characters").email("Invalid email format").optional(),
+      phone: optionalPhoneNumberRule(),
       hiredDate: z.coerce.date().optional(),
       // Omitted = keep current password. Present = reset to this value.
-      password: z.string().min(8, "Password must be at least 8 characters").optional(),
+      password: passwordRule.optional(),
     })
     .refine((data) => Object.keys(data).length > 0, {
       message: "At least one field must be provided to update",

@@ -1,35 +1,21 @@
 import { z } from "zod";
-import { phoneNumberRule } from "../customer/phone-param.schema.js";
-
-// phoneNumberRule.optional() only skips validation for `undefined` — a
-// blank <input> submits "", which still hits .min(7)/the regex and fails
-// with a confusing "too short" error despite the field being optional.
-// preprocess normalizes "" to undefined first so leaving it blank behaves
-// like actually omitting it.
-const optionalPhone = z.preprocess(
-  (val) => (val === "" ? undefined : val),
-  phoneNumberRule.optional()
-);
+import { optionalPhoneNumberRule, nameRule, usernameRule, passwordRule } from "../common/validation-rules.js";
 
 export const createEmployeeSchema = z.object({
   body: z.object({
-    username: z
-      .string({ message: "Username is required" })
-      .min(3, "Username must be at least 3 characters long"),
+    username: usernameRule,
 
     email: z
       .string({ message: "Email is required" })
+      .trim()
+      .max(254, "Email must be at most 254 characters")
       .email("Invalid email format"),
 
-    name: z
-      .string({ message: "Name is required" })
-      .min(1, "Name is required"),
+    name: nameRule,
 
-    password: z
-      .string({ message: "Password is required" })
-      .min(8, "Password must be at least 8 characters"),
+    password: passwordRule,
 
-    phone: optionalPhone,
+    phone: optionalPhoneNumberRule(),
 
     hiredDate: z.coerce.date({ message: "Hired date is required" }),
   }),

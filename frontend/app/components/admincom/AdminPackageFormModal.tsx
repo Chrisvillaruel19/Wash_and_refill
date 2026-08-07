@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Package } from "../../staff/(dashboard)/neworder/types";
+import { useEscapeKey } from "../../lib/useEscapeKey";
 
 export interface PackageFormData {
   name: string;
@@ -33,6 +34,7 @@ export default function AdminPackageFormModal({
   submitting,
   submitError,
 }: AdminPackageFormModalProps) {
+  useEscapeKey(onCancel);
   const isEdit = !!initialPackage;
 
   const [name, setName] = useState(initialPackage?.name ?? "");
@@ -45,12 +47,30 @@ export default function AdminPackageFormModal({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!name) {
+    const trimmedName = name.trim();
+
+    if (!trimmedName) {
       setError("Package name is required.");
       return;
     }
+    if (trimmedName.length > 100) {
+      setError("Package name must be at most 100 characters.");
+      return;
+    }
+    if (price <= 0) {
+      setError("Price must be greater than zero.");
+      return;
+    }
+    if (liquidDetergent < 0 || !Number.isInteger(liquidDetergent)) {
+      setError("Liquid Detergent quantity must be a whole number, zero or greater.");
+      return;
+    }
+    if (downy < 0 || !Number.isInteger(downy)) {
+      setError("Downy quantity must be a whole number, zero or greater.");
+      return;
+    }
 
-    onSave({ name, price, liquidDetergent, downy, color });
+    onSave({ name: trimmedName, price, liquidDetergent, downy, color });
   }
 
   return (
@@ -81,6 +101,7 @@ export default function AdminPackageFormModal({
               onChange={(e) => setName(e.target.value)}
               name="package-name"
               autoComplete="off"
+              maxLength={100}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             />
           </div>
@@ -89,7 +110,8 @@ export default function AdminPackageFormModal({
             <label className="block text-sm text-gray-500 mb-1">Price</label>
             <input
               type="number"
-              min={0}
+              min={0.01}
+              step={0.01}
               value={price}
               onChange={(e) => setPrice(parseFloat(e.target.value) || 0)}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"

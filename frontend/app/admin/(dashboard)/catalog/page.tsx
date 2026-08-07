@@ -11,7 +11,7 @@ import {
 // isCriticalInventoryItem is a pure name/unit check with no localStorage
 // dependency — still imported from the old seam since that's the single
 // canonical definition AdminInventoryFormModal itself also relies on.
-import { isCriticalInventoryItem } from "../../../lib/services/inventory.service";
+import { isCriticalInventoryItem } from "../../../lib/inventoryRules";
 import { InventoryItem } from "../../../staff/(dashboard)/types";
 import {
   getPackages,
@@ -91,11 +91,11 @@ export default function AdminCatalogPage() {
           getPackages(),
           getServices(),
         ]);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+         
         setItems(inventoryData);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+         
         setPackages(packagesData);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+         
         setServices(servicesData);
       } catch {
         setLoadError("Unable to load catalog data. Please try again.");

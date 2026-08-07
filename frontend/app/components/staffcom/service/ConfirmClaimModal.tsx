@@ -1,5 +1,7 @@
 "use client";
 
+import { useEscapeKey } from "../../../lib/useEscapeKey";
+
 interface ConfirmClaimModalProps {
   onConfirm: () => void;
   onCancel: () => void;
@@ -13,6 +15,8 @@ export default function ConfirmClaimModal({
   submitting,
   error,
 }: ConfirmClaimModalProps) {
+  useEscapeKey(onCancel);
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-2xl p-8 w-full max-w-md">

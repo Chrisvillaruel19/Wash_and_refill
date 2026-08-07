@@ -1,23 +1,20 @@
 import { z } from "zod";
+import { shortTextRule } from "../common/validation-rules.js";
 
 export const createInventorySchema = z.object({
   body: z.object({
-    itemName: z
-      .string({ message: "Item name is required" })
-      .min(1, "Item name is required"),
+    itemName: shortTextRule("Item name"),
 
     quantity: z
       .number({ message: "Quantity is required" })
       .int("Quantity must be a whole number")
       .nonnegative("Quantity cannot be negative"),
 
-    unit: z
-      .string({ message: "Unit is required" })
-      .min(1, "Unit is required"),
+    unit: shortTextRule("Unit", 20),
 
     unitPrice: z
       .number({ message: "Unit price is required" })
-      .nonnegative("Unit price cannot be negative"),
+      .positive("Unit price must be greater than zero"),
 
     lowStockThreshold: z
       .number({ message: "Low stock threshold is required" })

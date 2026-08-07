@@ -6,7 +6,7 @@ import { LaundryServiceRepository } from "../../repositories/laundry-service.rep
 import { InventoryRepository } from "../../repositories/inventory.repository.js";
 import { refreshStockStatus } from "../inventory/stock-status.util.js";
 import { OrderValidationError, InsufficientStockError } from "./order-errors.js";
-import { OrderStatus, PaymentMethod, PaymentStatus, AuditAction } from "../../../generated/prisma/client.js";
+import { OrderStatus, PaymentMethod, PaymentStatus, ServiceType, AuditAction } from "../../../generated/prisma/client.js";
 import type { OrderItemInput } from "../../schema/order/order-item.schema.js";
 import { writeAuditLog } from "../../lib/audit-log.js";
 
@@ -48,6 +48,7 @@ export async function createOrderService(input: {
       let totalAmount = 0;
       const orderDetailsToCreate: {
         serviceId?: string;
+        serviceType?: ServiceType;
         packageId?: string;
         inventoryId?: string;
         weight?: number;
@@ -93,6 +94,7 @@ export async function createOrderService(input: {
           totalAmount += subtotal;
           orderDetailsToCreate.push({
             serviceId: service.id,
+            serviceType: item.serviceType,
             weight: item.weight,
             quantity: item.quantity,
             subtotal,

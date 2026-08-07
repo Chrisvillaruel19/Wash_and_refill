@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { X, Lock } from "lucide-react";
-import { verifyAdminPassword } from "../../../lib/auth";
+import { verifyAdminCredentials } from "../../../lib/auth";
+import { useEscapeKey } from "../../../lib/useEscapeKey";
 
 interface AuthModalProps {
   onAuthorized: () => void;
@@ -10,14 +11,30 @@ interface AuthModalProps {
 }
 
 export default function AuthModal({ onAuthorized, onCancel }: AuthModalProps) {
+  useEscapeKey(onCancel);
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [verifying, setVerifying] = useState(false);
 
-  function handleConfirm() {
-    if (verifyAdminPassword(password)) {
-      onAuthorized();
-    } else {
-      setError("Incorrect password.");
+  async function handleConfirm() {
+    if (!username.trim() || !password) {
+      setError("Admin username and password are required.");
+      return;
+    }
+    setVerifying(true);
+    setError("");
+    try {
+      const authorized = await verifyAdminCredentials(username.trim(), password);
+      if (authorized) {
+        onAuthorized();
+      } else {
+        setError("Incorrect Admin username or password.");
+      }
+    } catch {
+      setError("Unable to verify credentials. Please try again.");
+    } finally {
+      setVerifying(false);
     }
   }
 
@@ -36,8 +53,20 @@ export default function AuthModal({ onAuthorized, onCancel }: AuthModalProps) {
           <h2 className="text-base sm:text-lg font-bold text-gray-900">Authorization Required</h2>
         </div>
         <p className="text-gray-500 text-xs sm:text-sm mb-4">
-          Please enter the correct password to continue.
+          Enter an Admin username and password to continue.
         </p>
+
+        <input
+          type="text"
+          placeholder="Admin username"
+          value={username}
+          onChange={(e) => {
+            setUsername(e.target.value);
+            setError("");
+          }}
+          autoComplete="off"
+          className="w-full border border-gray-300 rounded-lg p-2 text-sm mb-2 text-gray-900"
+        />
 
         <input
           type="password"
@@ -51,20 +80,26 @@ export default function AuthModal({ onAuthorized, onCancel }: AuthModalProps) {
           className="w-full border border-gray-300 rounded-lg p-2 text-sm mb-2 text-gray-900"
         />
 
-        {error && <p className="text-red-600 text-xs sm:text-sm mb-3">{error}</p>}
+        {error && (
+          <p className="text-red-600 text-sm mb-3 bg-red-50 border border-red-200 rounded-lg py-2 px-3">
+            {error}
+          </p>
+        )}
 
         <div className="flex gap-3 mt-3">
           <button
             onClick={onCancel}
-            className="flex-1 border border-red-300 text-red-500 rounded-lg py-2 text-sm font-medium hover:bg-red-50"
+            disabled={verifying}
+            className="flex-1 border border-red-300 text-red-500 rounded-lg py-2 text-sm font-medium hover:bg-red-50 disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             onClick={handleConfirm}
-            className="flex-1 border border-green-500 text-green-600 rounded-lg py-2 text-sm font-medium hover:bg-green-50"
+            disabled={verifying}
+            className="flex-1 border border-green-500 text-green-600 rounded-lg py-2 text-sm font-medium hover:bg-green-50 disabled:opacity-50"
           >
-            Confirm
+            {verifying ? "Verifying..." : "Confirm"}
           </button>
         </div>
       </div>

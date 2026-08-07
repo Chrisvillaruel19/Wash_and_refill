@@ -1,19 +1,37 @@
+import { prisma } from "../../lib/prisma.js";
 import { CustomerRepository } from "../../repositories/customer.repository.js";
-import { Prisma } from "../../../generated/prisma/client.js";
+import { Prisma, AuditAction } from "../../../generated/prisma/client.js";
+import { writeAuditLog } from "../../lib/audit-log.js";
 
 const customerRepository = new CustomerRepository();
 
 // Attempts the create directly rather than "check if exists, then create" —
 // the latter has a real race window between two simultaneous requests for
 // the same phone number. Creating first and catching the unique-constraint
-// violation (P2002) on conflict is atomic and race-safe without needing an
-// explicit transaction for what's still a single-table write.
-export async function findOrCreateCustomerService(data: {
-  customerName: string;
-  phoneNumber: string;
-}) {
+// violation (P2002) on conflict is race-safe regardless. The transaction
+// below exists for a separate reason: pairing the create with its
+// writeAuditLog call atomically, not for the race condition itself.
+export async function findOrCreateCustomerService(
+  actorUserId: string,
+  data: {
+    customerName: string;
+    phoneNumber: string;
+  }
+) {
   try {
-    const created = await customerRepository.create(data);
+    const created = await prisma.$transaction(async (tx) => {
+      const customer = await customerRepository.create(data, tx);
+
+      await writeAuditLog(tx, {
+        userId: actorUserId,
+        action: AuditAction.CREATE,
+        module: "Customer",
+        description: `Added a new customer: ${customer.customerName}`,
+        newValue: { customerName: customer.customerName, phoneNumber: customer.phoneNumber },
+      });
+
+      return customer;
+    });
 
     return {
       code: 201,

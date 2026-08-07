@@ -1,13 +1,12 @@
 import { z } from "zod";
 import { PaymentMethod } from "../../../generated/prisma/client.js";
 import { phoneNumberRule } from "../customer/phone-param.schema.js";
+import { nameRule } from "../common/validation-rules.js";
 import { orderItemSchema } from "./order-item.schema.js";
 
 export const createOrderSchema = z.object({
   body: z.object({
-    customerName: z
-      .string({ message: "Customer name is required" })
-      .min(1, "Customer name is required"),
+    customerName: nameRule,
 
     phoneNumber: phoneNumberRule,
 

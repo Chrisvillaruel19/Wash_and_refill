@@ -7,13 +7,6 @@ export interface StaffUser {
   role: "staff" | "admin";
 }
 
-// ⚠️ Still used by the Staff Inventory page's restock re-auth modal
-// (AuthModal), which isn't integrated yet (Phase 3) — untouched here on
-// purpose so that page keeps working exactly as before until its own turn.
-const ADMIN_ACCOUNTS: StaffUser[] = [
-  { username: "admin", password: "admin123", name: "Admin", role: "admin" },
-];
-
 const CURRENT_USER_KEY = "wrlms_current_user";
 
 // Backend's Role enum is "STAFF" | "ADMIN"; every existing page/hook reads
@@ -35,8 +28,7 @@ export async function login(username: string, password: string): Promise<StaffUs
     const user: StaffUser = {
       username: result.user.username,
       // Never store the real password client-side — this field exists only
-      // for type compatibility with Employee (localEmployees.ts), which
-      // extends StaffUser and isn't touched until Phase 6.
+      // for StaffUser's own shape; nothing reads it.
       password: "",
       name: result.user.name,
       role: mapRole(result.user.role),
@@ -80,6 +72,18 @@ export async function logout(): Promise<void> {
   setAccessToken(null);
 }
 
-export function verifyAdminPassword(password: string): boolean {
-  return ADMIN_ACCOUNTS.some((u) => u.role === "admin" && u.password === password);
+// Manager-override check (Staff Inventory's restock re-auth) — confirms the
+// given credentials belong to an active Admin, via a real backend call that
+// deliberately never issues tokens or touches the current session's cookie
+// (see backend/src/services/auth/verify-password.service.ts). Returns false
+// for both "wrong password" (401) and "valid but not an Admin" (403) —
+// callers only need a yes/no answer, not the distinction.
+export async function verifyAdminCredentials(username: string, password: string): Promise<boolean> {
+  try {
+    await apiClient.post("/auth/verify-password", { username, password });
+    return true;
+  } catch (error) {
+    if (error instanceof ApiError) return false;
+    throw error;
+  }
 }

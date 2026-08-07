@@ -32,7 +32,7 @@ function InventoryPageContent() {
     async function load() {
       try {
         const data = await getInventory();
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+         
         setItems(data);
       } catch {
         setError("Unable to load inventory. Please try again.");

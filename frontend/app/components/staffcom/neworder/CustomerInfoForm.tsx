@@ -1,6 +1,7 @@
 "use client";
 
 import { User, Phone } from "lucide-react";
+import { sanitizeNameInput, sanitizePhoneInput } from "../../../lib/validation";
 
 interface CustomerInfoFormProps {
   customerName: string;
@@ -27,21 +28,24 @@ export default function CustomerInfoForm({
               type="text"
               placeholder="Enter customer name"
               value={customerName}
-              onChange={(e) => onNameChange(e.target.value)}
+              onChange={(e) => onNameChange(sanitizeNameInput(e.target.value))}
+              maxLength={100}
               className="w-full outline-none min-w-0 text-gray-900"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-sm text-gray-600 mb-1">Phone Number</label>
+          <label className="block text-sm text-gray-600 mb-1">Phone Number *</label>
           <div className="flex items-center border border-gray-300 rounded-lg px-3 py-2">
             <Phone size={18} className="text-gray-400 mr-2 shrink-0" />
             <input
               type="text"
-              placeholder="Enter phone number"
+              inputMode="numeric"
+              placeholder="11-digit phone number"
               value={phoneNumber}
-              onChange={(e) => onPhoneChange(e.target.value)}
+              onChange={(e) => onPhoneChange(sanitizePhoneInput(e.target.value))}
+              required
               className="w-full outline-none min-w-0 text-gray-900"
             />
           </div>

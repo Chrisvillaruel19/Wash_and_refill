@@ -117,6 +117,14 @@ model Order {
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  // Every unclaimed-activity query filters on this (Shift Handover's claim
+  // step, Attendance's clock-out gate) — unindexed, Postgres doesn't
+  // auto-index the referencing side of a foreign key.
+  @@index([shiftHandoverId])
+  // findUnclaimedForUser (Attendance's clock-out gate) filters by userId
+  // directly — same "Postgres doesn't auto-index FK columns" reasoning.
+  @@index([userId])
 }
 
 enum OrderStatus {
@@ -136,6 +144,16 @@ enum PaymentMethod {
   CASH
   GCASH
 }
+// Wash & Refill's laundry SERVICE line items (not Packages or Supplies) can
+// be requested as wash+dry, wash-only, or dry-only — three genuinely
+// different physical operations for the shop to perform. Null for
+// Package/Inventory line items, which don't have this distinction.
+enum ServiceType {
+  WASH_AND_DRY
+  WASH_ONLY
+  DRY_ONLY
+}
+
 // Order summary
 model OrderDetail {
   id              String @id @default(uuid())
@@ -145,6 +163,7 @@ model OrderDetail {
 
   serviceId       String?
   service         LaundryService? @relation(fields:[serviceId], references:[id])
+  serviceType     ServiceType?
 
   packageId       String?
   package         Package? @relation(fields:[packageId], references:[id])
@@ -253,6 +272,11 @@ model InventoryConsumption {
   quantityUsed Int
 
   createdAt DateTime @default(now())
+
+  // findConsumptionsByOrderId (order cancellation's inventory-restore step)
+  // filters by orderId directly — unindexed, Postgres doesn't auto-index
+  // the referencing side of a foreign key.
+  @@index([orderId])
 }
 
 // Attendance
@@ -305,6 +329,12 @@ model Expense {
 
   shiftHandoverId String?
   shiftHandover   ShiftHandover? @relation(fields: [shiftHandoverId], references: [id])
+
+  @@index([shiftHandoverId])
+  // findAllForUser / findUnclaimedForUser filter by userId directly —
+  // unindexed, Postgres doesn't auto-index the referencing side of a
+  // foreign key.
+  @@index([userId])
 }
 
 enum ExpenseCategory {
@@ -371,6 +401,8 @@ model Withdrawal {
 
   shiftHandoverId String?
   shiftHandover   ShiftHandover? @relation(fields: [shiftHandoverId], references: [id])
+
+  @@index([shiftHandoverId])
 }
 
 // Serialization point for the one shared cash drawer. Exactly one row

@@ -14,7 +14,8 @@ import {
   createWithdrawal,
   WithdrawalRecord,
 } from "../../../lib/services/withdrawalApi.service";
-import { getTotalCashToday, getDropOffSummary, getAverageOrderValue } from "../../../lib/services/stats.service";
+import { getTotalCashToday, getDropOffSummary, getAverageOrderValue } from "../../../lib/orderStats";
+import { ApiError } from "../../../lib/apiClient";
 import { Order, ShiftHandoverRecord } from "../../../staff/(dashboard)/types";
 import { Package } from "../../../staff/(dashboard)/neworder/types";
 
@@ -38,13 +39,13 @@ export default function AdminSalesPage() {
           getShiftHandovers(),
           getWithdrawals(),
         ]);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+         
         setOrders(ordersData);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+         
         setPackages(packagesData);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+         
         setHandovers(handoversData);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+         
         setWithdrawals(withdrawalsData);
       } catch {
         setLoadError("Unable to load sales data. Please try again.");
@@ -70,8 +71,10 @@ export default function AdminSalesPage() {
       const refreshed = await getWithdrawals();
       setWithdrawals(refreshed);
       setShowWithdrawModal(false);
-    } catch {
-      setWithdrawError("Unable to record withdrawal. Please try again.");
+    } catch (err) {
+      setWithdrawError(
+        err instanceof ApiError ? err.message : "Unable to record withdrawal. Please try again."
+      );
     } finally {
       setWithdrawSubmitting(false);
     }

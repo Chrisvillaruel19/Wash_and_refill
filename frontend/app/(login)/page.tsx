@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { login } from "../lib/auth";
 
@@ -126,9 +127,12 @@ export default function Home() {
             </button>
           </form>
 
-          <p className="text-center mt-5 text-gray-600 hover:text-blue-600 cursor-pointer transition-colors">
+          <Link
+            href="/forgot-password"
+            className="block text-center mt-5 text-gray-600 hover:text-blue-600 transition-colors"
+          >
             Forgot password?
-          </p>
+          </Link>
         </div>
       </main>
     </div>

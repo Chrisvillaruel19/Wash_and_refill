@@ -4,6 +4,7 @@ import { UserRepository } from "../../repositories/user.repository.js";
 import { TokenRepository } from "../../repositories/token.repository.js";
 import { sendMail } from "../../lib/mailer.js";
 import { ENV } from "../../config/env.js";
+import { Role } from "../../../generated/prisma/client.js";
 
 const userRepository = new UserRepository();
 const tokenRepository = new TokenRepository();
@@ -16,6 +17,17 @@ const GENERIC_SUCCESS = {
   message: "If an account with that email exists, a password reset link has been sent.",
 };
 
+// Deliberately more specific than GENERIC_SUCCESS: Staff passwords are only
+// ever reset by an Admin (Employee Management's existing "Reset password"),
+// never self-service. This does mean an email known to belong to a Staff
+// account is distinguishable from "no account" — an accepted, deliberate
+// tradeoff for this internal tool (see PR/report for the security note).
+const STAFF_MANAGED_BY_ADMIN = {
+  code: 200,
+  status: "success",
+  message: "This account is managed by an Administrator. Please contact your Administrator to reset your password.",
+};
+
 export async function forgotPasswordService(email: string) {
 
   try {
@@ -26,6 +38,9 @@ export async function forgotPasswordService(email: string) {
       return GENERIC_SUCCESS;
     }
 
+    if (user.role !== Role.ADMIN) {
+      return STAFF_MANAGED_BY_ADMIN;
+    }
 
     const resetToken = crypto.randomBytes(32).toString("hex");
 

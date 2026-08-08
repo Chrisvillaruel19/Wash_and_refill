@@ -72,6 +72,27 @@ export async function logout(): Promise<void> {
   setAccessToken(null);
 }
 
+// Admin-only self-service recovery. The backend applies the actual
+// role gate (Staff accounts get a "contact your Administrator" message
+// instead of a reset token) — this function just relays whatever message
+// the backend returns, since that message *is* the meaningful response
+// here (there's no data payload). Throws ApiError only for real failures
+// (invalid email format, server error) — a "no account" or "staff account"
+// case is still a 200 with an informative message, not a thrown error.
+export async function forgotPassword(email: string): Promise<string> {
+  return apiClient.postMessage("/auth/forgot-password", { email });
+}
+
+// Throws ApiError on an invalid/expired/already-used token or a validation
+// failure (weak password, mismatch) — the caller shows that message inline.
+export async function resetPassword(
+  token: string,
+  newPassword: string,
+  confirmPassword: string
+): Promise<string> {
+  return apiClient.postMessage("/auth/reset-password", { token, newPassword, confirmPassword });
+}
+
 // Manager-override check (Staff Inventory's restock re-auth) — confirms the
 // given credentials belong to an active Admin, via a real backend call that
 // deliberately never issues tokens or touches the current session's cookie

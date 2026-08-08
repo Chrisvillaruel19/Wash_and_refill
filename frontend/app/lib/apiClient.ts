@@ -52,7 +52,15 @@ function formatErrorMessage(body: ApiEnvelope<unknown>): string {
 
 const NO_REFRESH_RETRY_PATHS = ["/auth/login", "/auth/refresh-token"];
 
-async function request<T>(path: string, init: RequestInit = {}, isRetry = false): Promise<T> {
+// Shared by request() (returns just .data, what almost every endpoint's
+// caller wants) and requestEnvelope() below (returns the full envelope —
+// needed by the two forgot/reset-password endpoints, whose meaningful
+// response is the top-level `message`, not a `data` payload).
+async function requestEnvelope<T>(
+  path: string,
+  init: RequestInit = {},
+  isRetry = false
+): Promise<ApiEnvelope<T>> {
   const token = getAccessToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -74,7 +82,7 @@ async function request<T>(path: string, init: RequestInit = {}, isRetry = false)
   if (res.status === 401 && !isRetry && !NO_REFRESH_RETRY_PATHS.includes(path)) {
     const refreshed = await refreshAccessToken();
     if (refreshed) {
-      return request<T>(path, init, true);
+      return requestEnvelope<T>(path, init, true);
     }
   }
 
@@ -82,6 +90,11 @@ async function request<T>(path: string, init: RequestInit = {}, isRetry = false)
     throw new ApiError(formatErrorMessage(body), res.status);
   }
 
+  return body;
+}
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const body = await requestEnvelope<T>(path, init);
   return body.data as T;
 }
 
@@ -134,4 +147,14 @@ export const apiClient = {
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "PATCH", body: body !== undefined ? JSON.stringify(body) : undefined }),
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+  // For endpoints whose response is a human-readable message rather than a
+  // data payload (forgot/reset-password) — returns the envelope's top-level
+  // `message` string instead of `.data`.
+  postMessage: async (path: string, body?: unknown): Promise<string> => {
+    const envelope = await requestEnvelope<unknown>(path, {
+      method: "POST",
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    return envelope.message ?? "";
+  },
 };

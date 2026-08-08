@@ -4,57 +4,55 @@ import { useEffect, useState } from "react";
 import { Wallet, ClipboardList, AlertTriangle, Users } from "lucide-react";
 import AdminStatCard from "../../components/admincom/AdminStatCard";
 import AdminRecentActivityCard from "../../components/admincom/AdminRecentActivityCard";
-import { getStoredOrders } from "../../staff/(dashboard)/localOrders";
-import { getLowStockItems } from "../../staff/(dashboard)/localInventory";
-import { getActivityLogs } from "../../staff/(dashboard)/localActivity";
-import { getStoredEmployees } from "../../lib/localEmployees";
-import { getStoredPackages } from "../../lib/localPackages";
-import {
-  getOrderStatusCounts,
-  getUnclaimedOrdersCount,
-  getTotalCashToday,
-  getBestSellingPackages,
-} from "../../lib/localStats";
-import { Order, LowStockItem, ActivityLog } from "../../staff/(dashboard)/types";
-import { Package } from "../../staff/(dashboard)/neworder/types";
+import { getAdminDashboard, getRecentActivity } from "../../lib/services/dashboard.service";
+import { ActivityLog } from "../../staff/(dashboard)/types";
 
 export default function AdminDashboardPage() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [lowStock, setLowStock] = useState<LowStockItem[]>([]);
   const [activity, setActivity] = useState<ActivityLog[]>([]);
   const [employeeCount, setEmployeeCount] = useState(0);
-  const [packages, setPackages] = useState<Package[]>([]);
+  const [totalCashToday, setTotalCashToday] = useState(0);
+  const [unclaimedOrders, setUnclaimedOrders] = useState(0);
+  const [statusCounts, setStatusCounts] = useState({ pending: 0, inProgress: 0, ready: 0, claimed: 0 });
+  const [bestSelling, setBestSelling] = useState<{ name: string; quantitySold: number }[]>([]);
+  const [lowStockCount, setLowStockCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    const storedOrders = getStoredOrders();
-    const lowStockItems = getLowStockItems().map((item) => ({
-      id: item.id,
-      name: item.name,
-      quantityRemaining: item.currentStock,
-      unit: item.unit,
-    }));
-    const activityLogs = getActivityLogs();
-    const employees = getStoredEmployees();
-    const storedPackages = getStoredPackages();
+    async function load() {
+      try {
+        const dashboard = await getAdminDashboard();
+         
+        setTotalCashToday(dashboard.totalCashToday);
+        setUnclaimedOrders(dashboard.unclaimedOrders);
+        setStatusCounts(dashboard.statusCounts);
+        setBestSelling(dashboard.bestSelling);
+        setLowStockCount(dashboard.lowStockCount);
+        setEmployeeCount(dashboard.employeeCount);
+      } catch {
+        setError("Unable to load dashboard data. Please try again.");
+        setLoading(false);
+        return;
+      }
 
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setOrders(storedOrders);
-    setLowStock(lowStockItems);
-    setActivity(activityLogs);
-    setEmployeeCount(employees.length);
-    setPackages(storedPackages);
-    setLoading(false);
+      try {
+        setActivity(await getRecentActivity());
+      } catch {
+        setActivity([]);
+      }
+
+      setLoading(false);
+    }
+    load();
   }, []);
 
   if (loading) {
     return <p className="text-gray-400 p-6">Loading dashboard...</p>;
   }
 
-  const totalCashToday = getTotalCashToday(orders);
-  const unclaimedOrders = getUnclaimedOrdersCount(orders);
-  const statusCounts = getOrderStatusCounts(orders);
-  const bestSelling = getBestSellingPackages(orders, packages);
+  if (error) {
+    return <p className="text-red-500 p-6">{error}</p>;
+  }
 
   return (
     <div className="p-4 sm:p-6">
@@ -74,7 +72,7 @@ export default function AdminDashboardPage() {
         />
         <AdminStatCard
           label="Low stock items"
-          value={lowStock.length}
+          value={lowStockCount}
           icon={AlertTriangle}
           iconColor="text-red-600 bg-red-100"
           href="/admin/catalog"

@@ -1,7 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { Employee } from "../../lib/localEmployees";
+import { Employee } from "../../lib/services/employeeApi.service";
+import { useEscapeKey } from "../../lib/useEscapeKey";
+import {
+  isValidName,
+  NAME_ERROR_MESSAGE,
+  sanitizeNameInput,
+  isValidUsername,
+  USERNAME_ERROR_MESSAGE,
+  isValidPhone,
+  PHONE_ERROR_MESSAGE,
+  sanitizePhoneInput,
+  isValidPassword,
+  PASSWORD_ERROR_MESSAGE,
+} from "../../lib/validation";
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export interface EmployeeFormData {
   username: string;
@@ -16,13 +31,18 @@ interface EmployeeFormModalProps {
   initialEmployee?: Employee; // undefined = Add mode
   onSave: (data: EmployeeFormData) => void;
   onCancel: () => void;
+  submitting?: boolean;
+  submitError?: string;
 }
 
 export default function EmployeeFormModal({
   initialEmployee,
   onSave,
   onCancel,
+  submitting,
+  submitError,
 }: EmployeeFormModalProps) {
+  useEscapeKey(onCancel);
   const isEdit = !!initialEmployee;
 
   const [username, setUsername] = useState(initialEmployee?.username ?? "");
@@ -38,8 +58,33 @@ export default function EmployeeFormModal({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!username || !name || !hiredDate) {
+    const trimmedUsername = username.trim();
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+    const trimmedPhone = phone.trim();
+
+    if (!trimmedUsername || !trimmedName || !hiredDate) {
       setError("Username, name, and hired date are required.");
+      return;
+    }
+
+    if (!isValidUsername(trimmedUsername)) {
+      setError(USERNAME_ERROR_MESSAGE);
+      return;
+    }
+
+    if (!isValidName(trimmedName)) {
+      setError(NAME_ERROR_MESSAGE);
+      return;
+    }
+
+    if (trimmedEmail && !EMAIL_PATTERN.test(trimmedEmail)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    if (trimmedPhone && !isValidPhone(trimmedPhone)) {
+      setError(PHONE_ERROR_MESSAGE);
       return;
     }
 
@@ -48,7 +93,18 @@ export default function EmployeeFormModal({
       return;
     }
 
-    const data: EmployeeFormData = { username, name, email, phone, hiredDate };
+    if ((!isEdit || (resetPassword && password)) && !isValidPassword(password)) {
+      setError(PASSWORD_ERROR_MESSAGE);
+      return;
+    }
+
+    const data: EmployeeFormData = {
+      username: trimmedUsername,
+      name: trimmedName,
+      email: trimmedEmail,
+      phone: trimmedPhone,
+      hiredDate,
+    };
     if (!isEdit) {
       data.password = password;
     } else if (resetPassword && password) {
@@ -65,9 +121,9 @@ export default function EmployeeFormModal({
           {isEdit ? "Edit Employee" : "Add Employee"}
         </h2>
 
-        {error && (
+        {(error || submitError) && (
           <p className="text-red-600 text-sm mb-4 bg-red-50 border border-red-200 rounded-lg py-2 px-3">
-            {error}
+            {error || submitError}
           </p>
         )}
 
@@ -77,9 +133,10 @@ export default function EmployeeFormModal({
             <input
               type="text"
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, ""))}
               name="employee-username"
               autoComplete="off"
+              maxLength={30}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             />
           </div>
@@ -89,9 +146,10 @@ export default function EmployeeFormModal({
             <input
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => setName(sanitizeNameInput(e.target.value))}
               name="employee-name"
               autoComplete="off"
+              maxLength={100}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             />
           </div>
@@ -104,6 +162,7 @@ export default function EmployeeFormModal({
               onChange={(e) => setEmail(e.target.value)}
               name="employee-email"
               autoComplete="off"
+              maxLength={254}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             />
           </div>
@@ -112,10 +171,12 @@ export default function EmployeeFormModal({
             <label className="block text-sm text-gray-500 mb-1">Phone</label>
             <input
               type="text"
+              inputMode="numeric"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => setPhone(sanitizePhoneInput(e.target.value))}
               name="employee-phone"
               autoComplete="off"
+              placeholder="11-digit phone number (optional)"
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             />
           </div>
@@ -132,13 +193,14 @@ export default function EmployeeFormModal({
 
           {!isEdit && (
             <div>
-              <label className="block text-sm text-gray-500 mb-1">Password</label>
+              <label className="block text-sm text-gray-500 mb-1">Password (min. 8 characters)</label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 name="employee-password"
                 autoComplete="new-password"
+                minLength={8}
                 className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
               />
             </div>
@@ -157,7 +219,7 @@ export default function EmployeeFormModal({
               ) : (
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-sm text-gray-500">New Password</label>
+                    <label className="block text-sm text-gray-500">New Password (min. 8 characters)</label>
                     <button
                       type="button"
                       onClick={() => {
@@ -175,6 +237,7 @@ export default function EmployeeFormModal({
                     onChange={(e) => setPassword(e.target.value)}
                     name="employee-new-password"
                     autoComplete="new-password"
+                    minLength={8}
                     placeholder="Leave blank to keep current password"
                     className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
                   />
@@ -187,15 +250,17 @@ export default function EmployeeFormModal({
             <button
               type="button"
               onClick={onCancel}
-              className="px-5 py-2 rounded-lg border border-gray-300 text-gray-600 font-medium hover:bg-gray-50"
+              disabled={submitting}
+              className="px-5 py-2 rounded-lg border border-gray-300 text-gray-600 font-medium hover:bg-gray-50 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700"
+              disabled={submitting}
+              className="px-5 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
             >
-              Save
+              {submitting ? "Saving..." : "Save"}
             </button>
           </div>
         </form>

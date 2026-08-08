@@ -7,8 +7,12 @@ import ConfirmClaimModal from "../../../components/staffcom/service/ConfirmClaim
 import ConfirmCancelModal from "../../../components/staffcom/service/ConfirmCancelModal";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
-import { getStoredOrders, updateOrderStatus, cancelOrder } from "../localOrders";
-import { getCurrentUser } from "../../../lib/auth";
+import {
+  getOrders,
+  getOrderDetail,
+  updateOrderStatus,
+  cancelOrder,
+} from "../../../lib/services/ordersApi.service";
 import { Order, OrderStatus } from "../types";
 
 const PAGE_SIZE = 6;
@@ -30,15 +34,36 @@ export default function ServicePage() {
   const [search, setSearch] = useState("");
   const [pendingClaimId, setPendingClaimId] = useState<string | null>(null);
   const [pendingCancelId, setPendingCancelId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [actionSubmitting, setActionSubmitting] = useState(false);
+  const [actionError, setActionError] = useState("");
+  // GET /orders (list) omits line items to stay lean — populated per-order,
+  // bounded to whatever page is currently visible, via GET /orders/:id.
+  // Persists across refetches so items already fetched aren't re-requested.
+  const [itemsByOrderId, setItemsByOrderId] = useState<Record<string, string[]>>({});
 
-  const staffName = getCurrentUser()?.name || "Unknown";
+  async function loadOrders() {
+    try {
+      const data = await getOrders();
+      setOrders(data);
+      return data;
+    } catch {
+      setLoadError("Unable to load orders. Please try again.");
+      return [];
+    }
+  }
 
   useEffect(() => {
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  setOrders(getStoredOrders());
-}, []);
+    async function initialLoad() {
+      await loadOrders();
+      setLoading(false);
+    }
+    initialLoad();
+  }, []);
 
   function changeStatus(orderId: string, direction: 1 | -1) {
+    if (actionSubmitting) return;
     const order = orders.find((o) => o.id === orderId);
     if (!order) return;
 
@@ -49,26 +74,37 @@ export default function ServicePage() {
     const nextStatus = statusFlow[nextIndex];
 
     if (nextStatus === "Claimed") {
+      setActionError("");
       setPendingClaimId(orderId);
       return;
     }
 
-    const updated = updateOrderStatus(orderId, nextStatus, staffName);
-    setOrders(updated);
+    runAction(() => updateOrderStatus(orderId, nextStatus));
+  }
+
+  async function runAction(action: () => Promise<void>) {
+    setActionSubmitting(true);
+    setActionError("");
+    try {
+      await action();
+      await loadOrders();
+      setPendingClaimId(null);
+      setPendingCancelId(null);
+    } catch {
+      setActionError("Unable to update this order. Please try again.");
+    } finally {
+      setActionSubmitting(false);
+    }
   }
 
   function confirmClaim() {
     if (!pendingClaimId) return;
-    const updated = updateOrderStatus(pendingClaimId, "Claimed", staffName);
-    setOrders(updated);
-    setPendingClaimId(null);
+    runAction(() => updateOrderStatus(pendingClaimId, "Claimed"));
   }
 
   function confirmCancel() {
     if (!pendingCancelId) return;
-    const updated = cancelOrder(pendingCancelId, staffName);
-    setOrders(updated);
-    setPendingCancelId(null);
+    runAction(() => cancelOrder(pendingCancelId));
   }
 
   const counts = {
@@ -97,9 +133,49 @@ export default function ServicePage() {
     `${activeFilter}-${search}`
   );
 
+  useEffect(() => {
+    const missingIds = paginatedItems.map((o) => o.id).filter((id) => !(id in itemsByOrderId));
+    if (missingIds.length === 0) return;
+
+    let cancelled = false;
+    Promise.all(missingIds.map((id) => getOrderDetail(id))).then((details) => {
+      if (cancelled) return;
+      setItemsByOrderId((prev) => {
+        const next = { ...prev };
+        for (const detail of details) {
+          next[detail.id] = detail.items ?? [];
+        }
+        return next;
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paginatedItems]);
+
+  const displayedItems = paginatedItems.map((order) => ({
+    ...order,
+    items: itemsByOrderId[order.id] ?? order.items,
+  }));
+
+  if (loading) {
+    return <p className="text-gray-400 p-6">Loading orders...</p>;
+  }
+
+  if (loadError) {
+    return <p className="text-red-500 p-6">{loadError}</p>;
+  }
+
   return (
     <div className="p-4 sm:p-6">
       <h1 className="text-2xl font-bold text-gray-800 mb-6">Service Management</h1>
+
+      {actionError && !pendingClaimId && !pendingCancelId && (
+        <p className="text-red-600 text-sm mb-4 bg-red-50 border border-red-200 rounded-lg py-2 px-3">
+          {actionError}
+        </p>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
         <div className="bg-white rounded-xl shadow-md p-4 sm:p-5 flex items-center justify-between">
@@ -164,14 +240,17 @@ export default function ServicePage() {
       </div>
 
       <div className="space-y-4">
-        {paginatedItems.length > 0 ? (
-          paginatedItems.map((order) => (
+        {displayedItems.length > 0 ? (
+          displayedItems.map((order) => (
             <OrderCard
               key={order.id}
               order={order}
               onMoveBack={() => changeStatus(order.id, -1)}
               onMoveForward={() => changeStatus(order.id, 1)}
-              onCancel={() => setPendingCancelId(order.id)}
+              onCancel={() => {
+                setActionError("");
+                setPendingCancelId(order.id);
+              }}
             />
           ))
         ) : (
@@ -185,6 +264,8 @@ export default function ServicePage() {
         <ConfirmClaimModal
           onConfirm={confirmClaim}
           onCancel={() => setPendingClaimId(null)}
+          submitting={actionSubmitting}
+          error={actionError}
         />
       )}
 
@@ -192,6 +273,8 @@ export default function ServicePage() {
         <ConfirmCancelModal
           onConfirm={confirmCancel}
           onCancel={() => setPendingCancelId(null)}
+          submitting={actionSubmitting}
+          error={actionError}
         />
       )}
     </div>

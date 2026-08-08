@@ -1,5 +1,3 @@
-export type OrderMode = "services" | "supplies";
-
 export interface ServiceCategory {
   id: string;
   name: string;
@@ -42,6 +40,15 @@ export interface CartItem {
   name: string;
   price: number;
   quantity: number;
+  // What this line becomes in the real order payload (POST /orders' three
+  // discriminated item types). weight is only ever set for SERVICE lines —
+  // packages and supplies are priced by quantity alone.
+  sourceType: "PACKAGE" | "SERVICE" | "INVENTORY";
+  sourceId: string;
+  weight?: number;
+  // Only ever set for SERVICE lines — which of the three physical
+  // operations (wash+dry / wash-only / dry-only) this line represents.
+  serviceType?: ServiceType;
 }
 
 // Canonical definition now lives on Order (../types.ts), since payment

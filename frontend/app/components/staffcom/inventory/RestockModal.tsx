@@ -3,15 +3,29 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import { InventoryItem } from "../../../staff/(dashboard)/types";
+import { useEscapeKey } from "../../../lib/useEscapeKey";
 
 interface RestockModalProps {
   item: InventoryItem;
   onConfirm: (quantity: number) => void;
   onCancel: () => void;
+  submitting?: boolean;
+  error?: string;
 }
 
-export default function RestockModal({ item, onConfirm, onCancel }: RestockModalProps) {
+export default function RestockModal({ item, onConfirm, onCancel, submitting, error }: RestockModalProps) {
+  useEscapeKey(onCancel);
   const [quantity, setQuantity] = useState(1);
+  const [localError, setLocalError] = useState("");
+
+  function handleConfirm() {
+    if (quantity <= 0 || !Number.isInteger(quantity)) {
+      setLocalError("Quantity must be a whole number greater than zero.");
+      return;
+    }
+    setLocalError("");
+    onConfirm(quantity);
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -34,18 +48,26 @@ export default function RestockModal({ item, onConfirm, onCancel }: RestockModal
           className="w-full border border-gray-300 rounded-lg p-2 mb-6 text-gray-900"
         />
 
+        {(localError || error) && (
+          <p className="text-red-600 text-sm mb-3 bg-red-50 border border-red-200 rounded-lg py-2 px-3">
+            {localError || error}
+          </p>
+        )}
+
         <div className="flex gap-3">
           <button
             onClick={onCancel}
-            className="flex-1 border border-gray-300 rounded-lg py-2 font-medium hover:bg-gray-50 text-gray-900"
+            disabled={submitting}
+            className="flex-1 border border-gray-300 rounded-lg py-2 font-medium hover:bg-gray-50 text-gray-900 disabled:opacity-50"
           >
             Cancel
           </button>
           <button
-            onClick={() => onConfirm(quantity)}
-            className="flex-1 bg-blue-600 text-white rounded-lg py-2 font-medium hover:bg-blue-700"
+            onClick={handleConfirm}
+            disabled={submitting}
+            className="flex-1 bg-blue-600 text-white rounded-lg py-2 font-medium hover:bg-blue-700 disabled:opacity-50"
           >
-            Confirm
+            {submitting ? "Restocking..." : "Confirm"}
           </button>
         </div>
       </div>

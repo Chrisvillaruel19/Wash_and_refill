@@ -5,17 +5,13 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import InventoryTable from "../../../components/staffcom/inventory/InventoryTable";
 import RestockModal from "../../../components/staffcom/inventory/RestockModal";
-import EditItemModal from "../../../components/staffcom/inventory/EditItemModal";
 import AuthModal from "../../../components/staffcom/inventory/AuthModal";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
-import { getStoredInventory, restockItem, updateItem } from "../localInventory";
-import { getCurrentUser } from "../../../lib/auth";
+import { getInventory, restockInventoryItem } from "../../../lib/services/inventoryApi.service";
 import { InventoryItem } from "../types";
 
 const PAGE_SIZE = 8;
-
-type PendingAction = "restock" | "edit";
 
 function InventoryPageContent() {
   const searchParams = useSearchParams();
@@ -23,57 +19,57 @@ function InventoryPageContent() {
 
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const [authTarget, setAuthTarget] = useState<InventoryItem | null>(null);
-  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
 
   const [restockTarget, setRestockTarget] = useState<InventoryItem | null>(null);
-  const [editTarget, setEditTarget] = useState<InventoryItem | null>(null);
+  const [restocking, setRestocking] = useState(false);
+  const [restockError, setRestockError] = useState("");
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setItems(getStoredInventory());
+    async function load() {
+      try {
+        const data = await getInventory();
+         
+        setItems(data);
+      } catch {
+        setError("Unable to load inventory. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
   }, []);
-
-  const staffName = getCurrentUser()?.name || "Unknown";
 
   function requestRestock(item: InventoryItem) {
     setAuthTarget(item);
-    setPendingAction("restock");
-  }
-
-  function requestEdit(item: InventoryItem) {
-    setAuthTarget(item);
-    setPendingAction("edit");
   }
 
   function handleAuthorized() {
-    if (pendingAction === "restock") {
-      setRestockTarget(authTarget);
-    } else if (pendingAction === "edit") {
-      setEditTarget(authTarget);
-    }
+    setRestockTarget(authTarget);
     setAuthTarget(null);
-    setPendingAction(null);
+    setRestockError("");
   }
 
   function handleAuthCancel() {
     setAuthTarget(null);
-    setPendingAction(null);
   }
 
-  function handleRestockConfirm(quantity: number) {
+  async function handleRestockConfirm(quantity: number) {
     if (!restockTarget) return;
-    const updated = restockItem(restockTarget.id, quantity, staffName);
-    setItems(updated);
-    setRestockTarget(null);
-  }
-
-  function handleEditSave(updates: Partial<InventoryItem>) {
-    if (!editTarget) return;
-    const updated = updateItem(editTarget.id, updates, staffName);
-    setItems(updated);
-    setEditTarget(null);
+    setRestocking(true);
+    setRestockError("");
+    try {
+      const updatedItem = await restockInventoryItem(restockTarget.id, quantity);
+      setItems((prev) => prev.map((i) => (i.id === updatedItem.id ? updatedItem : i)));
+      setRestockTarget(null);
+    } catch {
+      setRestockError("Unable to restock item. Please try again.");
+    } finally {
+      setRestocking(false);
+    }
   }
 
   const filteredItems = items.filter((item) => {
@@ -87,6 +83,14 @@ function InventoryPageContent() {
     PAGE_SIZE,
     `${search}-${lowStockOnly}`
   );
+
+  if (loading) {
+    return <p className="text-gray-400 p-6">Loading inventory...</p>;
+  }
+
+  if (error) {
+    return <p className="text-red-500 p-6">{error}</p>;
+  }
 
   return (
     <div className="p-4 sm:p-6">
@@ -107,7 +111,6 @@ function InventoryPageContent() {
         search={search}
         onSearchChange={setSearch}
         onRestockClick={requestRestock}
-        onEditClick={requestEdit}
       />
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
 
@@ -123,14 +126,8 @@ function InventoryPageContent() {
           item={restockTarget}
           onConfirm={handleRestockConfirm}
           onCancel={() => setRestockTarget(null)}
-        />
-      )}
-
-      {editTarget && (
-        <EditItemModal
-          item={editTarget}
-          onSave={handleEditSave}
-          onCancel={() => setEditTarget(null)}
+          submitting={restocking}
+          error={restockError}
         />
       )}
     </div>

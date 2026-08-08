@@ -1,28 +1,26 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Shirt, LayoutGrid } from "lucide-react";
 import CustomerInfoForm from "../../../components/staffcom/neworder/CustomerInfoForm";
 import PackageGrid from "../../../components/staffcom/neworder/PackageGrid";
 import OrderSummary from "../../../components/staffcom/neworder/OrderSummary";
 import NewOrderModals from "../../../components/staffcom/neworder/NewOrderModals";
-import { ServiceCategory, CartItem, PaymentMethod, Package, ServiceItem, SupplyItem } from "./types";
-import { Order } from "../types";
+import { ServiceCategory, CartItem, PaymentMethod, Package, ServiceItem, SupplyItem, ServiceType } from "./types";
+import { InventoryItem } from "../types";
 import { serviceCategories } from "./data";
-import { getStoredPackages } from "../../../lib/localPackages";
-import { getStoredServices } from "../../../lib/localServices";
-import { addStoredOrder } from "../localOrders";
-import { applyOrderStockImpact, getStoredInventory } from "../localInventory";
-import { getCurrentUser } from "../../../lib/auth";
+import { getPackages } from "../../../lib/services/packageApi.service";
+import { getServices } from "../../../lib/services/laundryServiceApi.service";
+import { getInventory } from "../../../lib/services/inventoryApi.service";
+import { createOrder, NewOrderItemInput } from "../../../lib/services/ordersApi.service";
+import { ApiError } from "../../../lib/apiClient";
+import { alertSuccess } from "../../../lib/alerts";
+import { isValidPhone, PHONE_ERROR_MESSAGE, isValidName, NAME_ERROR_MESSAGE } from "../../../lib/validation";
 
-// Demo-mode fix: Laundry Supplies now reads live Admin-managed inventory
-// instead of a hardcoded list, so new items Admin adds show up immediately.
-// Two rows are both named "Liquid Detergent" (Sachet vs Liters) — this
-// suffixes the unit only when a name collides, reproducing the exact same
-// "Liquid Detergent (Sachet)" / "Liquid Detergent (Liters)" labels shown
-// today, so nothing changes for the existing items.
-function buildSupplyMenu(): SupplyItem[] {
-  const inventory = getStoredInventory();
+// Two inventory rows can share a display name (e.g. "Liquid Detergent" in
+// Sachet vs Liters) — suffix with unit only when a name collides, same
+// disambiguation used at checkout time and in Admin Catalog.
+function buildSupplyMenu(inventory: InventoryItem[]): SupplyItem[] {
   const nameCounts = new Map<string, number>();
   inventory.forEach((i) => nameCounts.set(i.name, (nameCounts.get(i.name) || 0) + 1));
   return inventory.map((i) => ({
@@ -41,9 +39,13 @@ export default function NewOrderPage() {
   const [amountPaid, setAmountPaid] = useState(0);
   const [packages, setPackages] = useState<Package[]>([]);
   const [services, setServices] = useState<ServiceItem[]>([]);
-  const [supplies, setSupplies] = useState<SupplyItem[]>([]);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   // React state updates aren't guaranteed to re-render before a second click
   // event is dispatched, so the actual re-entrancy guard is this ref (set
   // synchronously, immediately) — isSubmitting state just drives the UI.
@@ -53,18 +55,32 @@ export default function NewOrderPage() {
   const [selectedCategory, setSelectedCategory] = useState<ServiceCategory | null>(null);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPackages(getStoredPackages());
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setServices(getStoredServices());
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSupplies(buildSupplyMenu());
+    async function loadCatalog() {
+      try {
+        const [pkgs, svcs, inv] = await Promise.all([getPackages(), getServices(), getInventory()]);
+        setPackages(pkgs);
+        setServices(svcs);
+        setInventory(inv);
+      } catch {
+        setLoadError("Unable to load catalog. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadCatalog();
   }, []);
+
+  const supplies = useMemo(() => buildSupplyMenu(inventory), [inventory]);
 
   function addToCart(newItem: CartItem) {
     setCartItems((prev) => {
       const existingIndex = prev.findIndex(
-        (item) => item.name === newItem.name && item.price === newItem.price
+        (item) =>
+          item.sourceType === newItem.sourceType &&
+          item.sourceId === newItem.sourceId &&
+          item.price === newItem.price &&
+          item.weight === newItem.weight &&
+          item.serviceType === newItem.serviceType
       );
       if (existingIndex !== -1) {
         return prev.map((item, i) =>
@@ -75,8 +91,25 @@ export default function NewOrderPage() {
     });
   }
 
-  function addItemToCart(name: string, price: number, quantity = 1) {
-    addToCart({ id: `${Date.now()}-${Math.random()}`, name, price, quantity });
+  function addItemToCart(
+    name: string,
+    price: number,
+    sourceType: CartItem["sourceType"],
+    sourceId: string,
+    quantity = 1,
+    weight?: number,
+    serviceType?: ServiceType
+  ) {
+    addToCart({
+      id: `${Date.now()}-${Math.random()}`,
+      name,
+      price,
+      quantity,
+      sourceType,
+      sourceId,
+      weight,
+      serviceType,
+    });
   }
 
   function removeFromCart(id: string) {
@@ -89,58 +122,106 @@ export default function NewOrderPage() {
   }
 
   function handleServiceConfirm(result: {
+    itemId: string;
     itemName: string;
     quantityKg: number;
-    serviceType: string;
+    serviceType: ServiceType;
     total: number;
   }) {
-    addItemToCart(`${result.itemName} (${result.serviceType}, ${result.quantityKg}kg)`, result.total);
+    addItemToCart(
+      `${result.itemName} (${result.serviceType}, ${result.quantityKg}kg)`,
+      result.total,
+      "SERVICE",
+      result.itemId,
+      1,
+      result.quantityKg,
+      result.serviceType
+    );
     setSelectedCategory(null);
   }
 
-  function handleSupplyAdd(supply: { name: string; price: number }, quantity: number) {
-    addItemToCart(supply.name, supply.price, quantity);
+  function handleSupplyAdd(supply: { id: string; name: string; price: number }, quantity: number) {
+    addItemToCart(supply.name, supply.price, "INVENTORY", supply.id, quantity);
   }
 
-  function handlePackageAdd(pkg: { name: string; price: number }) {
-    addItemToCart(pkg.name, pkg.price);
+  function handlePackageAdd(pkg: { id: string; name: string; price: number }) {
+    addItemToCart(pkg.name, pkg.price, "PACKAGE", pkg.id, 1);
   }
 
-  function handleFinishTransaction() {
+  async function handleFinishTransaction() {
     if (cartItems.length === 0 || isSubmittingRef.current) return;
+
+    const trimmedName = customerName.trim();
+    if (!isValidName(trimmedName)) {
+      setSubmitError(NAME_ERROR_MESSAGE);
+      return;
+    }
+    const trimmedPhone = phoneNumber.trim();
+    if (!isValidPhone(trimmedPhone)) {
+      setSubmitError(PHONE_ERROR_MESSAGE);
+      return;
+    }
+
     isSubmittingRef.current = true;
     setIsSubmitting(true);
+    setSubmitError("");
 
-    const total = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const now = new Date();
+    const items: NewOrderItemInput[] = cartItems.map((item) => {
+      if (item.sourceType === "PACKAGE") {
+        return { type: "PACKAGE", packageId: item.sourceId, quantity: item.quantity };
+      }
+      if (item.sourceType === "SERVICE") {
+        return {
+          type: "SERVICE",
+          serviceId: item.sourceId,
+          weight: item.weight ?? 1,
+          quantity: item.quantity,
+          serviceType: item.serviceType,
+        };
+      }
+      return { type: "INVENTORY", inventoryId: item.sourceId, quantity: item.quantity };
+    });
 
-    const newOrder: Order = {
-      id: `${Date.now()}`,
-      customer: customerName || "Walk-in Customer",
-      contact: phoneNumber || "N/A",
-      time: now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      date: now.toLocaleDateString(),
-      createdAt: now.toISOString(),
-      amount: total,
-      payStatus: amountPaid >= total ? "Paid" : "UnPaid",
-      paymentMethod,
-      status: "Pending",
-      items: cartItems.map((item) =>
-        item.quantity > 1 ? `${item.name} ×${item.quantity}` : item.name
-      ),
-      staffName: getCurrentUser()?.name || "Unknown",
-    };
+    try {
+      await createOrder({
+        customerName: trimmedName,
+        phoneNumber: trimmedPhone,
+        paymentMethod,
+        amountPaid,
+        items,
+      });
 
-    addStoredOrder(newOrder);
-    applyOrderStockImpact(newOrder.items || [], 1);
+      alertSuccess("Transaction completed!", "Check your dashboard for the updated summary.");
+      setCartItems([]);
+      setCustomerName("");
+      setPhoneNumber("");
+      setAmountPaid(0);
 
-    alert("Transaction completed! Check your dashboard.");
-    setCartItems([]);
-    setCustomerName("");
-    setPhoneNumber("");
-    setAmountPaid(0);
-    isSubmittingRef.current = false;
-    setIsSubmitting(false);
+      // Stock was just consumed by the backend as part of order creation —
+      // refresh so the Supplies menu reflects current quantities for the
+      // next transaction instead of the numbers fetched on page load.
+      try {
+        setInventory(await getInventory());
+      } catch {
+        // Non-fatal: the completed order already succeeded. The Supplies
+        // menu just stays on slightly stale numbers until next reload.
+      }
+    } catch (err) {
+      setSubmitError(
+        err instanceof ApiError ? err.message : "Unable to complete transaction. Please try again."
+      );
+    } finally {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
+    }
+  }
+
+  if (loading) {
+    return <p className="text-gray-400 p-6">Loading catalog...</p>;
+  }
+
+  if (loadError) {
+    return <p className="text-red-500 p-6">{loadError}</p>;
   }
 
   return (
@@ -184,6 +265,7 @@ export default function NewOrderPage() {
             onAmountPaidChange={setAmountPaid}
             onFinishTransaction={handleFinishTransaction}
             isSubmitting={isSubmitting}
+            submitError={submitError}
           />
         </div>
       </div>

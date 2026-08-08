@@ -79,7 +79,7 @@ export default function Sidebar() {
             src="/LOGO.png"
             alt="Logo"
             width={100}
-            height={100}
+            height={99}
             priority
             className="rounded-full"
           />

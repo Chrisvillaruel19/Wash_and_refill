@@ -8,11 +8,13 @@ import { useState, useEffect } from "react";
 import {
   LayoutDashboard,
   Users,
+  UserCircle,
   Package,
   ClipboardList,
   Archive,
   FileText,
   DollarSign,
+  Receipt,
   CalendarDays,
   LogOut,
   Menu,
@@ -24,11 +26,13 @@ import { logout } from "../../lib/auth";
 const menuItems = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { label: "Employee", href: "/admin/employee", icon: Users },
+  { label: "Customers", href: "/admin/customers", icon: UserCircle },
   { label: "Catalog", href: "/admin/catalog", icon: Package },
   { label: "Laundry", href: "/admin/claim_monitoring", icon: ClipboardList },
   { label: "Archive", href: "/admin/archive", icon: Archive },
   { label: "Logs", href: "/admin/logs", icon: FileText },
   { label: "Sales", href: "/admin/sales", icon: DollarSign },
+  { label: "Expenses", href: "/admin/expenses", icon: Receipt },
   { label: "Attendance", href: "/admin/attendance", icon: CalendarDays },
 ];
 
@@ -80,7 +84,7 @@ export default function AdminSidebar() {
             src="/LOGO.png"
             alt="Logo"
             width={100}
-            height={100}
+            height={99}
             priority
             className="rounded-full"
           />

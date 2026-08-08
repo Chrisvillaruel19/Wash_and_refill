@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import { Users, UserCheck, UserX, Search, Pencil, Archive as ArchiveIcon } from "lucide-react";
 import {
   Employee,
-  getStoredEmployees,
-  addEmployee,
+  getEmployees,
+  createEmployee,
   updateEmployee,
   archiveEmployee,
-} from "../../../lib/localEmployees";
+} from "../../../lib/services/employeeApi.service";
+import { ApiError } from "../../../lib/apiClient";
 import EmployeeFormModal, { EmployeeFormData } from "../../../components/admincom/EmployeeFormModal";
 import ConfirmArchiveModal from "../../../components/admincom/ConfirmArchiveModal";
 import Pagination from "../../../components/staffcom/Pagination";
@@ -26,10 +27,26 @@ export default function EmployeePage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editTarget, setEditTarget] = useState<Employee | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<Employee | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [actionSubmitting, setActionSubmitting] = useState(false);
+  const [actionError, setActionError] = useState("");
+
+  async function loadEmployees() {
+    try {
+      const data = await getEmployees();
+      setEmployees(data);
+    } catch {
+      setLoadError("Unable to load employees. Please try again.");
+    }
+  }
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setEmployees(getStoredEmployees());
+    async function initialLoad() {
+      await loadEmployees();
+      setLoading(false);
+    }
+    initialLoad();
   }, []);
 
   const activeCount = employees.filter((e) => e.status === "Active").length;
@@ -49,41 +66,74 @@ export default function EmployeePage() {
     `${activeFilter}-${search}`
   );
 
-  function handleAddSave(data: EmployeeFormData) {
-    const updated = addEmployee({
-      username: data.username,
-      password: data.password || "",
-      name: data.name,
-      email: data.email,
-      phone: data.phone,
-      hiredDate: data.hiredDate,
-    });
-    setEmployees(updated);
-    setShowAddModal(false);
-  }
-
-  function handleEditSave(data: EmployeeFormData) {
-    if (!editTarget) return;
-    const updates: Partial<Omit<Employee, "id">> = {
-      username: data.username,
-      name: data.name,
-      email: data.email,
-      phone: data.phone,
-      hiredDate: data.hiredDate,
-    };
-    if (data.password) {
-      updates.password = data.password;
+  async function handleAddSave(data: EmployeeFormData) {
+    setActionSubmitting(true);
+    setActionError("");
+    try {
+      await createEmployee({
+        username: data.username,
+        password: data.password || "",
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        hiredDate: data.hiredDate,
+      });
+      await loadEmployees();
+      setShowAddModal(false);
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "Unable to add employee. Please try again.");
+    } finally {
+      setActionSubmitting(false);
     }
-    const updated = updateEmployee(editTarget.id, updates);
-    setEmployees(updated);
-    setEditTarget(null);
   }
 
-  function handleArchiveConfirm() {
+  async function handleEditSave(data: EmployeeFormData) {
+    if (!editTarget) return;
+    setActionSubmitting(true);
+    setActionError("");
+    try {
+      await updateEmployee(editTarget.id, {
+        username: data.username,
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        hiredDate: data.hiredDate,
+        password: data.password || undefined,
+      });
+      await loadEmployees();
+      setEditTarget(null);
+    } catch (err) {
+      setActionError(
+        err instanceof ApiError ? err.message : "Unable to update employee. Please try again."
+      );
+    } finally {
+      setActionSubmitting(false);
+    }
+  }
+
+  async function handleArchiveConfirm() {
     if (!archiveTarget) return;
-    const updated = archiveEmployee(archiveTarget.id);
-    setEmployees(updated);
-    setArchiveTarget(null);
+    setActionSubmitting(true);
+    setActionError("");
+    try {
+      await archiveEmployee(archiveTarget.id);
+      await loadEmployees();
+      setArchiveTarget(null);
+    } catch (err) {
+      setActionError(
+        err instanceof ApiError ? err.message : "Unable to archive employee. Please try again."
+      );
+    } finally {
+      setActionSubmitting(false);
+    }
+  }
+
+  if (loading) {
+    return <p className="text-gray-400 p-6">Loading employees...</p>;
+  }
+
+  if (loadError) {
+    return <p className="text-red-500 p-6">{loadError}</p>;
   }
 
   return (
@@ -143,7 +193,10 @@ export default function EmployeePage() {
             />
           </div>
           <button
-            onClick={() => setShowAddModal(true)}
+            onClick={() => {
+              setActionError("");
+              setShowAddModal(true);
+            }}
             className="bg-blue-600 text-white px-5 py-2 rounded-lg font-semibold hover:bg-blue-700 whitespace-nowrap"
           >
             Add Employee
@@ -185,14 +238,20 @@ export default function EmployeePage() {
                   <td className="p-3 whitespace-nowrap">
                     <div className="flex items-center gap-3">
                       <button
-                        onClick={() => setEditTarget(emp)}
+                        onClick={() => {
+                          setActionError("");
+                          setEditTarget(emp);
+                        }}
                         className="text-gray-600 hover:text-blue-600"
                         title="Edit"
                       >
                         <Pencil size={18} />
                       </button>
                       <button
-                        onClick={() => setArchiveTarget(emp)}
+                        onClick={() => {
+                          setActionError("");
+                          setArchiveTarget(emp);
+                        }}
                         className="text-gray-600 hover:text-red-600"
                         title="Archive"
                       >
@@ -218,6 +277,8 @@ export default function EmployeePage() {
         <EmployeeFormModal
           onSave={handleAddSave}
           onCancel={() => setShowAddModal(false)}
+          submitting={actionSubmitting}
+          submitError={actionError}
         />
       )}
 
@@ -226,6 +287,8 @@ export default function EmployeePage() {
           initialEmployee={editTarget}
           onSave={handleEditSave}
           onCancel={() => setEditTarget(null)}
+          submitting={actionSubmitting}
+          submitError={actionError}
         />
       )}
 
@@ -234,6 +297,8 @@ export default function EmployeePage() {
           employeeName={archiveTarget.name}
           onConfirm={handleArchiveConfirm}
           onCancel={() => setArchiveTarget(null)}
+          submitting={actionSubmitting}
+          error={actionError}
         />
       )}
     </div>

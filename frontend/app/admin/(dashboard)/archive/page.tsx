@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Users, Search, RotateCcw } from "lucide-react";
-import { Employee, getStoredEmployees, restoreEmployee } from "../../../lib/localEmployees";
+import { Employee, getEmployees, restoreEmployee } from "../../../lib/services/employeeApi.service";
+import { ApiError } from "../../../lib/apiClient";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
 
@@ -11,10 +12,26 @@ const PAGE_SIZE = 8;
 export default function ArchivePage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState("");
+
+  async function loadEmployees() {
+    try {
+      const data = await getEmployees();
+      setEmployees(data);
+    } catch {
+      setLoadError("Unable to load archived employees. Please try again.");
+    }
+  }
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setEmployees(getStoredEmployees());
+    async function initialLoad() {
+      await loadEmployees();
+      setLoading(false);
+    }
+    initialLoad();
   }, []);
 
   const archivedEmployees = employees.filter((e) => e.status === "Inactive");
@@ -31,9 +48,28 @@ export default function ArchivePage() {
     search
   );
 
-  function handleRestore(id: string) {
-    const updated = restoreEmployee(id);
-    setEmployees(updated);
+  async function handleRestore(id: string) {
+    if (restoringId) return;
+    setRestoringId(id);
+    setActionError("");
+    try {
+      await restoreEmployee(id);
+      await loadEmployees();
+    } catch (err) {
+      setActionError(
+        err instanceof ApiError ? err.message : "Unable to restore employee. Please try again."
+      );
+    } finally {
+      setRestoringId(null);
+    }
+  }
+
+  if (loading) {
+    return <p className="text-gray-400 p-6">Loading archived employees...</p>;
+  }
+
+  if (loadError) {
+    return <p className="text-red-500 p-6">{loadError}</p>;
   }
 
   return (
@@ -47,6 +83,12 @@ export default function ArchivePage() {
           <Users size={28} className="text-gray-400 shrink-0" />
         </div>
       </div>
+
+      {actionError && (
+        <p className="text-red-600 text-sm mb-4 bg-red-50 border border-red-200 rounded-lg py-2 px-3">
+          {actionError}
+        </p>
+      )}
 
       <div className="mb-5">
         <div className="relative w-full sm:w-auto">
@@ -91,7 +133,8 @@ export default function ArchivePage() {
                   <td className="p-3 whitespace-nowrap">
                     <button
                       onClick={() => handleRestore(emp.id)}
-                      className="text-gray-600 hover:text-blue-600"
+                      disabled={restoringId === emp.id}
+                      className="text-gray-600 hover:text-blue-600 disabled:opacity-50"
                       title="Restore"
                     >
                       <RotateCcw size={18} />

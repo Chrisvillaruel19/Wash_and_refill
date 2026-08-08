@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { CalendarCheck, Clock, ListChecks, Search } from "lucide-react";
 import AdminStatCard from "../../../components/admincom/AdminStatCard";
-import { getStoredAttendance } from "../../../staff/(dashboard)/localAttendance";
+import { getAttendanceRecords } from "../../../lib/services/attendanceApi.service";
 import { AttendanceRecord } from "../../../staff/(dashboard)/types";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
@@ -18,10 +18,22 @@ function formatTime(iso: string | null) {
 export default function AdminAttendancePage() {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setRecords(getStoredAttendance());
+    async function load() {
+      try {
+        const data = await getAttendanceRecords();
+         
+        setRecords(data);
+      } catch {
+        setError("Unable to load attendance records. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
   }, []);
 
   const today = new Date().toLocaleDateString();
@@ -34,11 +46,23 @@ export default function AdminAttendancePage() {
       r.staffName.toLowerCase().includes(search.toLowerCase())
   );
 
+  // usePagination must run on every render regardless of loading/error
+  // state — calling it after an early return would change the number of
+  // hooks invoked between renders (a real Rules-of-Hooks violation, caught
+  // live via React's own warning during verification, not assumed).
   const { page, setPage, totalPages, paginatedItems } = usePagination(
     filteredRecords,
     PAGE_SIZE,
     search
   );
+
+  if (loading) {
+    return <p className="text-gray-400 p-6">Loading attendance records...</p>;
+  }
+
+  if (error) {
+    return <p className="text-red-500 p-6">{error}</p>;
+  }
 
   return (
     <div className="p-4 sm:p-6">

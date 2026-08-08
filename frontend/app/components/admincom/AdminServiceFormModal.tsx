@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ServiceItem, ServiceCategory } from "../../staff/(dashboard)/neworder/types";
+import { useEscapeKey } from "../../lib/useEscapeKey";
 
 export interface ServiceFormData {
   categoryId: string;
@@ -14,6 +15,8 @@ interface AdminServiceFormModalProps {
   initialService?: ServiceItem; // undefined = Add mode
   onSave: (data: ServiceFormData) => void;
   onCancel: () => void;
+  submitting?: boolean;
+  submitError?: string;
 }
 
 export default function AdminServiceFormModal({
@@ -21,7 +24,10 @@ export default function AdminServiceFormModal({
   initialService,
   onSave,
   onCancel,
+  submitting,
+  submitError,
 }: AdminServiceFormModalProps) {
+  useEscapeKey(onCancel);
   const isEdit = !!initialService;
 
   const [categoryId, setCategoryId] = useState(initialService?.categoryId ?? categories[0]?.id ?? "");
@@ -32,12 +38,22 @@ export default function AdminServiceFormModal({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!name || !categoryId) {
+    const trimmedName = name.trim();
+
+    if (!trimmedName || !categoryId) {
       setError("Type and name are required.");
       return;
     }
+    if (trimmedName.length > 100) {
+      setError("Service name must be at most 100 characters.");
+      return;
+    }
+    if (pricePerKg <= 0) {
+      setError("Price must be greater than zero.");
+      return;
+    }
 
-    onSave({ categoryId, name, pricePerKg });
+    onSave({ categoryId, name: trimmedName, pricePerKg });
   }
 
   return (
@@ -54,9 +70,9 @@ export default function AdminServiceFormModal({
           </p>
         )}
 
-        {error && (
+        {(error || submitError) && (
           <p className="text-red-600 text-sm mb-4 bg-red-50 border border-red-200 rounded-lg py-2 px-3">
-            {error}
+            {error || submitError}
           </p>
         )}
 
@@ -84,6 +100,7 @@ export default function AdminServiceFormModal({
               onChange={(e) => setName(e.target.value)}
               name="service-name"
               autoComplete="off"
+              maxLength={100}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             />
           </div>
@@ -92,7 +109,8 @@ export default function AdminServiceFormModal({
             <label className="block text-sm text-gray-500 mb-1">Price per Kg</label>
             <input
               type="number"
-              min={0}
+              min={0.01}
+              step={0.01}
               value={pricePerKg}
               onChange={(e) => setPricePerKg(parseFloat(e.target.value) || 0)}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
@@ -103,15 +121,17 @@ export default function AdminServiceFormModal({
             <button
               type="button"
               onClick={onCancel}
-              className="px-5 py-2 rounded-lg border border-gray-300 text-gray-600 font-medium hover:bg-gray-50"
+              disabled={submitting}
+              className="px-5 py-2 rounded-lg border border-gray-300 text-gray-600 font-medium hover:bg-gray-50 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700"
+              disabled={submitting}
+              className="px-5 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
             >
-              Save
+              {submitting ? "Saving..." : "Save"}
             </button>
           </div>
         </form>

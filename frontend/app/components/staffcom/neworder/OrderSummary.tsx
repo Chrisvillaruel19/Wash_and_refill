@@ -12,6 +12,7 @@ interface OrderSummaryProps {
   onAmountPaidChange: (amount: number) => void;
   onFinishTransaction: () => void;
   isSubmitting: boolean;
+  submitError?: string;
 }
 
 export default function OrderSummary({
@@ -23,6 +24,7 @@ export default function OrderSummary({
   onAmountPaidChange,
   onFinishTransaction,
   isSubmitting,
+  submitError,
 }: OrderSummaryProps) {
   const total = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const change = amountPaid - total;
@@ -98,6 +100,15 @@ export default function OrderSummary({
           <span className="text-gray-600">Change</span>
           <span className="font-semibold text-gray-900">₱{change > 0 ? change.toFixed(2) : "0.00"}</span>
         </div>
+
+        {submitError && (
+          <p
+            className="text-red-600 text-sm mb-3 bg-red-50 border border-red-200 rounded-lg py-2 px-3"
+            role="alert"
+          >
+            {submitError}
+          </p>
+        )}
 
         <button
           onClick={onFinishTransaction}

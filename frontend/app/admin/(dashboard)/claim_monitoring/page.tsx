@@ -5,7 +5,7 @@ import { Clock, RefreshCw, CheckCircle2, Search } from "lucide-react";
 import AdminStatCard from "../../../components/admincom/AdminStatCard";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
-import { getStoredOrders } from "../../../staff/(dashboard)/localOrders";
+import { getOrders, getOrderDetail } from "../../../lib/services/ordersApi.service";
 import { formatGroupedItems } from "../../../lib/groupItems";
 import { Order, OrderStatus } from "../../../staff/(dashboard)/types";
 
@@ -27,10 +27,26 @@ export default function ClaimMonitoringPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [activeFilter, setActiveFilter] = useState<MonitoringFilter>("All");
   const [searchDate, setSearchDate] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  // GET /orders (list) omits line items to stay lean — populated per-order,
+  // bounded to whatever page is currently visible, via GET /orders/:id.
+  // Same pattern as Staff Service/Sales.
+  const [itemsByOrderId, setItemsByOrderId] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setOrders(getStoredOrders());
+    async function load() {
+      try {
+        const data = await getOrders();
+         
+        setOrders(data);
+      } catch {
+        setError("Unable to load orders. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
   }, []);
 
   const totalPending = orders.filter((o) => o.status === "Pending").length;
@@ -55,6 +71,40 @@ export default function ClaimMonitoringPage() {
     PAGE_SIZE,
     `${activeFilter}-${searchDate}`
   );
+
+  useEffect(() => {
+    const missingIds = paginatedItems.map((o) => o.id).filter((id) => !(id in itemsByOrderId));
+    if (missingIds.length === 0) return;
+
+    let cancelled = false;
+    Promise.all(missingIds.map((id) => getOrderDetail(id))).then((details) => {
+      if (cancelled) return;
+      setItemsByOrderId((prev) => {
+        const next = { ...prev };
+        for (const detail of details) {
+          next[detail.id] = detail.items ?? [];
+        }
+        return next;
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paginatedItems]);
+
+  const displayedItems = paginatedItems.map((order) => ({
+    ...order,
+    items: itemsByOrderId[order.id] ?? order.items,
+  }));
+
+  if (loading) {
+    return <p className="text-gray-400 p-6">Loading orders...</p>;
+  }
+
+  if (error) {
+    return <p className="text-red-500 p-6">{error}</p>;
+  }
 
   return (
     <div className="p-4 sm:p-6">
@@ -125,8 +175,8 @@ export default function ClaimMonitoringPage() {
               </tr>
             </thead>
             <tbody>
-              {paginatedItems.length > 0 ? (
-                paginatedItems.map((order) => (
+              {displayedItems.length > 0 ? (
+                displayedItems.map((order) => (
                   <tr key={order.id} className="border-b last:border-0">
                     <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">{order.customer}</td>
                     <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">{order.date}</td>

@@ -2,11 +2,13 @@
 
 import { useState, useMemo } from "react";
 import { ServiceCategory, ServiceItemOption, ServiceType } from "../../../staff/(dashboard)/neworder/types";
+import { useEscapeKey } from "../../../lib/useEscapeKey";
 
 interface ServiceItemFormModalProps {
   category: ServiceCategory;
   itemOptions: ServiceItemOption[];
   onConfirm: (result: {
+    itemId: string;
     itemName: string;
     quantityKg: number;
     serviceType: ServiceType;
@@ -23,6 +25,7 @@ export default function ServiceItemFormModal({
   onConfirm,
   onCancel,
 }: ServiceItemFormModalProps) {
+  useEscapeKey(onCancel);
   const [selectedItemId, setSelectedItemId] = useState(itemOptions[0]?.id ?? "");
   const [quantityKg, setQuantityKg] = useState(1);
   const [serviceType, setServiceType] = useState<ServiceType>("Wash & Dry");
@@ -37,11 +40,33 @@ export default function ServiceItemFormModal({
   function handleConfirm() {
     if (!selectedItem || quantityKg <= 0) return;
     onConfirm({
+      itemId: selectedItem.id,
       itemName: selectedItem.name,
       quantityKg,
       serviceType,
       total,
     });
+  }
+
+  if (itemOptions.length === 0) {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl p-5 sm:p-8 w-full max-w-lg text-center">
+          <h2 className="text-xl sm:text-2xl font-bold uppercase mb-4 text-gray-900">
+            {category.name}
+          </h2>
+          <p className="text-gray-500 mb-6">
+            No laundry services are configured in this category yet. Add one from Admin Catalog first.
+          </p>
+          <button
+            onClick={onCancel}
+            className="w-full border border-gray-300 rounded-lg py-2 font-medium hover:bg-gray-50 text-gray-900"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (

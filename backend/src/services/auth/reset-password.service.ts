@@ -1,6 +1,5 @@
 import {UserRepository} from "../../repositories/user.repository.js";
 import {TokenRepository} from "../../repositories/token.repository.js";
-import {verifyPassword} from "../../utils/password.js";
 import {hashPassword} from "../../utils/password.js";
 
 
@@ -21,13 +20,9 @@ export async function resetPasswordService(
                 message: "Invalid or expired reset token"
             };
         }
-        if (resetToken.expiresAt < new Date()) {
-            return {
-                code: 400,
-                status: "error",
-                message: "Reset token has expired"
-            };
-        }
+        // No separate expiresAt check here — findActiveResetToken already
+        // filters to expiresAt > now in its query, so a token reaching this
+        // point can never be expired.
 
         const hashedPassword = hashPassword(newPassword);
         await userRepository.updatePassword(

@@ -1,16 +1,22 @@
 import { z } from "zod";
+import { optionalPhoneNumberRule, nameRule, usernameRule, passwordRule } from "../common/validation-rules.js";
 
 export const createEmployeeSchema = z.object({
   body: z.object({
-    username: z
-      .string({ message: "Username is required" })
-      .min(3, "Username must be at least 3 characters long"),
+    username: usernameRule,
 
     email: z
-      .string({ message: "Email is required" }),
+      .string({ message: "Email is required" })
+      .trim()
+      .max(254, "Email must be at most 254 characters")
+      .email("Invalid email format"),
 
-    password: z
-      .string({ message: "Password is required" })
-      .min(8, "Password must be at least 8 characters")
+    name: nameRule,
+
+    password: passwordRule,
+
+    phone: optionalPhoneNumberRule(),
+
+    hiredDate: z.coerce.date({ message: "Hired date is required" }),
   }),
 });

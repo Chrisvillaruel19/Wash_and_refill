@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { InventoryItem } from "../../staff/(dashboard)/types";
-import { isCriticalInventoryItem } from "../../staff/(dashboard)/localInventory";
+import { isCriticalInventoryItem } from "../../lib/inventoryRules";
+import { useEscapeKey } from "../../lib/useEscapeKey";
 
 export interface InventoryFormData {
   name: string;
@@ -16,13 +17,18 @@ interface AdminInventoryFormModalProps {
   initialItem?: InventoryItem; // undefined = Add mode
   onSave: (data: InventoryFormData) => void;
   onCancel: () => void;
+  submitting?: boolean;
+  submitError?: string;
 }
 
 export default function AdminInventoryFormModal({
   initialItem,
   onSave,
   onCancel,
+  submitting,
+  submitError,
 }: AdminInventoryFormModalProps) {
+  useEscapeKey(onCancel);
   const isEdit = !!initialItem;
 
   const [name, setName] = useState(initialItem?.name ?? "");
@@ -35,12 +41,35 @@ export default function AdminInventoryFormModal({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!name || !unit) {
+    const trimmedName = name.trim();
+    const trimmedUnit = unit.trim();
+
+    if (!trimmedName || !trimmedUnit) {
       setError("Item name and unit are required.");
       return;
     }
+    if (trimmedName.length > 100) {
+      setError("Item name must be at most 100 characters.");
+      return;
+    }
+    if (trimmedUnit.length > 20) {
+      setError("Unit must be at most 20 characters.");
+      return;
+    }
+    if (currentStock < 0 || !Number.isInteger(currentStock)) {
+      setError("Current stock must be a whole number, zero or greater.");
+      return;
+    }
+    if (lowStockAlert < 0 || !Number.isInteger(lowStockAlert)) {
+      setError("Low stock alert must be a whole number, zero or greater.");
+      return;
+    }
+    if (price <= 0) {
+      setError("Price must be greater than zero.");
+      return;
+    }
 
-    onSave({ name, currentStock, lowStockAlert, unit, price });
+    onSave({ name: trimmedName, currentStock, lowStockAlert, unit: trimmedUnit, price });
   }
 
   return (
@@ -58,9 +87,9 @@ export default function AdminInventoryFormModal({
           </p>
         )}
 
-        {error && (
+        {(error || submitError) && (
           <p className="text-red-600 text-sm mb-4 bg-red-50 border border-red-200 rounded-lg py-2 px-3">
-            {error}
+            {error || submitError}
           </p>
         )}
 
@@ -73,6 +102,7 @@ export default function AdminInventoryFormModal({
               onChange={(e) => setName(e.target.value)}
               name="inventory-item-name"
               autoComplete="off"
+              maxLength={100}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             />
           </div>
@@ -107,6 +137,7 @@ export default function AdminInventoryFormModal({
               onChange={(e) => setUnit(e.target.value)}
               name="inventory-item-unit"
               autoComplete="off"
+              maxLength={20}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             />
           </div>
@@ -115,7 +146,8 @@ export default function AdminInventoryFormModal({
             <label className="block text-sm text-gray-500 mb-1">Price</label>
             <input
               type="number"
-              min={0}
+              min={0.01}
+              step={0.01}
               value={price}
               onChange={(e) => setPrice(parseFloat(e.target.value) || 0)}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
@@ -126,15 +158,17 @@ export default function AdminInventoryFormModal({
             <button
               type="button"
               onClick={onCancel}
-              className="px-5 py-2 rounded-lg border border-gray-300 text-gray-600 font-medium hover:bg-gray-50"
+              disabled={submitting}
+              className="px-5 py-2 rounded-lg border border-gray-300 text-gray-600 font-medium hover:bg-gray-50 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700"
+              disabled={submitting}
+              className="px-5 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
             >
-              Save
+              {submitting ? "Saving..." : "Save"}
             </button>
           </div>
         </form>

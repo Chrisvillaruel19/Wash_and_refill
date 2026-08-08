@@ -5,7 +5,19 @@ import {
   LogoutService,
   forgotPasswordService,
   resetPasswordService,
+  verifyPasswordService,
 } from "../services/auth/index.js";
+import { toMilliseconds, TokenExpiry } from "../lib/jwt.js";
+
+// maxAge added so the browser's cookie lifetime actually matches the
+// refresh token's real 7-day validity, instead of expiring as soon as the
+// browser closes. secure is environment-aware rather than hardcoded false.
+const REFRESH_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax" as const,
+  maxAge: toMilliseconds(TokenExpiry.REFRESH_TOKEN_EXPIRES),
+};
 
 export class AuthController {
 //login method
@@ -21,11 +33,7 @@ export class AuthController {
 
       const { accessToken, refreshToken } = result.data.tokens;
 
-      res.cookie("refreshToken", refreshToken, {
-        httpOnly: true,
-        secure: false,
-        sameSite: "lax",
-      });
+      res.cookie("refreshToken", refreshToken, REFRESH_COOKIE_OPTIONS);
 
       return res.status(200).json({
         message: "Login successful",
@@ -36,12 +44,14 @@ export class AuthController {
       });
 
     } catch(error) {
+      console.error("AuthController.login error", error);
+
       if (error instanceof Error) {
         return res.status(400).json({
           message: "Invalid email or password",
         });
       }
-      
+
       return res.status(500).json({
         message: "Internal server error",
       });
@@ -104,6 +114,23 @@ export class AuthController {
     }
   };
 
+//verify-password method (manager-override check — no tokens, no cookies)
+  public verifyPassword = async (req: Request, res: Response) => {
+    try {
+      const { username, password } = req.body;
+
+      const result = await verifyPasswordService(username, password);
+
+      return res.status(result.code).json(result);
+    } catch (error) {
+      console.error("AuthController.verifyPassword error", error);
+
+      return res.status(500).json({
+        message: "Unable to verify credentials",
+      });
+    }
+  };
+
 //refresh method
   public refresh = async (req: Request, res: Response) => {
     try {
@@ -123,11 +150,7 @@ export class AuthController {
 
       const { accessToken, refreshToken: newRefreshToken } = result.data.tokens;
 
-      res.cookie("refreshToken", newRefreshToken, {
-        httpOnly: true,
-        secure: false,
-        sameSite: "lax",
-      });
+      res.cookie("refreshToken", newRefreshToken, REFRESH_COOKIE_OPTIONS);
 
       return res.status(200).json({
         message: result.message,

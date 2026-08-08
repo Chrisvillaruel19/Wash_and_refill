@@ -1,187 +1,197 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { getStoredOrders } from "../localOrders";
-import { getStoredExpenses } from "../localExpense";
-import { getStoredInventory } from "../localInventory";
-import {
-  submitShiftHandover,
-  getStoredShiftHandovers,
-  getLastHandoverTimestamp,
-  getCashDrawerStart,
-} from "../localShiftHandover";
-import { getCurrentUser } from "../../../lib/auth";
-import { getStoredPackages } from "../../../lib/localPackages";
-import { Package } from "../neworder/types";
-import { supplies } from "../neworder/data";
+import { getOrders, getOrderDetailLines, OrderDetailLine } from "../../../lib/services/ordersApi.service";
+import { getExpenses } from "../../../lib/services/expensesApi.service";
+import { getInventory } from "../../../lib/services/inventoryApi.service";
+import { getShiftHandovers, createShiftHandover } from "../../../lib/services/shiftHandoverApi.service";
+import { ApiError } from "../../../lib/apiClient";
 import { Order, ExpenseRecord, InventoryItem, ShiftHandoverRecord } from "../types";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
 
-// Withdrawals aren't tracked anywhere yet, so that figure is 0 for now
-// rather than fabricated.
 const PAGE_SIZE = 6;
+
+// Matches the backend's own fallback (reconciliation.util.ts) for the
+// drawer's starting balance before any handover has ever been submitted.
+const FALLBACK_CASH_DRAWER_START = 5000;
+
+interface DropOffRow {
+  name: string;
+  price: number;
+  totalOrders: number;
+  totalPrice: number;
+}
+
+function buildDropOffSummary(lines: OrderDetailLine[]): DropOffRow[] {
+  const groups = new Map<string, { qty: number; subtotal: number }>();
+  for (const line of lines) {
+    if (line.type !== "PACKAGE") continue;
+    const g = groups.get(line.name) ?? { qty: 0, subtotal: 0 };
+    g.qty += line.quantity;
+    g.subtotal += line.subtotal;
+    groups.set(line.name, g);
+  }
+  return Array.from(groups.entries()).map(([name, g]) => ({
+    name,
+    price: g.qty > 0 ? g.subtotal / g.qty : 0,
+    totalOrders: g.qty,
+    totalPrice: g.subtotal,
+  }));
+}
 
 export default function ShiftHandover() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [history, setHistory] = useState<ShiftHandoverRecord[]>([]);
-  const [packages, setPackages] = useState<Package[]>([]);
+  const [unclaimedOrderLines, setUnclaimedOrderLines] = useState<Record<string, OrderDetailLine[]>>({});
   const [actualCashCounted, setActualCashCounted] = useState(0);
   const [notes, setNotes] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const isSubmittingRef = useRef(false);
 
-  const staffName = getCurrentUser()?.name || "Unknown";
-
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setOrders(getStoredOrders());
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setExpenses(getStoredExpenses());
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setInventory(getStoredInventory());
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setHistory(getStoredShiftHandovers());
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPackages(getStoredPackages());
+    async function load() {
+      try {
+        const [ordersData, expensesData, inventoryData, historyData] = await Promise.all([
+          getOrders(),
+          getExpenses(),
+          getInventory(),
+          getShiftHandovers(),
+        ]);
+        setOrders(ordersData);
+        setExpenses(expensesData);
+        setInventory(inventoryData);
+        setHistory(historyData);
+      } catch {
+        setLoadError("Unable to load shift handover data. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
   }, []);
 
-  // Order items are stored as either the plain package name ("Basic") or,
-  // when multiple of the same package were added to one order, with a
-  // quantity suffix ("Basic ×5"). This extracts the quantity either way.
-  function getItemQuantity(itemStr: string, name: string): number {
-    if (itemStr === name) return 1;
-    const prefix = `${name} ×`;
-    if (itemStr.startsWith(prefix)) {
-      const num = parseInt(itemStr.slice(prefix.length), 10);
-      return isNaN(num) ? 0 : num;
-    }
-    return 0;
-  }
-
-  // Shift scoping (Option B, confirmed): "my current shift" = everything
-  // since MY most recently submitted handover, or everything if I've never
-  // submitted one. Shared with Attendance's clock-out guard via
-  // localShiftHandover.ts so both use the same "unreported" definition.
-  const lastHandoverTimestamp = getLastHandoverTimestamp(staffName, history);
-
-  // One shared physical drawer: starting cash = whatever the single most
-  // recent handover (any staff member) actually counted at close-out.
-  const cashDrawerStart = getCashDrawerStart(history);
-
-  // Orders created before the createdAt field existed have no reliable
-  // timestamp to compare — treated as outside the current shift rather
-  // than guessed at.
-  const shiftOrders = orders.filter(
-    (o) =>
-      o.staffName === staffName &&
-      !!o.createdAt &&
-      (!lastHandoverTimestamp || o.createdAt > lastHandoverTimestamp)
+  // "Unclaimed" mirrors the backend's own lockUnclaimedPaidIds filter
+  // exactly (paid, not cancelled, shiftHandoverId null) — this is the one
+  // shared drawer's pending activity, from any staff member, not just mine.
+  const unclaimedPaidOrders = orders.filter(
+    (o) => !o.shiftHandoverId && o.payStatus === "Paid" && o.status !== "Cancelled"
   );
 
-  // Cash reconciliation only counts money actually collected — an UnPaid
-  // order hasn't put anything in the drawer yet, and a Cancelled order never
-  // happened at all. Same "Paid, not Cancelled" rule as computeStatsFromOrders.
-  const paidShiftOrders = shiftOrders.filter(
-    (o) => o.payStatus === "Paid" && o.status !== "Cancelled"
-  );
+  // GET /orders (list) omits line items to stay lean — populated per unclaimed
+  // order via GET /orders/:id. Naturally bounded (only since the last
+  // handover, across all staff), unlike Sales' all-time order set.
+  useEffect(() => {
+    const missingIds = unclaimedPaidOrders.map((o) => o.id).filter((id) => !(id in unclaimedOrderLines));
+    if (missingIds.length === 0) return;
 
-  // GCash/digital payments don't put physical cash in the drawer — only
-  // Cash-method sales count toward the cash reconciliation below. Orders
-  // from before paymentMethod existed are treated as Cash, matching how
-  // every order was already implicitly counted before this field existed
-  // (not silently dropped from the cash count).
-  const cashPaidShiftOrders = paidShiftOrders.filter(
-    (o) => (o.paymentMethod ?? "Cash") === "Cash"
-  );
-  const cashSalesTotal = cashPaidShiftOrders.reduce((sum, o) => sum + o.amount, 0);
+    let cancelled = false;
+    Promise.all(missingIds.map((id) => getOrderDetailLines(id).then((lines) => [id, lines] as const))).then(
+      (results) => {
+        if (cancelled) return;
+        setUnclaimedOrderLines((prev) => {
+          const next = { ...prev };
+          for (const [id, lines] of results) next[id] = lines;
+          return next;
+        });
+      }
+    );
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orders]);
 
-  const shiftExpenses = expenses.filter(
-    (e) =>
-      e.submittedBy === staffName &&
-      (!lastHandoverTimestamp || e.timestamp > lastHandoverTimestamp)
-  );
+  const allUnclaimedLines = unclaimedPaidOrders.flatMap((o) => unclaimedOrderLines[o.id] ?? []);
+  const laundrySales = allUnclaimedLines
+    .filter((l) => l.type === "PACKAGE")
+    .reduce((sum, l) => sum + l.subtotal, 0);
+  const supplySales = allUnclaimedLines
+    .filter((l) => l.type === "INVENTORY")
+    .reduce((sum, l) => sum + l.subtotal, 0);
+  const customServiceSales = allUnclaimedLines
+    .filter((l) => l.type === "SERVICE")
+    .reduce((sum, l) => sum + l.subtotal, 0);
 
-  const dropOffSummary = packages
-    .map((pkg) => {
-      const totalQty = paidShiftOrders.reduce((sum, o) => {
-        const orderQty = (o.items || []).reduce(
-          (s, itemStr) => s + getItemQuantity(itemStr, pkg.name),
-          0
-        );
-        return sum + orderQty;
-      }, 0);
-      return {
-        name: pkg.name,
-        price: pkg.price,
-        totalOrders: totalQty,
-        totalPrice: totalQty * pkg.price,
-      };
-    })
-    .filter((p) => p.totalOrders > 0);
-
-  const totalSales = paidShiftOrders.reduce((sum, o) => sum + o.amount, 0);
+  const cashSalesTotal = unclaimedPaidOrders
+    .filter((o) => (o.paymentMethod ?? "Cash") === "Cash")
+    .reduce((sum, o) => sum + o.amount, 0);
+  const totalSales = unclaimedPaidOrders.reduce((sum, o) => sum + o.amount, 0);
   const digitalSalesTotal = totalSales - cashSalesTotal;
-  const laundrySales = dropOffSummary.reduce((sum, p) => sum + p.totalPrice, 0);
 
-  // Raw supplies sold individually (not part of a package) — matched the
-  // same way packages are matched above: exact name, or "name ×N" for
-  // multiples. Priced at each supply's current catalog price.
-  const supplySales = supplies.reduce((sum, supply) => {
-    const qty = paidShiftOrders.reduce((s, o) => {
-      const orderQty = (o.items || []).reduce(
-        (x, itemStr) => x + getItemQuantity(itemStr, supply.name),
-        0
-      );
-      return s + orderQty;
-    }, 0);
-    return sum + qty * supply.price;
-  }, 0);
+  const dropOffSummary = buildDropOffSummary(allUnclaimedLines);
 
-  // Custom per-kg services (rugs, carpets, bulk household items) don't have
-  // a fixed catalog entry the way packages/supplies do — price is set per
-  // order at checkout, so there's nothing to match by name. Their revenue is
-  // whatever's left after accounting for known packages and known supplies.
-  // Floored at 0 as a safety net.
-  const customServiceSales = Math.max(0, totalSales - laundrySales - supplySales);
+  // GET /expenses is self-scoped server-side for Staff (only their own) —
+  // this really is "my pending expenses," not a filtering shortcut.
+  const myUnclaimedExpenses = expenses.filter((e) => !e.shiftHandoverId);
+  const expenseTotal = myUnclaimedExpenses.reduce((sum, e) => sum + e.amount, 0);
 
-  const withdrawals = 0;
-  const expenseTotal = shiftExpenses.reduce((sum, e) => sum + e.amount, 0);
+  const drawerStart =
+    history.length === 0
+      ? FALLBACK_CASH_DRAWER_START
+      : history.reduce((latest, h) => (h.timestamp > latest.timestamp ? h : latest)).actualCashCounted;
 
-  // Only Cash-method sales count toward the physical drawer — GCash sales
-  // are real revenue (shown above) but never touch this cash count.
-  const expectedCash = cashDrawerStart + cashSalesTotal - withdrawals - expenseTotal;
+  // Withdrawals aren't visible to Staff (GET /withdrawals is Admin-only) —
+  // excluded from this preview by necessity, disclosed below. The actual
+  // submission is still fully correct: the backend recomputes this figure
+  // itself from real data, including any pending withdrawals.
+  const expectedCash = drawerStart + cashSalesTotal - expenseTotal;
   const shortage = actualCashCounted - expectedCash;
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (isSubmittingRef.current) return;
+
+    if (actualCashCounted < 0) {
+      setSubmitError("Actual cash counted cannot be negative.");
+      return;
+    }
+    const trimmedNotes = notes.trim();
+    if (trimmedNotes.length > 500) {
+      setSubmitError("Notes must be at most 500 characters.");
+      return;
+    }
+
     isSubmittingRef.current = true;
     setIsSubmitting(true);
+    setSubmitError("");
 
-    const updated = submitShiftHandover({
-      staffName,
-      cashDrawer: cashDrawerStart,
-      laundrySales,
-      supplySales,
-      customServiceSales,
-      digitalSales: digitalSalesTotal,
-      withdrawals,
-      expense: expenseTotal,
-      expectedCash,
-      actualCashCounted,
-      shortage,
-      notes,
-    });
-    setHistory(updated);
-    setActualCashCounted(0);
-    setNotes("");
-    isSubmittingRef.current = false;
-    setIsSubmitting(false);
+    try {
+      await createShiftHandover({ actualCashCounted, notes: trimmedNotes || undefined });
+
+      const [ordersData, expensesData, historyData] = await Promise.all([
+        getOrders(),
+        getExpenses(),
+        getShiftHandovers(),
+      ]);
+      setOrders(ordersData);
+      setExpenses(expensesData);
+      setHistory(historyData);
+      setActualCashCounted(0);
+      setNotes("");
+    } catch (err) {
+      setSubmitError(
+        err instanceof ApiError ? err.message : "Unable to submit shift handover. Please try again."
+      );
+    } finally {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
+    }
   }
 
   const { page, setPage, totalPages, paginatedItems } = usePagination(history, PAGE_SIZE);
+
+  if (loading) {
+    return <p className="text-gray-400 p-6">Loading shift handover data...</p>;
+  }
+
+  if (loadError) {
+    return <p className="text-red-500 p-6">{loadError}</p>;
+  }
 
   return (
     <div className="p-4 sm:p-6">
@@ -194,7 +204,7 @@ export default function ShiftHandover() {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
           <div>
             <p className="text-sm text-gray-500">Cash drawer</p>
-            <p className="text-lg font-bold text-gray-900">₱{cashDrawerStart.toFixed(2)}</p>
+            <p className="text-lg font-bold text-gray-900">₱{drawerStart.toFixed(2)}</p>
           </div>
           <div>
             <p className="text-sm text-gray-500">Laundry sales</p>
@@ -211,6 +221,7 @@ export default function ShiftHandover() {
           <div>
             <p className="text-sm text-gray-500">Expense</p>
             <p className="text-lg font-bold text-gray-900">₱{expenseTotal.toFixed(2)}</p>
+            <p className="text-xs text-gray-400">Yours only</p>
           </div>
         </div>
 
@@ -262,7 +273,7 @@ export default function ShiftHandover() {
                     dropOffSummary.map((p) => (
                       <tr key={p.name} className="border-b last:border-0">
                         <td className="p-2 whitespace-nowrap text-gray-900">{p.name}</td>
-                        <td className="p-2 whitespace-nowrap text-gray-900">₱{p.price}</td>
+                        <td className="p-2 whitespace-nowrap text-gray-900">₱{p.price.toFixed(2)}</td>
                         <td className="p-2 whitespace-nowrap text-gray-900">{p.totalOrders}</td>
                         <td className="p-2 whitespace-nowrap text-gray-900">
                           ₱{p.totalPrice.toFixed(2)}
@@ -285,6 +296,12 @@ export default function ShiftHandover() {
 
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
         <h2 className="text-lg font-bold text-gray-900 mb-4">Cash Reconciliation</h2>
+
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg py-2 px-3 mb-4">
+          Expected Cash below reflects only your own pending expenses and excludes any pending
+          withdrawals — those aren&apos;t visible to your role. Both are still correctly included in
+          the actual reconciliation once you submit.
+        </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-4">
           <div>
@@ -319,9 +336,16 @@ export default function ShiftHandover() {
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={2}
+            maxLength={500}
             className="w-full border border-gray-300 rounded-lg p-2 text-gray-900 resize-none"
           />
         </div>
+
+        {submitError && (
+          <p className="text-red-600 text-sm mb-4 bg-red-50 border border-red-200 rounded-lg py-2 px-3">
+            {submitError}
+          </p>
+        )}
 
         <button
           onClick={handleSubmit}

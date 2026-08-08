@@ -2,6 +2,7 @@
 
 import { X, Shirt, Layers, LayoutGrid, Square } from "lucide-react";
 import { ServiceCategory } from "../../../staff/(dashboard)/neworder/types";
+import { useEscapeKey } from "../../../lib/useEscapeKey";
 
 const iconMap: Record<string, React.ElementType> = {
   Shirt,
@@ -21,6 +22,8 @@ export default function CategoryPickerModal({
   onSelect,
   onClose,
 }: CategoryPickerModalProps) {
+  useEscapeKey(onClose);
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl p-5 sm:p-8 w-full max-w-md max-h-[85vh] overflow-y-auto relative">

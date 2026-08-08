@@ -6,15 +6,18 @@ import AdminStatCard from "../../../components/admincom/AdminStatCard";
 import AdminWithdrawalFormModal, {
   WithdrawalFormData,
 } from "../../../components/admincom/AdminWithdrawalFormModal";
-import { getStoredOrders } from "../../../staff/(dashboard)/localOrders";
-import { getStoredPackages } from "../../../lib/localPackages";
-import { getStoredShiftHandovers } from "../../../staff/(dashboard)/localShiftHandover";
-import { getStoredWithdrawals, addWithdrawal } from "../../../lib/localWithdrawals";
-import { getTotalCashToday, getDropOffSummary, getAverageOrderValue } from "../../../lib/localStats";
-import { getCurrentUser } from "../../../lib/auth";
+import { getOrders } from "../../../lib/services/ordersApi.service";
+import { getPackages } from "../../../lib/services/packageApi.service";
+import { getShiftHandovers } from "../../../lib/services/shiftHandoverApi.service";
+import {
+  getWithdrawals,
+  createWithdrawal,
+  WithdrawalRecord,
+} from "../../../lib/services/withdrawalApi.service";
+import { getTotalCashToday, getDropOffSummary, getAverageOrderValue } from "../../../lib/orderStats";
+import { ApiError } from "../../../lib/apiClient";
 import { Order, ShiftHandoverRecord } from "../../../staff/(dashboard)/types";
 import { Package } from "../../../staff/(dashboard)/neworder/types";
-import { WithdrawalRecord } from "../../../lib/localWithdrawals";
 
 export default function AdminSalesPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -22,32 +25,67 @@ export default function AdminSalesPage() {
   const [handovers, setHandovers] = useState<ShiftHandoverRecord[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>([]);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
-
-  const adminName = getCurrentUser()?.name || "Admin";
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [withdrawSubmitting, setWithdrawSubmitting] = useState(false);
+  const [withdrawError, setWithdrawError] = useState("");
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setOrders(getStoredOrders());
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPackages(getStoredPackages());
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setHandovers(getStoredShiftHandovers());
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setWithdrawals(getStoredWithdrawals());
+    async function load() {
+      try {
+        const [ordersData, packagesData, handoversData, withdrawalsData] = await Promise.all([
+          getOrders(),
+          getPackages(),
+          getShiftHandovers(),
+          getWithdrawals(),
+        ]);
+         
+        setOrders(ordersData);
+         
+        setPackages(packagesData);
+         
+        setHandovers(handoversData);
+         
+        setWithdrawals(withdrawalsData);
+      } catch {
+        setLoadError("Unable to load sales data. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
   }, []);
 
   const totalCashToday = getTotalCashToday(orders);
   const averageOrderValue = getAverageOrderValue(orders);
+  // GET /orders (list) deliberately omits order line items to stay lean, so
+  // this always returns empty against real data — a known, disclosed gap
+  // (see the "Drop off Summary" section below), not a bug in this call.
   const dropOffSummary = getDropOffSummary(orders, packages);
 
-  function handleWithdrawSave(data: WithdrawalFormData) {
-    const updated = addWithdrawal({
-      amount: data.amount,
-      reason: data.reason,
-      adminName,
-    });
-    setWithdrawals(updated);
-    setShowWithdrawModal(false);
+  async function handleWithdrawSave(data: WithdrawalFormData) {
+    setWithdrawSubmitting(true);
+    setWithdrawError("");
+    try {
+      await createWithdrawal({ amount: data.amount, reason: data.reason });
+      const refreshed = await getWithdrawals();
+      setWithdrawals(refreshed);
+      setShowWithdrawModal(false);
+    } catch (err) {
+      setWithdrawError(
+        err instanceof ApiError ? err.message : "Unable to record withdrawal. Please try again."
+      );
+    } finally {
+      setWithdrawSubmitting(false);
+    }
+  }
+
+  if (loading) {
+    return <p className="text-gray-400 p-6">Loading sales data...</p>;
+  }
+
+  if (loadError) {
+    return <p className="text-red-500 p-6">{loadError}</p>;
   }
 
   return (
@@ -68,7 +106,10 @@ export default function AdminSalesPage() {
           />
         </div>
         <button
-          onClick={() => setShowWithdrawModal(true)}
+          onClick={() => {
+            setWithdrawError("");
+            setShowWithdrawModal(true);
+          }}
           className="bg-blue-600 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-blue-700 whitespace-nowrap self-start sm:self-auto"
         >
           Cash Withdrawal
@@ -77,6 +118,11 @@ export default function AdminSalesPage() {
 
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 mb-6">
         <h2 className="text-lg font-bold text-gray-900 mb-4">Drop off Summary</h2>
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg py-2 px-3 mb-4">
+          Per-package sales reporting is pending a dedicated backend endpoint — order line items
+          aren&apos;t exposed by the current orders list. This table will populate once that
+          endpoint is built.
+        </p>
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead>
@@ -184,10 +230,11 @@ export default function AdminSalesPage() {
 
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
         <h2 className="text-lg font-bold text-gray-900 mb-2">Withdrawal History</h2>
-        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg py-2 px-3 mb-4">
-          Demo only — these amounts are not reflected in Staff&apos;s Shift Handover cash
-          reconciliation above. They will sync once a backend exists.
-        </p>
+        {withdrawError && (
+          <p className="text-red-600 text-sm mb-4 bg-red-50 border border-red-200 rounded-lg py-2 px-3">
+            {withdrawError}
+          </p>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead>
@@ -233,6 +280,8 @@ export default function AdminSalesPage() {
         <AdminWithdrawalFormModal
           onSave={handleWithdrawSave}
           onCancel={() => setShowWithdrawModal(false)}
+          submitting={withdrawSubmitting}
+          submitError={withdrawError}
         />
       )}
     </div>

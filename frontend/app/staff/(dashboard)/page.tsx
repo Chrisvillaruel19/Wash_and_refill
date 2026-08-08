@@ -6,38 +6,52 @@ import StatCard from "../../components/staffcom/dashboard/StatCard";
 import LowStockCard from "../../components/staffcom/dashboard/LowStockCard";
 import RecentActivityCard from "../../components/staffcom/dashboard/RecentActivityCard";
 import OrdersTable from "../../components/staffcom/dashboard/OrdersTable";
-import { getStoredOrders, computeStatsFromOrders } from "./localOrders";
-import { getLowStockItems } from "./localInventory";
-import { getActivityLogs } from "./localActivity";
+import { getOrders } from "../../lib/services/ordersApi.service";
+import { getStaffDashboard, getRecentActivity } from "../../lib/services/dashboard.service";
 import { Order, LowStockItem, ActivityLog } from "./types";
 
 export default function StaffDashboardPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [lowStock, setLowStock] = useState<LowStockItem[]>([]);
   const [activity, setActivity] = useState<ActivityLog[]>([]);
+  const [stats, setStats] = useState({ todaysSales: 0, claimedToday: 0, ready: 0 });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    const storedOrders = getStoredOrders();
-    const lowStockItems = getLowStockItems().map((item) => ({
-      id: item.id,
-      name: item.name,
-      quantityRemaining: item.currentStock,
-      unit: item.unit,
-    }));
-    const activityLogs = getActivityLogs();
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-    setOrders(storedOrders);
-    setLowStock(lowStockItems);
-    setActivity(activityLogs);
-    setLoading(false);
+    async function load() {
+      try {
+        const [dashboard, orderList] = await Promise.all([getStaffDashboard(), getOrders()]);
+         
+        setStats({ todaysSales: dashboard.todaysSales, claimedToday: dashboard.claimedToday, ready: dashboard.ready });
+        setLowStock(dashboard.lowStock);
+        setOrders(orderList);
+      } catch {
+        setError("Unable to load dashboard data. Please try again.");
+        setLoading(false);
+        return;
+      }
+
+      // Fetched separately so a Recent Activity failure doesn't block the
+      // rest of the (already-loaded) dashboard from rendering.
+      try {
+        setActivity(await getRecentActivity());
+      } catch {
+        setActivity([]);
+      }
+
+      setLoading(false);
+    }
+    load();
   }, []);
 
   if (loading) {
     return <p className="text-gray-400 p-6">Loading dashboard...</p>;
   }
 
-  const stats = computeStatsFromOrders(orders);
+  if (error) {
+    return <p className="text-red-500 p-6">{error}</p>;
+  }
 
   return (
     <div className="p-4 sm:p-6">

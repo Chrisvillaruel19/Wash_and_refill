@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Package } from "../../staff/(dashboard)/neworder/types";
+import { useEscapeKey } from "../../lib/useEscapeKey";
 
 export interface PackageFormData {
   name: string;
@@ -15,6 +16,8 @@ interface AdminPackageFormModalProps {
   initialPackage?: Package; // undefined = Add mode
   onSave: (data: PackageFormData) => void;
   onCancel: () => void;
+  submitting?: boolean;
+  submitError?: string;
 }
 
 const colorOptions = [
@@ -28,7 +31,10 @@ export default function AdminPackageFormModal({
   initialPackage,
   onSave,
   onCancel,
+  submitting,
+  submitError,
 }: AdminPackageFormModalProps) {
+  useEscapeKey(onCancel);
   const isEdit = !!initialPackage;
 
   const [name, setName] = useState(initialPackage?.name ?? "");
@@ -41,12 +47,30 @@ export default function AdminPackageFormModal({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!name) {
+    const trimmedName = name.trim();
+
+    if (!trimmedName) {
       setError("Package name is required.");
       return;
     }
+    if (trimmedName.length > 100) {
+      setError("Package name must be at most 100 characters.");
+      return;
+    }
+    if (price <= 0) {
+      setError("Price must be greater than zero.");
+      return;
+    }
+    if (liquidDetergent < 0 || !Number.isInteger(liquidDetergent)) {
+      setError("Liquid Detergent quantity must be a whole number, zero or greater.");
+      return;
+    }
+    if (downy < 0 || !Number.isInteger(downy)) {
+      setError("Downy quantity must be a whole number, zero or greater.");
+      return;
+    }
 
-    onSave({ name, price, liquidDetergent, downy, color });
+    onSave({ name: trimmedName, price, liquidDetergent, downy, color });
   }
 
   return (
@@ -62,9 +86,9 @@ export default function AdminPackageFormModal({
           </p>
         )}
 
-        {error && (
+        {(error || submitError) && (
           <p className="text-red-600 text-sm mb-4 bg-red-50 border border-red-200 rounded-lg py-2 px-3">
-            {error}
+            {error || submitError}
           </p>
         )}
 
@@ -77,6 +101,7 @@ export default function AdminPackageFormModal({
               onChange={(e) => setName(e.target.value)}
               name="package-name"
               autoComplete="off"
+              maxLength={100}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             />
           </div>
@@ -85,7 +110,8 @@ export default function AdminPackageFormModal({
             <label className="block text-sm text-gray-500 mb-1">Price</label>
             <input
               type="number"
-              min={0}
+              min={0.01}
+              step={0.01}
               value={price}
               onChange={(e) => setPrice(parseFloat(e.target.value) || 0)}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
@@ -133,15 +159,17 @@ export default function AdminPackageFormModal({
             <button
               type="button"
               onClick={onCancel}
-              className="px-5 py-2 rounded-lg border border-gray-300 text-gray-600 font-medium hover:bg-gray-50"
+              disabled={submitting}
+              className="px-5 py-2 rounded-lg border border-gray-300 text-gray-600 font-medium hover:bg-gray-50 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700"
+              disabled={submitting}
+              className="px-5 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
             >
-              Save
+              {submitting ? "Saving..." : "Save"}
             </button>
           </div>
         </form>

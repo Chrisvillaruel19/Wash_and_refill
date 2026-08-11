@@ -8,6 +8,14 @@ import { ENV } from "./config/env.js";
 
 const app = express();
 
+// Required behind any reverse proxy (Render, Railway, Fly, etc.) — without
+// this, Express's default `trust proxy: false` makes express-rate-limit
+// throw ERR_ERL_UNEXPECTED_X_FORWARDED_FOR on every request once a proxy
+// injects the X-Forwarded-For header, breaking the entire /auth route group.
+// `1` trusts exactly one hop (the platform's own edge proxy), matching the
+// standard single-proxy topology these hosts use.
+app.set("trust proxy", 1);
+
 app.use(helmet());
 app.use(morgan("dev"));
 

@@ -1,38 +1,51 @@
 import { prisma } from "../lib/prisma.js";
-import { TokenType } from "../../generated/prisma/client.js";
+import { Prisma, TokenType } from "../../generated/prisma/client.js";
 import type { Token } from "../../generated/prisma/client.js";
+import { hashToken } from "../utils/token-hash.js";
 
+type PrismaClientOrTx = typeof prisma | Prisma.TransactionClient;
+
+// Tokens are stored and looked up by SHA-256 hash, never the raw value —
+// callers (services) still pass/receive the raw token throughout; hashing
+// is entirely internal to this repository. If the database were ever
+// exposed, these rows alone would not be directly usable as live sessions.
 export class TokenRepository {
-  async createRefreshToken(params: { 
-    userId: string; 
-    token: string; 
-    expiresAt: Date 
-  }) {
+  async createRefreshToken(
+    params: {
+      userId: string;
+      token: string;
+      expiresAt: Date;
+    },
+    tx: PrismaClientOrTx = prisma
+  ) {
 
     const { userId, token, expiresAt } = params;
 
-    return prisma.token.create({
+    return tx.token.create({
       data: {
         userId,
-        token,
+        token: hashToken(token),
         expiresAt,
         type: TokenType.REFRESH,
       },
     });
   }
 
-  async createResetToken(params: {
-    userId: string;
-    token: string;
-    expiresAt: Date;
-  }) {
+  async createResetToken(
+    params: {
+      userId: string;
+      token: string;
+      expiresAt: Date;
+    },
+    tx: PrismaClientOrTx = prisma
+  ) {
 
     const { userId, token, expiresAt } = params;
 
-    return prisma.token.create({
+    return tx.token.create({
       data: {
         userId,
-        token,
+        token: hashToken(token),
         expiresAt,
         type: TokenType.RESET_PASSWORD,
       },
@@ -43,7 +56,7 @@ export class TokenRepository {
   async findActiveRefreshToken(token: string): Promise<Token | null> {
     return prisma.token.findFirst({
       where: {
-        token,
+        token: hashToken(token),
         type: TokenType.REFRESH,
         consumedAt: null,
         revokedAt: null,
@@ -51,13 +64,13 @@ export class TokenRepository {
     });
   }
 
-  
+
 
 async findActiveResetToken(token: string): Promise<Token | null> {
 
   return prisma.token.findFirst({
     where: {
-      token,
+      token: hashToken(token),
       type: TokenType.RESET_PASSWORD,
       consumedAt: null,
       revokedAt: null,
@@ -68,9 +81,9 @@ async findActiveResetToken(token: string): Promise<Token | null> {
   });
 }
 
-  async consumeToken(id: string) {
+  async consumeToken(id: string, tx: PrismaClientOrTx = prisma) {
 
-    return prisma.token.update({
+    return tx.token.update({
       where: {
         id,
       },
@@ -82,9 +95,9 @@ async findActiveResetToken(token: string): Promise<Token | null> {
   }
 
 
-  async revokeToken(id: string) {
+  async revokeToken(id: string, tx: PrismaClientOrTx = prisma) {
 
-    return prisma.token.update({
+    return tx.token.update({
       where: {
         id,
       },

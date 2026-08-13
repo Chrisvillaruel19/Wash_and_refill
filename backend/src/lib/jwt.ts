@@ -1,7 +1,8 @@
 import jwt, { SignOptions } from "jsonwebtoken";
+import crypto from "crypto";
 import { Role } from "../../generated/prisma/client.js";
 
-export type JwtPayload = { sub: string; type: "access" | "refresh"; role?: Role };
+export type JwtPayload = { sub: string; type: "access" | "refresh"; role?: Role; jti?: string };
 
 // No fallback: signing tokens with a hardcoded, source-visible secret would
 // make every token forgeable. Fail fast at startup instead. Written as a
@@ -28,7 +29,12 @@ export function signAccessToken(userId: string, role: Role, duration: SignOption
 }
 
 export function signRefreshToken(userId: string, duration: SignOptions["expiresIn"]) {
-  const payload: JwtPayload = { sub: userId, type: "refresh" };
+  // jti guarantees uniqueness even when two refresh tokens are issued for
+  // the same user within the same second — without it, `iat`/`exp`/`sub`
+  // alone can produce a byte-identical JWT (jsonwebtoken's `iat` is
+  // second-precision), which collides with the Token table's unique
+  // constraint on rotation. Random per token, not used for anything else.
+  const payload: JwtPayload = { sub: userId, type: "refresh", jti: crypto.randomBytes(16).toString("hex") };
   return jwt.sign(payload, jwtSecret, { expiresIn: duration });
 }
 

@@ -9,6 +9,7 @@ interface OrderCardProps {
   onMoveBack: () => void;
   onMoveForward: () => void;
   onCancel: () => void;
+  onMarkAsPaid: () => void;
 }
 
 const statusStyles: Record<OrderStatus, string> = {
@@ -21,12 +22,19 @@ const statusStyles: Record<OrderStatus, string> = {
 
 const statusFlow: OrderStatus[] = ["Pending", "In progress", "Ready", "Claimed"];
 
-export default function OrderCard({ order, onMoveBack, onMoveForward, onCancel }: OrderCardProps) {
+export default function OrderCard({
+  order,
+  onMoveBack,
+  onMoveForward,
+  onCancel,
+  onMarkAsPaid,
+}: OrderCardProps) {
   const currentIndex = statusFlow.indexOf(order.status);
   const isTerminal = order.status === "Claimed" || order.status === "Cancelled";
   const isFirst = isTerminal || currentIndex === 0;
   const isLast = isTerminal || currentIndex === statusFlow.length - 1;
   const canCancel = order.status === "Pending" || order.status === "In progress" || order.status === "Ready";
+  const canMarkAsPaid = order.payStatus === "UnPaid" && order.status !== "Cancelled";
 
   return (
     <div className="bg-white rounded-xl shadow-md p-5 flex flex-wrap items-center justify-between gap-4">
@@ -56,6 +64,14 @@ export default function OrderCard({ order, onMoveBack, onMoveForward, onCancel }
             {order.payStatus.toUpperCase()}
           </span>
         </p>
+        {canMarkAsPaid && (
+          <button
+            onClick={onMarkAsPaid}
+            className="mt-1 text-xs font-medium text-green-600 border border-green-500 rounded-lg px-3 py-1 hover:bg-green-50"
+          >
+            Mark as Paid
+          </button>
+        )}
       </div>
 
       <div className="text-center">

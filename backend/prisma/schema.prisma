@@ -125,6 +125,10 @@ model Order {
   // findUnclaimedForUser (Attendance's clock-out gate) filters by userId
   // directly — same "Postgres doesn't auto-index FK columns" reasoning.
   @@index([userId])
+  // Every order list/detail fetch joins back to Customer via `include:
+  // {customer: true}` (order.repository.ts findAll/findById) — same FK
+  // reasoning as shiftHandoverId/userId above.
+  @@index([customerId])
 }
 
 enum OrderStatus {
@@ -175,6 +179,13 @@ model OrderDetail {
   quantity        Int
 
   subtotal        Decimal
+
+  // Every order detail fetch joins on this (order.repository.ts's
+  // detailInclude) — unindexed FK, same reasoning as Order.customerId above.
+  @@index([orderId])
+  // findPaidPackageLines (best-selling-packages stat) filters directly on
+  // this: where: { packageId: { not: null }, order: {...} }.
+  @@index([packageId])
 }
 
 // Laundry Service catalog
@@ -376,6 +387,12 @@ model ShiftHandover {
   claimedOrders      Order[]
   claimedExpenses    Expense[]
   claimedWithdrawals Withdrawal[]
+
+  // findMostRecent (shift-handover.repository.ts) sorts by this on every
+  // Shift Handover / Withdrawal creation, while the global DrawerState lock
+  // is held — the one serialization bottleneck in the app, so keeping this
+  // query fast matters more than most.
+  @@index([endTime])
 }
 
 enum CashStatus {
@@ -432,6 +449,18 @@ model AuditLog {
   newValue    Json?
 
   createdAt   DateTime @default(now())
+
+  // findRecent (Recent Activity widget) sorts by this with no filter — a
+  // plain index scan in the right order, no filter needed.
+  @@index([createdAt])
+  // findAll/count filter by action, always ordered createdAt desc.
+  @@index([action, createdAt])
+  // findAll/count filter by module, always ordered createdAt desc.
+  @@index([module, createdAt])
+  // Every query includes `user: {select:...}` — a join back to User via
+  // this FK on every single AuditLog read. Same "Postgres doesn't
+  // auto-index FK columns" reasoning as elsewhere in this schema.
+  @@index([userId])
 }
 
 enum AuditAction {

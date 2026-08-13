@@ -1,16 +1,25 @@
 import { prisma } from "../../lib/prisma.js";
 import { AttendanceRepository } from "../../repositories/attendance.repository.js";
 import { getUnreportedActivity } from "../shift-handover/reconciliation.util.js";
-import { AuditAction } from "../../../generated/prisma/client.js";
+import { AuditAction, Role } from "../../../generated/prisma/client.js";
 import { writeAuditLog } from "../../lib/audit-log.js";
 
 const attendanceRepository = new AttendanceRepository();
 
-export async function clockOutService(id: string) {
+// Ownership is enforced here, not just at the route/frontend layer: Staff
+// may only clock out their own attendance record. Admin is exempt, matching
+// the same Admin-sees/acts-on-everything pattern already used for Expense
+// visibility (listExpensesService) elsewhere in this codebase — not a new
+// RBAC concept, the existing one applied to this action.
+export async function clockOutService(userId: string, role: Role | undefined, id: string) {
   try {
     const result = await prisma.$transaction(async (tx) => {
       const existing = await attendanceRepository.findById(id, tx);
       if (!existing) return { notFound: true } as const;
+
+      if (existing.userId !== userId && role !== Role.ADMIN) {
+        return { forbidden: true } as const;
+      }
 
       if (existing.timeOut) {
         return { alreadyClockedOut: true } as const;
@@ -52,6 +61,9 @@ export async function clockOutService(id: string) {
 
     if ("notFound" in result) {
       return { code: 404, status: "error", message: "Attendance record not found" };
+    }
+    if ("forbidden" in result) {
+      return { code: 403, status: "error", message: "You can only clock out your own attendance record" };
     }
     if ("alreadyClockedOut" in result) {
       return { code: 400, status: "error", message: "This attendance record is already clocked out" };

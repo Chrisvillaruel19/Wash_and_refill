@@ -4,6 +4,9 @@ import {
   getStaffDashboardService,
   getRecentActivityService,
 } from "../services/dashboard/index.js";
+import { JwtPayload } from "../lib/jwt.js";
+
+type AuthenticatedRequest = Request & { user?: JwtPayload };
 
 export class DashboardController {
   public admin = async (req: Request, res: Response) => {
@@ -36,7 +39,8 @@ export class DashboardController {
 
   public activity = async (req: Request, res: Response) => {
     try {
-      const result = await getRecentActivityService();
+      const role = (req as AuthenticatedRequest).user?.role;
+      const result = await getRecentActivityService(role);
       return res.status(result.code).json(result);
     } catch (error) {
       console.error("DashboardController.activity error", error);

@@ -125,8 +125,8 @@ export class UserRepository {
     return prisma.user.count({ where: { role } });
   }
 
-  async updatePassword(id: string, password: string) {
-  return await prisma.user.update({
+  async updatePassword(id: string, password: string, tx: PrismaClientOrTx = prisma) {
+  return await tx.user.update({
     where: {
       id,
     },

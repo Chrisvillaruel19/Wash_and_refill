@@ -1,4 +1,4 @@
-import { apiClient, setAccessToken, ApiError } from "./apiClient";
+import { apiClient, setAccessToken, ApiError, CURRENT_USER_KEY } from "./apiClient";
 
 export interface StaffUser {
   username: string;
@@ -6,8 +6,6 @@ export interface StaffUser {
   name: string;
   role: "staff" | "admin";
 }
-
-const CURRENT_USER_KEY = "wrlms_current_user";
 
 // Backend's Role enum is "STAFF" | "ADMIN"; every existing page/hook reads
 // StaffUser.role as lowercase "staff" | "admin" — mapped once here so

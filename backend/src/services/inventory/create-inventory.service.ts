@@ -17,7 +17,10 @@ export async function createInventoryService(
   }
 ) {
   try {
-    const created = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
+      const duplicate = await inventoryRepository.findActiveByName(data.itemName, tx);
+      if (duplicate) return { duplicate: true as const };
+
       const stockStatus = computeStockStatus(data.quantity, data.lowStockThreshold);
       const item = await inventoryRepository.create({ ...data, stockStatus }, tx);
 
@@ -35,14 +38,22 @@ export async function createInventoryService(
         },
       });
 
-      return item;
+      return { item };
     });
+
+    if ("duplicate" in result) {
+      return {
+        code: 409,
+        status: "error",
+        message: "An active inventory item with this name already exists",
+      };
+    }
 
     return {
       code: 201,
       status: "success",
       message: "Inventory item created successfully",
-      data: { item: created },
+      data: { item: result.item },
     };
   } catch (error) {
     console.error("createInventoryService error", error);

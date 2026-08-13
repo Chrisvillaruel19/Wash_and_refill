@@ -22,6 +22,13 @@ export async function updateInventoryService(
       const existing = await inventoryRepository.findById(id, tx);
       if (!existing || !existing.isActive) return null;
 
+      // Only checked when the name is actually changing — renaming to the
+      // item's own current name isn't a duplicate.
+      if (updates.itemName !== undefined && updates.itemName !== existing.itemName) {
+        const duplicate = await inventoryRepository.findActiveByName(updates.itemName, tx);
+        if (duplicate) return { duplicate: true as const };
+      }
+
       // Recompute stockStatus whenever quantity or the threshold changes,
       // using whichever value is being updated or falling back to the
       // existing one — never left stale relative to the new field values.
@@ -60,6 +67,14 @@ export async function updateInventoryService(
         code: 404,
         status: "error",
         message: "Inventory item not found",
+      };
+    }
+
+    if ("duplicate" in result) {
+      return {
+        code: 409,
+        status: "error",
+        message: "An active inventory item with this name already exists",
       };
     }
 

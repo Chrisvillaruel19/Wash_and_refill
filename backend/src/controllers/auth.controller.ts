@@ -7,15 +7,21 @@ import {
   resetPasswordService,
   verifyPasswordService,
 } from "../services/auth/index.js";
-import { toMilliseconds, TokenExpiry } from "../lib/jwt.js";
+import { toMilliseconds, TokenExpiry, JwtPayload } from "../lib/jwt.js";
+import { ENV } from "../config/env.js";
+
+type AuthenticatedRequest = Request & { user?: JwtPayload };
 
 // maxAge added so the browser's cookie lifetime actually matches the
 // refresh token's real 7-day validity, instead of expiring as soon as the
-// browser closes. secure is environment-aware rather than hardcoded false.
+// browser closes. secure/sameSite are driven by ENV.COOKIE_SAMESITE (see
+// config/env.ts) rather than hardcoded, so the same build can run same-site
+// locally and either same-site or cross-site in production without a code
+// change — only an env var.
 const REFRESH_COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "lax" as const,
+  secure: ENV.COOKIE_SECURE,
+  sameSite: ENV.COOKIE_SAMESITE,
   maxAge: toMilliseconds(TokenExpiry.REFRESH_TOKEN_EXPIRES),
 };
 
@@ -129,6 +135,27 @@ export class AuthController {
         message: "Unable to verify credentials",
       });
     }
+  };
+
+// Lightweight server-verified identity check (M8): returns the role from
+// the *verified* access token (authMiddleware.execute already checked the
+// signature before this runs) — not a new authorization decision, just
+// exposing what that middleware already established. Frontend route guards
+// use this so "does this user get the Admin shell" is answered by the
+// server, not by trusting an editable localStorage snapshot from login
+// time. Never the source of a real authorization decision itself — every
+// actual Admin-only action is still independently enforced by
+// requireRole() on its own route, unchanged by this endpoint's existence.
+  public me = async (req: Request, res: Response) => {
+    const authReq = req as AuthenticatedRequest;
+    return res.status(200).json({
+      code: 200,
+      status: "success",
+      data: {
+        id: authReq.user?.sub,
+        role: authReq.user?.role,
+      },
+    });
   };
 
 //refresh method

@@ -54,6 +54,15 @@ Required environment variables in `backend/.env`:
 
 **`.env` must never be committed.** It's gitignored for exactly this reason — only `backend/.env.example` (placeholder values only, no real credentials) is tracked in version control.
 
+### Database migrations — dev vs. production
+
+- `npm run db:migrate` (`prisma migrate dev`) — **local development only.** Can prompt interactively and, on schema drift, offer to reset the database. Never run this against the production database.
+- `npm run db:migrate:deploy` (`prisma migrate deploy`) — **production.** Non-interactive, applies pending migrations only, never resets or prompts. This is the only command that should ever touch the production database's schema.
+
+### Refresh-token cookie topology (`COOKIE_SAMESITE`)
+
+Optional, defaults to `lax` (correct for local dev and for a same-site production deployment, e.g. frontend/backend as subdomains of one root domain). Set `COOKIE_SAMESITE=none` in `backend/.env` only if frontend and backend are deployed on genuinely different registrable domains in production (e.g. two separate Vercel projects with default `*.vercel.app` domains) — this also automatically forces the cookie's `Secure` flag on, since browsers reject `SameSite=None` cookies that aren't `Secure`.
+
 ## Known Deployment Limitations
 
 - **Expense receipts (`Expense.receiptUrl`)** — stores the frontend's base64 data URL directly, not a hosted file URL. There is no external file-storage service (S3, Cloudinary, etc.) integrated into this backend. This is an accepted tradeoff for capstone scale: it avoids extra infrastructure, but means receipt images live in the database as text rather than as separately hosted files. The Express JSON body limit was raised to 5MB (see `backend/src/app.ts`) to accommodate this. A future iteration targeting real production use should replace this with actual object storage and have `receiptUrl` hold a real URL.

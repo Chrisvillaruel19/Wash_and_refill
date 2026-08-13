@@ -21,10 +21,11 @@ export default function CustomerInfoForm({
       <h2 className="text-lg font-bold text-gray-800 mb-3">Customer Information</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm text-gray-600 mb-1">Customer Name</label>
+          <label htmlFor="customer-name" className="block text-sm text-gray-600 mb-1">Customer Name</label>
           <div className="flex items-center border border-gray-300 rounded-lg px-3 py-2">
             <User size={18} className="text-gray-400 mr-2 shrink-0" />
             <input
+              id="customer-name"
               type="text"
               placeholder="Enter customer name"
               value={customerName}
@@ -36,10 +37,11 @@ export default function CustomerInfoForm({
         </div>
 
         <div>
-          <label className="block text-sm text-gray-600 mb-1">Phone Number *</label>
+          <label htmlFor="customer-phone" className="block text-sm text-gray-600 mb-1">Phone Number *</label>
           <div className="flex items-center border border-gray-300 rounded-lg px-3 py-2">
             <Phone size={18} className="text-gray-400 mr-2 shrink-0" />
             <input
+              id="customer-phone"
               type="text"
               inputMode="numeric"
               placeholder="11-digit phone number"

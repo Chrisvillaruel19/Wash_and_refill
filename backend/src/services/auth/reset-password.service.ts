@@ -1,6 +1,7 @@
 import {UserRepository} from "../../repositories/user.repository.js";
 import {TokenRepository} from "../../repositories/token.repository.js";
 import {hashPassword} from "../../utils/password.js";
+import {prisma} from "../../lib/prisma.js";
 
 
 const userRepository = new UserRepository();
@@ -25,12 +26,19 @@ export async function resetPasswordService(
         // point can never be expired.
 
         const hashedPassword = hashPassword(newPassword);
-        await userRepository.updatePassword(
-            resetToken.userId,
-            hashedPassword
-        );
 
-        await tokenRepository.consumeToken(resetToken.id);
+        // Password update and token consumption must commit together — if
+        // either fails, the token must NOT be left in a used-but-unconsumed
+        // state (a replayable reset token) or vice versa.
+        await prisma.$transaction(async (tx) => {
+            await userRepository.updatePassword(
+                resetToken.userId,
+                hashedPassword,
+                tx
+            );
+
+            await tokenRepository.consumeToken(resetToken.id, tx);
+        });
 
         return{
             code:200,

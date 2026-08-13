@@ -20,9 +20,13 @@ export class AuditLogRepository {
     return tx.auditLog.create({ data });
   }
 
-  // Module 9's Recent Activity widget — a lightweight, unfiltered feed.
-  async findRecent(limit: number, tx: PrismaClientOrTx = prisma) {
+  // Module 9's Recent Activity widget. excludeModules lets non-Admin callers
+  // be kept out of the modules that carry genuinely sensitive data (Employee
+  // PII, Withdrawal cash figures) — everything else stays visible, since
+  // Staff can already see that data through its own read endpoints anyway.
+  async findRecent(limit: number, excludeModules: string[] = [], tx: PrismaClientOrTx = prisma) {
     return tx.auditLog.findMany({
+      where: excludeModules.length > 0 ? { module: { notIn: excludeModules } } : undefined,
       include: { user: { select: { id: true, name: true } } },
       orderBy: { createdAt: "desc" },
       take: limit,

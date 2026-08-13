@@ -78,8 +78,9 @@ export default function AdminServiceFormModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm text-gray-500 mb-1">Type</label>
+            <label htmlFor="service-type" className="block text-sm text-gray-500 mb-1">Type</label>
             <select
+              id="service-type"
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
@@ -93,8 +94,9 @@ export default function AdminServiceFormModal({
           </div>
 
           <div>
-            <label className="block text-sm text-gray-500 mb-1">Name</label>
+            <label htmlFor="service-name" className="block text-sm text-gray-500 mb-1">Name</label>
             <input
+              id="service-name"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -106,8 +108,9 @@ export default function AdminServiceFormModal({
           </div>
 
           <div>
-            <label className="block text-sm text-gray-500 mb-1">Price per Kg</label>
+            <label htmlFor="service-price-per-kg" className="block text-sm text-gray-500 mb-1">Price per Kg</label>
             <input
+              id="service-price-per-kg"
               type="number"
               min={0.01}
               step={0.01}

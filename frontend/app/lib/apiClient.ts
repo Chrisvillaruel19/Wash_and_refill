@@ -3,7 +3,30 @@
 // a 401 — so individual pages never have to reimplement any of this.
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
+// M9 (reviewed, accepted MVP tradeoff — not an oversight): the access
+// token lives in localStorage rather than JS-memory-only. Threat model:
+// any XSS on this origin can read it, so its blast radius is real but
+// bounded to its own 15-minute lifetime — the actually valuable, 7-day
+// credential (the refresh token) is already httpOnly and never touchable
+// by JS at all, regardless of this choice. Moving the access token to
+// memory-only was considered and rejected: it would (a) require an async
+// bootstrap/silent-refresh on every page load instead of the current
+// synchronous localStorage read, adding a loading-flash to every reload,
+// and (b) introduce a genuine multi-tab race — two tabs opened at once
+// would both start with no in-memory token and both fire a silent refresh
+// against the same single-use, rotating refresh cookie; only one can win,
+// so the other would fail with no in-memory fallback to recover from.
+// localStorage avoids both: it already survives reloads and is shared
+// across tabs, so a silent refresh is only ever needed on genuine
+// expiry/401, not on every tab open. Revisit if this app ever needs to
+// defend against a realistic XSS threat this doesn't already mitigate.
 const ACCESS_TOKEN_KEY = "wrlms_access_token";
+// Owned here (not in auth.ts) so this file can clear it directly on an
+// unrecoverable session, without importing from auth.ts and creating a
+// circular dependency (auth.ts already imports apiClient/setAccessToken/
+// ApiError from this file). auth.ts imports this constant instead of
+// declaring its own copy.
+export const CURRENT_USER_KEY = "wrlms_current_user";
 
 // Not exported — only request() below needs it. Every other file goes
 // through apiClient.get/post/patch/delete, which attach the token itself.
@@ -12,10 +35,35 @@ function getAccessToken(): string | null {
   return localStorage.getItem(ACCESS_TOKEN_KEY);
 }
 
+// Set true once a refresh attempt has genuinely failed (session is
+// unrecoverable), so subsequent requests don't each try — and fail — a
+// fresh refresh call of their own. Reset the moment a real token is set
+// again (a new login, or any future successful refresh).
+let isSessionExpired = false;
+
 export function setAccessToken(token: string | null): void {
   if (typeof window === "undefined") return;
-  if (token) localStorage.setItem(ACCESS_TOKEN_KEY, token);
-  else localStorage.removeItem(ACCESS_TOKEN_KEY);
+  if (token) {
+    localStorage.setItem(ACCESS_TOKEN_KEY, token);
+    isSessionExpired = false;
+  } else {
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+  }
+}
+
+// Clears both pieces of client-side auth state and sends the user back to
+// the login route. Only ever called after a real 401 survives a real
+// refresh attempt (see requestEnvelope below) — never for an unrelated
+// failure (403/404/500/network error), so a still-valid session is never
+// torn down by this. No token is ever placed in the URL — this is a plain
+// path navigation, nothing appended.
+function clearStaleAuthState(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(CURRENT_USER_KEY);
+  if (window.location.pathname !== "/") {
+    window.location.href = "/";
+  }
 }
 
 export class ApiError extends Error {
@@ -80,9 +128,19 @@ async function requestEnvelope<T>(
   const body: ApiEnvelope<T> = await res.json().catch(() => ({}) as ApiEnvelope<T>);
 
   if (res.status === 401 && !isRetry && !NO_REFRESH_RETRY_PATHS.includes(path)) {
-    const refreshed = await refreshAccessToken();
-    if (refreshed) {
-      return requestEnvelope<T>(path, init, true);
+    if (!isSessionExpired) {
+      const refreshed = await refreshAccessToken();
+      if (refreshed) {
+        return requestEnvelope<T>(path, init, true);
+      }
+
+      // Refresh genuinely failed (expired/revoked/absent refresh token) —
+      // this session cannot be recovered by retrying. Clear stale state and
+      // send the user back to login once, instead of leaving every future
+      // request silently retrying and failing forever against a token that
+      // will never work again.
+      isSessionExpired = true;
+      clearStaleAuthState();
     }
   }
 

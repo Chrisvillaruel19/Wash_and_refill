@@ -94,8 +94,9 @@ export default function AdminPackageFormModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm text-gray-500 mb-1">Package Name</label>
+            <label htmlFor="package-name" className="block text-sm text-gray-500 mb-1">Package Name</label>
             <input
+              id="package-name"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -107,8 +108,9 @@ export default function AdminPackageFormModal({
           </div>
 
           <div>
-            <label className="block text-sm text-gray-500 mb-1">Price</label>
+            <label htmlFor="package-price" className="block text-sm text-gray-500 mb-1">Price</label>
             <input
+              id="package-price"
               type="number"
               min={0.01}
               step={0.01}
@@ -119,8 +121,9 @@ export default function AdminPackageFormModal({
           </div>
 
           <div>
-            <label className="block text-sm text-gray-500 mb-1">Liquid Detergent (qty)</label>
+            <label htmlFor="package-liquid-detergent" className="block text-sm text-gray-500 mb-1">Liquid Detergent (qty)</label>
             <input
+              id="package-liquid-detergent"
               type="number"
               min={0}
               value={liquidDetergent}
@@ -130,8 +133,9 @@ export default function AdminPackageFormModal({
           </div>
 
           <div>
-            <label className="block text-sm text-gray-500 mb-1">Downy (qty)</label>
+            <label htmlFor="package-downy" className="block text-sm text-gray-500 mb-1">Downy (qty)</label>
             <input
+              id="package-downy"
               type="number"
               min={0}
               value={downy}
@@ -141,8 +145,9 @@ export default function AdminPackageFormModal({
           </div>
 
           <div>
-            <label className="block text-sm text-gray-500 mb-1">Color</label>
+            <label htmlFor="package-color" className="block text-sm text-gray-500 mb-1">Color</label>
             <select
+              id="package-color"
               value={color}
               onChange={(e) => setColor(e.target.value)}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"

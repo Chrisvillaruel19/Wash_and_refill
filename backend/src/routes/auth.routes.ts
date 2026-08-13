@@ -47,4 +47,12 @@ router.post(
   authController.verifyPassword
 );
 
+// Server-verified identity for frontend route guards (M8) — see
+// AuthController.me for the full rationale.
+router.get(
+  "/me",
+  authMiddleware.execute,
+  authController.me
+);
+
 export default router;

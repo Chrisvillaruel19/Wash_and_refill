@@ -133,8 +133,9 @@ export default function Expense() {
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 items-end">
           <div>
-            <label className="block text-sm text-gray-600 mb-1">Amount</label>
+            <label htmlFor="expense-amount" className="block text-sm text-gray-600 mb-1">Amount</label>
             <input
+              id="expense-amount"
               type="number"
               min={0.01}
               step={0.01}
@@ -144,8 +145,9 @@ export default function Expense() {
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-600 mb-1">Category</label>
+            <label htmlFor="expense-category" className="block text-sm text-gray-600 mb-1">Category</label>
             <select
+              id="expense-category"
               value={category}
               onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
@@ -173,8 +175,9 @@ export default function Expense() {
 
         <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-4">
           <div>
-            <label className="block text-sm text-gray-600 mb-1">Description</label>
+            <label htmlFor="expense-description" className="block text-sm text-gray-600 mb-1">Description</label>
             <textarea
+              id="expense-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Provide a detailed explanation of the expense (what was purchased, why it was necessary, etc.)"
@@ -184,7 +187,7 @@ export default function Expense() {
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-600 mb-1">Receipt</label>
+            <label htmlFor="expense-receipt" className="block text-sm text-gray-600 mb-1">Receipt</label>
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
@@ -201,6 +204,7 @@ export default function Expense() {
               )}
             </button>
             <input
+              id="expense-receipt"
               ref={fileInputRef}
               type="file"
               accept="image/*"

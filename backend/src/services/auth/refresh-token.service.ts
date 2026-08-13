@@ -1,6 +1,7 @@
 import { TokenRepository } from "../../repositories/token.repository.js";
 import { UserRepository } from "../../repositories/user.repository.js";
 import { signAccessToken, signRefreshToken, TokenExpiry, verifyRefreshToken } from "../../lib/jwt.js";
+import { prisma } from "../../lib/prisma.js";
 
 export async function RefreshTokenService(refreshToken: string) {
   const tokenRepository = new TokenRepository();
@@ -30,11 +31,19 @@ export async function RefreshTokenService(refreshToken: string) {
     const newAccessToken = signAccessToken(user.id, user.role, TokenExpiry.ACCESS_TOKEN_EXPIRES);
     const newRefreshToken = signRefreshToken(user.id, TokenExpiry.REFRESH_TOKEN_EXPIRES);
 
-    await tokenRepository.consumeToken(storedToken.id);
-    await tokenRepository.createRefreshToken({
-      userId: user.id,
-      token: newRefreshToken,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    // Consuming the old token and issuing its replacement must commit
+    // together — if either fails, the user must not be left with no valid
+    // refresh token (silent forced logout) or two simultaneously-valid ones.
+    await prisma.$transaction(async (tx) => {
+      await tokenRepository.consumeToken(storedToken.id, tx);
+      await tokenRepository.createRefreshToken(
+        {
+          userId: user.id,
+          token: newRefreshToken,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        },
+        tx
+      );
     });
 
     return {

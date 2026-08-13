@@ -59,8 +59,9 @@ export default function AdminWithdrawalFormModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm text-gray-500 mb-1">Amount</label>
+            <label htmlFor="withdrawal-amount" className="block text-sm text-gray-500 mb-1">Amount</label>
             <input
+              id="withdrawal-amount"
               type="number"
               min={0}
               value={amount || ""}
@@ -70,8 +71,9 @@ export default function AdminWithdrawalFormModal({
           </div>
 
           <div>
-            <label className="block text-sm text-gray-500 mb-1">Reason</label>
+            <label htmlFor="withdrawal-reason" className="block text-sm text-gray-500 mb-1">Reason</label>
             <textarea
+              id="withdrawal-reason"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               rows={2}

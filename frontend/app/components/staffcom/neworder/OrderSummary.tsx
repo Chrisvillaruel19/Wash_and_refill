@@ -70,8 +70,9 @@ export default function OrderSummary({
       <div className="p-4 sm:p-5 border-t border-gray-100">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
           <div>
-            <label className="block text-sm text-gray-600 mb-1">Payment method:</label>
+            <label htmlFor="order-payment-method" className="block text-sm text-gray-600 mb-1">Payment method:</label>
             <select
+              id="order-payment-method"
               value={paymentMethod}
               onChange={(e) => onPaymentMethodChange(e.target.value as PaymentMethod)}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
@@ -81,8 +82,9 @@ export default function OrderSummary({
             </select>
           </div>
           <div>
-            <label className="block text-sm text-gray-600 mb-1">Amount:</label>
+            <label htmlFor="order-amount-paid" className="block text-sm text-gray-600 mb-1">Amount:</label>
             <input
+              id="order-amount-paid"
               type="number"
               placeholder="Input amount"
               value={amountPaid || ""}

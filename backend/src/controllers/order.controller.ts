@@ -5,6 +5,8 @@ import {
   getOrderService,
   updateOrderStatusService,
   cancelOrderService,
+  markOrderPaidService,
+  reverseOrderPaymentService,
 } from "../services/order/index.js";
 import { JwtPayload } from "../lib/jwt.js";
 
@@ -95,6 +97,38 @@ export class OrderController {
         code: 500,
         status: "error",
         message: "Unable to cancel order",
+      });
+    }
+  };
+
+  public markAsPaid = async (req: Request, res: Response) => {
+    try {
+      const userId = (req as AuthenticatedRequest).user?.sub as string;
+      const id = req.params.id as string;
+      const result = await markOrderPaidService(userId, id);
+      return res.status(result.code).json(result);
+    } catch (error) {
+      console.error("OrderController.markAsPaid error", error);
+      return res.status(500).json({
+        code: 500,
+        status: "error",
+        message: "Unable to mark order as paid",
+      });
+    }
+  };
+
+  public reversePayment = async (req: Request, res: Response) => {
+    try {
+      const userId = (req as AuthenticatedRequest).user?.sub as string;
+      const id = req.params.id as string;
+      const result = await reverseOrderPaymentService(userId, id);
+      return res.status(result.code).json(result);
+    } catch (error) {
+      console.error("OrderController.reversePayment error", error);
+      return res.status(500).json({
+        code: 500,
+        status: "error",
+        message: "Unable to reverse payment",
       });
     }
   };

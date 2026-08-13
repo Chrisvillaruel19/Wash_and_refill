@@ -88,6 +88,47 @@ export class OrderRepository {
     return tx.order.update({ where: { id }, data: { status, ...extra } });
   }
 
+  // Backs both Mark as Paid and Reverse Payment — amountPaid is only ever
+  // passed on the Mark as Paid path; omitting it here (Reverse Payment)
+  // leaves the existing figure untouched rather than zeroing it out.
+  async updatePaymentStatus(
+    id: string,
+    data: { paymentStatus: PaymentStatus; paymentDate: Date | null; amountPaid?: number },
+    tx: PrismaClientOrTx = prisma
+  ) {
+    return tx.order.update({
+      where: { id },
+      data: {
+        paymentStatus: data.paymentStatus,
+        paymentDate: data.paymentDate,
+        ...(data.amountPaid !== undefined ? { amountPaid: data.amountPaid } : {}),
+      },
+    });
+  }
+
+  // Race-safe variant of updatePaymentStatus: the WHERE clause also asserts
+  // the order's paymentStatus is still what the caller last observed —
+  // mirrors inventory.repository.ts's decrementIfSufficient (atomic
+  // conditional UPDATE, not read-then-write). Two concurrent mark-paid/
+  // reverse-payment requests on the same order can no longer both succeed:
+  // the second one's updateMany matches 0 rows, which the caller treats as
+  // a lost race rather than silently double-writing.
+  async updatePaymentStatusIfCurrentlyIs(
+    id: string,
+    expectedStatus: PaymentStatus,
+    data: { paymentStatus: PaymentStatus; paymentDate: Date | null; amountPaid?: number },
+    tx: PrismaClientOrTx = prisma
+  ) {
+    return tx.order.updateMany({
+      where: { id, paymentStatus: expectedStatus },
+      data: {
+        paymentStatus: data.paymentStatus,
+        paymentDate: data.paymentDate,
+        ...(data.amountPaid !== undefined ? { amountPaid: data.amountPaid } : {}),
+      },
+    });
+  }
+
   // Claim-based reconciliation source (global, no userId filter): every
   // currently-unclaimed, paid, non-cancelled order — regardless of who
   // created it. This is a plain read (no FOR UPDATE); it's only ever

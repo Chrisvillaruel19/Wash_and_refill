@@ -28,8 +28,11 @@ export class AttendanceController {
 
   public clockOut = async (req: Request, res: Response) => {
     try {
+      const authReq = req as AuthenticatedRequest;
+      const userId = authReq.user?.sub as string;
+      const role = authReq.user?.role;
       const id = req.params.id as string;
-      const result = await clockOutService(id);
+      const result = await clockOutService(userId, role, id);
       return res.status(result.code).json(result);
     } catch (error) {
       console.error("AttendanceController.clockOut error", error);

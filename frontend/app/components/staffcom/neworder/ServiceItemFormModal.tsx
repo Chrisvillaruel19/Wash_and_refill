@@ -96,10 +96,11 @@ export default function ServiceItemFormModal({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6 sm:items-center mb-4">
           <div>
-            <label className="block mb-1 text-sm font-medium text-gray-700">
+            <label htmlFor="service-item-qty" className="block mb-1 text-sm font-medium text-gray-700">
               Input Qty(kg):
             </label>
             <input
+              id="service-item-qty"
               type="number"
               min={0.25}
               step={0.25}
@@ -115,10 +116,11 @@ export default function ServiceItemFormModal({
         </div>
 
         <div className="mb-6">
-          <label className="block mb-1 text-sm font-medium text-gray-700">
+          <label htmlFor="service-item-type" className="block mb-1 text-sm font-medium text-gray-700">
             Service Type:
           </label>
           <select
+            id="service-item-type"
             value={serviceType}
             onChange={(e) => setServiceType(e.target.value as ServiceType)}
             className="border border-gray-300 rounded-lg p-2 w-full text-gray-900"

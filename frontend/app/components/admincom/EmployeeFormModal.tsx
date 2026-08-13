@@ -129,8 +129,9 @@ export default function EmployeeFormModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm text-gray-500 mb-1">Username</label>
+            <label htmlFor="employee-username" className="block text-sm text-gray-500 mb-1">Username</label>
             <input
+              id="employee-username"
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, ""))}
@@ -142,8 +143,9 @@ export default function EmployeeFormModal({
           </div>
 
           <div>
-            <label className="block text-sm text-gray-500 mb-1">Full Name</label>
+            <label htmlFor="employee-name" className="block text-sm text-gray-500 mb-1">Full Name</label>
             <input
+              id="employee-name"
               type="text"
               value={name}
               onChange={(e) => setName(sanitizeNameInput(e.target.value))}
@@ -155,8 +157,9 @@ export default function EmployeeFormModal({
           </div>
 
           <div>
-            <label className="block text-sm text-gray-500 mb-1">Email</label>
+            <label htmlFor="employee-email" className="block text-sm text-gray-500 mb-1">Email</label>
             <input
+              id="employee-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -168,8 +171,9 @@ export default function EmployeeFormModal({
           </div>
 
           <div>
-            <label className="block text-sm text-gray-500 mb-1">Phone</label>
+            <label htmlFor="employee-phone" className="block text-sm text-gray-500 mb-1">Phone</label>
             <input
+              id="employee-phone"
               type="text"
               inputMode="numeric"
               value={phone}
@@ -182,8 +186,9 @@ export default function EmployeeFormModal({
           </div>
 
           <div>
-            <label className="block text-sm text-gray-500 mb-1">Hired Date</label>
+            <label htmlFor="employee-hired-date" className="block text-sm text-gray-500 mb-1">Hired Date</label>
             <input
+              id="employee-hired-date"
               type="date"
               value={hiredDate}
               onChange={(e) => setHiredDate(e.target.value)}
@@ -193,8 +198,9 @@ export default function EmployeeFormModal({
 
           {!isEdit && (
             <div>
-              <label className="block text-sm text-gray-500 mb-1">Password (min. 8 characters)</label>
+              <label htmlFor="employee-password" className="block text-sm text-gray-500 mb-1">Password (min. 8 characters)</label>
               <input
+                id="employee-password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -219,7 +225,7 @@ export default function EmployeeFormModal({
               ) : (
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-sm text-gray-500">New Password (min. 8 characters)</label>
+                    <label htmlFor="employee-new-password" className="block text-sm text-gray-500">New Password (min. 8 characters)</label>
                     <button
                       type="button"
                       onClick={() => {
@@ -232,6 +238,7 @@ export default function EmployeeFormModal({
                     </button>
                   </div>
                   <input
+                    id="employee-new-password"
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}

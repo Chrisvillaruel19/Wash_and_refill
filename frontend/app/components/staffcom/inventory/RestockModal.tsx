@@ -37,10 +37,11 @@ export default function RestockModal({ item, onConfirm, onCancel, submitting, er
         <h2 className="text-lg font-bold mb-1 text-gray-900">Restock Item</h2>
         <p className="text-gray-500 text-sm mb-5">{item.name}</p>
 
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="restock-quantity" className="block text-sm font-medium text-gray-700 mb-1">
           Quantity to add ({item.unit})
         </label>
         <input
+          id="restock-quantity"
           type="number"
           min={1}
           value={quantity}

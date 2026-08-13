@@ -5,6 +5,7 @@ import { Clock, RefreshCw, CheckCircle2, ClipboardCheck, Search } from "lucide-r
 import OrderCard from "../../../components/staffcom/service/OrderCard";
 import ConfirmClaimModal from "../../../components/staffcom/service/ConfirmClaimModal";
 import ConfirmCancelModal from "../../../components/staffcom/service/ConfirmCancelModal";
+import ConfirmMarkPaidModal from "../../../components/staffcom/service/ConfirmMarkPaidModal";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
 import {
@@ -12,6 +13,7 @@ import {
   getOrderDetail,
   updateOrderStatus,
   cancelOrder,
+  markOrderAsPaid,
 } from "../../../lib/services/ordersApi.service";
 import { Order, OrderStatus } from "../types";
 
@@ -34,6 +36,7 @@ export default function ServicePage() {
   const [search, setSearch] = useState("");
   const [pendingClaimId, setPendingClaimId] = useState<string | null>(null);
   const [pendingCancelId, setPendingCancelId] = useState<string | null>(null);
+  const [pendingMarkPaidId, setPendingMarkPaidId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [actionSubmitting, setActionSubmitting] = useState(false);
@@ -90,6 +93,7 @@ export default function ServicePage() {
       await loadOrders();
       setPendingClaimId(null);
       setPendingCancelId(null);
+      setPendingMarkPaidId(null);
     } catch {
       setActionError("Unable to update this order. Please try again.");
     } finally {
@@ -105,6 +109,11 @@ export default function ServicePage() {
   function confirmCancel() {
     if (!pendingCancelId) return;
     runAction(() => cancelOrder(pendingCancelId));
+  }
+
+  function confirmMarkPaid() {
+    if (!pendingMarkPaidId) return;
+    runAction(() => markOrderAsPaid(pendingMarkPaidId));
   }
 
   const counts = {
@@ -171,7 +180,7 @@ export default function ServicePage() {
     <div className="p-4 sm:p-6">
       <h1 className="text-2xl font-bold text-gray-800 mb-6">Service Management</h1>
 
-      {actionError && !pendingClaimId && !pendingCancelId && (
+      {actionError && !pendingClaimId && !pendingCancelId && !pendingMarkPaidId && (
         <p className="text-red-600 text-sm mb-4 bg-red-50 border border-red-200 rounded-lg py-2 px-3">
           {actionError}
         </p>
@@ -251,6 +260,10 @@ export default function ServicePage() {
                 setActionError("");
                 setPendingCancelId(order.id);
               }}
+              onMarkAsPaid={() => {
+                setActionError("");
+                setPendingMarkPaidId(order.id);
+              }}
             />
           ))
         ) : (
@@ -273,6 +286,17 @@ export default function ServicePage() {
         <ConfirmCancelModal
           onConfirm={confirmCancel}
           onCancel={() => setPendingCancelId(null)}
+          submitting={actionSubmitting}
+          error={actionError}
+        />
+      )}
+
+      {pendingMarkPaidId && (
+        <ConfirmMarkPaidModal
+          customerName={orders.find((o) => o.id === pendingMarkPaidId)?.customer ?? ""}
+          amount={orders.find((o) => o.id === pendingMarkPaidId)?.amount ?? 0}
+          onConfirm={confirmMarkPaid}
+          onCancel={() => setPendingMarkPaidId(null)}
           submitting={actionSubmitting}
           error={actionError}
         />

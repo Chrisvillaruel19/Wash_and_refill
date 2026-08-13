@@ -95,8 +95,9 @@ export default function AdminInventoryFormModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm text-gray-500 mb-1">Item Name</label>
+            <label htmlFor="inventory-item-name" className="block text-sm text-gray-500 mb-1">Item Name</label>
             <input
+              id="inventory-item-name"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -108,8 +109,9 @@ export default function AdminInventoryFormModal({
           </div>
 
           <div>
-            <label className="block text-sm text-gray-500 mb-1">Current Stock</label>
+            <label htmlFor="inventory-current-stock" className="block text-sm text-gray-500 mb-1">Current Stock</label>
             <input
+              id="inventory-current-stock"
               type="number"
               min={0}
               value={currentStock}
@@ -119,8 +121,9 @@ export default function AdminInventoryFormModal({
           </div>
 
           <div>
-            <label className="block text-sm text-gray-500 mb-1">Low Stock Alert</label>
+            <label htmlFor="inventory-low-stock-alert" className="block text-sm text-gray-500 mb-1">Low Stock Alert</label>
             <input
+              id="inventory-low-stock-alert"
               type="number"
               min={0}
               value={lowStockAlert}
@@ -130,8 +133,9 @@ export default function AdminInventoryFormModal({
           </div>
 
           <div>
-            <label className="block text-sm text-gray-500 mb-1">Unit</label>
+            <label htmlFor="inventory-item-unit" className="block text-sm text-gray-500 mb-1">Unit</label>
             <input
+              id="inventory-item-unit"
               type="text"
               value={unit}
               onChange={(e) => setUnit(e.target.value)}
@@ -143,8 +147,9 @@ export default function AdminInventoryFormModal({
           </div>
 
           <div>
-            <label className="block text-sm text-gray-500 mb-1">Price</label>
+            <label htmlFor="inventory-price" className="block text-sm text-gray-500 mb-1">Price</label>
             <input
+              id="inventory-price"
               type="number"
               min={0.01}
               step={0.01}

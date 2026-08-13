@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import { Clock, RefreshCw, CheckCircle2, Search } from "lucide-react";
 import AdminStatCard from "../../../components/admincom/AdminStatCard";
+import ConfirmReversePaymentModal from "../../../components/admincom/ConfirmReversePaymentModal";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
-import { getOrders, getOrderDetail } from "../../../lib/services/ordersApi.service";
+import { getOrders, getOrderDetail, reverseOrderPayment } from "../../../lib/services/ordersApi.service";
 import { formatGroupedItems } from "../../../lib/groupItems";
 import { Order, OrderStatus } from "../../../staff/(dashboard)/types";
 
@@ -33,21 +34,41 @@ export default function ClaimMonitoringPage() {
   // bounded to whatever page is currently visible, via GET /orders/:id.
   // Same pattern as Staff Service/Sales.
   const [itemsByOrderId, setItemsByOrderId] = useState<Record<string, string[]>>({});
+  const [pendingReverseId, setPendingReverseId] = useState<string | null>(null);
+  const [actionSubmitting, setActionSubmitting] = useState(false);
+  const [actionError, setActionError] = useState("");
+
+  async function loadOrders() {
+    try {
+      const data = await getOrders();
+      setOrders(data);
+    } catch {
+      setError("Unable to load orders. Please try again.");
+    }
+  }
 
   useEffect(() => {
     async function load() {
-      try {
-        const data = await getOrders();
-         
-        setOrders(data);
-      } catch {
-        setError("Unable to load orders. Please try again.");
-      } finally {
-        setLoading(false);
-      }
+      await loadOrders();
+      setLoading(false);
     }
     load();
   }, []);
+
+  async function confirmReversePayment() {
+    if (!pendingReverseId) return;
+    setActionSubmitting(true);
+    setActionError("");
+    try {
+      await reverseOrderPayment(pendingReverseId);
+      await loadOrders();
+      setPendingReverseId(null);
+    } catch {
+      setActionError("Unable to reverse this payment. Please try again.");
+    } finally {
+      setActionSubmitting(false);
+    }
+  }
 
   const totalPending = orders.filter((o) => o.status === "Pending").length;
   const totalInProgress = orders.filter((o) => o.status === "In progress").length;
@@ -172,6 +193,7 @@ export default function ClaimMonitoringPage() {
                 <th className="p-3 sm:p-4 whitespace-nowrap">Laundry Items</th>
                 <th className="p-3 sm:p-4 whitespace-nowrap">Total</th>
                 <th className="p-3 sm:p-4 whitespace-nowrap">Status</th>
+                <th className="p-3 sm:p-4 whitespace-nowrap">Payment</th>
               </tr>
             </thead>
             <tbody>
@@ -194,11 +216,29 @@ export default function ClaimMonitoringPage() {
                     <td className={`p-3 sm:p-4 font-semibold whitespace-nowrap ${statusStyles[order.status]}`}>
                       {order.status}
                     </td>
+                    <td className="p-3 sm:p-4 whitespace-nowrap">
+                      <span
+                        className={`font-semibold ${order.payStatus === "Paid" ? "text-blue-600" : "text-red-500"}`}
+                      >
+                        {order.payStatus === "Paid" ? "Paid" : "Unpaid"}
+                      </span>
+                      {order.payStatus === "Paid" && (
+                        <button
+                          onClick={() => {
+                            setActionError("");
+                            setPendingReverseId(order.id);
+                          }}
+                          className="ml-3 text-xs font-medium text-red-500 border border-red-300 rounded-lg px-3 py-1 hover:bg-red-50"
+                        >
+                          Reverse Payment
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-gray-400">
+                  <td colSpan={8} className="p-8 text-center text-gray-400">
                     No orders found.
                   </td>
                 </tr>
@@ -208,6 +248,15 @@ export default function ClaimMonitoringPage() {
         </div>
       </div>
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+
+      {pendingReverseId && (
+        <ConfirmReversePaymentModal
+          onConfirm={confirmReversePayment}
+          onCancel={() => setPendingReverseId(null)}
+          submitting={actionSubmitting}
+          error={actionError}
+        />
+      )}
     </div>
   );
 }

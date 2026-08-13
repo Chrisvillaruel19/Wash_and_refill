@@ -149,7 +149,15 @@ export async function updateOrderStatus(id: string, status: OrderStatus): Promis
 }
 
 export async function cancelOrder(id: string): Promise<void> {
-  await apiClient.post(`/orders/${id}/cancel`);
+  await apiClient.patch(`/orders/${id}/cancel`);
+}
+
+export async function markOrderAsPaid(id: string): Promise<void> {
+  await apiClient.patch(`/orders/${id}/mark-paid`);
+}
+
+export async function reverseOrderPayment(id: string): Promise<void> {
+  await apiClient.patch(`/orders/${id}/reverse-payment`);
 }
 
 // Mirrors backend/src/schema/order/order-item.schema.ts's discriminated

@@ -56,7 +56,9 @@ export default function AuthModal({ onAuthorized, onCancel }: AuthModalProps) {
           Enter an Admin username and password to continue.
         </p>
 
+        <label htmlFor="admin-auth-username" className="sr-only">Admin username</label>
         <input
+          id="admin-auth-username"
           type="text"
           placeholder="Admin username"
           value={username}
@@ -68,7 +70,9 @@ export default function AuthModal({ onAuthorized, onCancel }: AuthModalProps) {
           className="w-full border border-gray-300 rounded-lg p-2 text-sm mb-2 text-gray-900"
         />
 
+        <label htmlFor="admin-auth-password" className="sr-only">Password</label>
         <input
+          id="admin-auth-password"
           type="password"
           placeholder="Password"
           value={password}

@@ -42,8 +42,9 @@ export default function SalesFilters({
 
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-500 whitespace-nowrap">From</label>
+          <label htmlFor="sales-date-from" className="text-sm text-gray-500 whitespace-nowrap">From</label>
           <input
+            id="sales-date-from"
             type="date"
             value={dateFrom}
             onChange={(e) => onDateFromChange(e.target.value)}
@@ -51,8 +52,9 @@ export default function SalesFilters({
           />
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-500 whitespace-nowrap">To</label>
+          <label htmlFor="sales-date-to" className="text-sm text-gray-500 whitespace-nowrap">To</label>
           <input
+            id="sales-date-to"
             type="date"
             value={dateTo}
             onChange={(e) => onDateToChange(e.target.value)}

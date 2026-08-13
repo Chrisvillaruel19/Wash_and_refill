@@ -20,6 +20,15 @@ export class InventoryRepository {
     return tx.inventory.findUnique({ where: { id } });
   }
 
+  // Duplicate-name guard for create/rename — scoped to isActive only, not a
+  // DB-level @@unique, because a soft-deleted item's name must remain
+  // reusable by a genuinely new item (the same reasoning that made
+  // isActive a soft-delete flag in the first place: historical references
+  // stay valid, but the name itself isn't permanently reserved).
+  async findActiveByName(itemName: string, tx: PrismaClientOrTx = prisma) {
+    return tx.inventory.findFirst({ where: { itemName, isActive: true } });
+  }
+
   async create(
     data: {
       itemName: string;

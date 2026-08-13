@@ -309,8 +309,9 @@ export default function ShiftHandover() {
             <p className="text-xl font-bold text-gray-900">₱{expectedCash.toFixed(2)}</p>
           </div>
           <div>
-            <label className="block text-sm text-gray-500 mb-1">Actual Cash Counted</label>
+            <label htmlFor="shift-actual-cash" className="block text-sm text-gray-500 mb-1">Actual Cash Counted</label>
             <input
+              id="shift-actual-cash"
               type="number"
               min={0}
               value={actualCashCounted || ""}
@@ -331,8 +332,9 @@ export default function ShiftHandover() {
         </div>
 
         <div className="mb-4">
-          <label className="block text-sm text-gray-500 mb-1">Notes</label>
+          <label htmlFor="shift-notes" className="block text-sm text-gray-500 mb-1">Notes</label>
           <textarea
+            id="shift-notes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={2}

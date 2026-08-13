@@ -45,7 +45,7 @@ export async function createEmployeeService(
     }
 
     return {
-      code: 200,
+      code: 201,
       status: "success",
       message: "Created account successfully",
       data: { user: result },

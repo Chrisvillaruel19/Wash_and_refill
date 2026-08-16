@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search, Pencil, Trash2 } from "lucide-react";
+import { Search, Pencil, Trash2, KeyRound } from "lucide-react";
 import {
   getInventory,
   createInventoryItem,
   updateInventoryItem,
   deleteInventoryItem,
+  requestRestockAuthorizationCode,
 } from "../../../lib/services/inventoryApi.service";
+import { ApiError } from "../../../lib/apiClient";
 // isCriticalInventoryItem is a pure name/unit check with no localStorage
 // dependency — still imported from the old seam since that's the single
 // canonical definition AdminInventoryFormModal itself also relies on.
@@ -37,6 +39,7 @@ import AdminServiceFormModal, {
   ServiceFormData,
 } from "../../../components/admincom/AdminServiceFormModal";
 import ConfirmDeleteModal from "../../../components/admincom/ConfirmDeleteModal";
+import RestockAuthorizationModal from "../../../components/admincom/RestockAuthorizationModal";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
 
@@ -67,6 +70,11 @@ export default function AdminCatalogPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editTarget, setEditTarget] = useState<InventoryItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<InventoryItem | null>(null);
+  const [restockAuthTarget, setRestockAuthTarget] = useState<InventoryItem | null>(null);
+  const [restockAuthCode, setRestockAuthCode] = useState<string | null>(null);
+  const [restockAuthExpiresIn, setRestockAuthExpiresIn] = useState<string | null>(null);
+  const [restockAuthLoading, setRestockAuthLoading] = useState(false);
+  const [restockAuthError, setRestockAuthError] = useState("");
 
   // Drop off (Packages) state
   const [packages, setPackages] = useState<Package[]>([]);
@@ -174,6 +182,37 @@ export default function AdminCatalogPage() {
       setActionError("Unable to delete item. Please try again.");
     } finally {
       setActionSubmitting(false);
+    }
+  }
+
+  function openRestockAuth(item: InventoryItem) {
+    setRestockAuthTarget(item);
+    setRestockAuthCode(null);
+    setRestockAuthExpiresIn(null);
+    setRestockAuthError("");
+  }
+
+  function closeRestockAuth() {
+    setRestockAuthTarget(null);
+    setRestockAuthCode(null);
+    setRestockAuthExpiresIn(null);
+    setRestockAuthError("");
+  }
+
+  async function handleGenerateRestockCode() {
+    if (!restockAuthTarget) return;
+    setRestockAuthLoading(true);
+    setRestockAuthError("");
+    try {
+      const { code, expiresIn } = await requestRestockAuthorizationCode(restockAuthTarget.id);
+      setRestockAuthCode(code);
+      setRestockAuthExpiresIn(expiresIn);
+    } catch (err) {
+      setRestockAuthError(
+        err instanceof ApiError ? err.message : "Unable to generate a code. Please try again."
+      );
+    } finally {
+      setRestockAuthLoading(false);
     }
   }
 
@@ -509,6 +548,13 @@ export default function AdminCatalogPage() {
                           <td className="p-3 sm:p-4 whitespace-nowrap">
                             <div className="flex items-center gap-3">
                               <button
+                                onClick={() => openRestockAuth(item)}
+                                className="text-gray-500 hover:text-green-600"
+                                title="Authorize Restock"
+                              >
+                                <KeyRound size={16} />
+                              </button>
+                              <button
                                 onClick={() => {
                                   setActionError("");
                                   setEditTarget(item);
@@ -642,6 +688,18 @@ export default function AdminCatalogPage() {
           onCancel={() => setDeleteTarget(null)}
           submitting={actionSubmitting}
           submitError={actionError}
+        />
+      )}
+
+      {restockAuthTarget && (
+        <RestockAuthorizationModal
+          itemName={restockAuthTarget.name}
+          code={restockAuthCode}
+          expiresIn={restockAuthExpiresIn}
+          loading={restockAuthLoading}
+          error={restockAuthError}
+          onGenerate={handleGenerateRestockCode}
+          onClose={closeRestockAuth}
         />
       )}
 

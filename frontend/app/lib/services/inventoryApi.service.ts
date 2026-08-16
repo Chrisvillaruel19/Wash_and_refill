@@ -26,33 +26,29 @@ export async function getInventory(): Promise<InventoryItem[]> {
   return items.map(mapItem);
 }
 
-// Verifies the given Admin credentials belong to an ACTIVE Admin and, if
-// so, returns a short-lived, single-use authorization scoped to this one
-// item — never the Admin's password itself. That password lives only in
-// this one request; it is never sent again, stored, or logged. The
-// returned token is what actually authorizes the restockInventoryItem call
-// below, and must be held only in memory (component state), never
-// localStorage/sessionStorage.
-export async function requestRestockAuthorization(
-  id: string,
-  adminUsername: string,
-  adminPassword: string
-): Promise<string> {
-  const { authorizationToken } = await apiClient.post<{ authorizationToken: string; expiresIn: string }>(
-    `/inventory/${id}/restock-authorization`,
-    { adminUsername, adminPassword }
-  );
-  return authorizationToken;
+// Admin-only — called from the Admin's own authenticated session, with no
+// credentials in the request (requireRole(ADMIN) on the backend route is
+// the proof). Returns a short-lived, single-use, item-scoped 6-digit code
+// the Admin then reads aloud/hands to a Staff member in person. Never the
+// Admin's password — this call doesn't touch it at all.
+export async function requestRestockAuthorizationCode(
+  id: string
+): Promise<{ code: string; expiresIn: string }> {
+  const { authorizationCode, expiresIn } = await apiClient.post<{
+    authorizationCode: string;
+    expiresIn: string;
+  }>(`/inventory/${id}/restock-authorization`, {});
+  return { code: authorizationCode, expiresIn };
 }
 
 export async function restockInventoryItem(
   id: string,
   quantity: number,
-  authorizationToken: string
+  authorizationCode: string
 ): Promise<InventoryItem> {
   const { item } = await apiClient.post<{ item: BackendInventoryItem }>(`/inventory/${id}/restock`, {
     quantity,
-    authorizationToken,
+    authorizationCode,
   });
   return mapItem(item);
 }

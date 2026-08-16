@@ -97,23 +97,21 @@ export class InventoryController {
     }
   };
 
-  // Never logs req.body directly (adminUsername/adminPassword live only in
-  // this call's stack, passed straight through to the service and nowhere
-  // else) — only the generic error branches below, which log the caught
-  // Error object, not the request.
+  // Admin-only (enforced by requireRole(ADMIN) on the route) — the caller's
+  // own verified JWT is the only identity check needed, no credentials in
+  // the request body at all.
   public requestRestockAuthorization = async (req: Request, res: Response) => {
     try {
-      const userId = (req as AuthenticatedRequest).user?.sub as string;
+      const adminUserId = (req as AuthenticatedRequest).user?.sub as string;
       const id = req.params.id as string;
-      const { adminUsername, adminPassword } = req.body;
-      const result = await requestRestockAuthorizationService(userId, id, adminUsername, adminPassword);
+      const result = await requestRestockAuthorizationService(adminUserId, id);
       return res.status(result.code).json(result);
     } catch (error) {
       console.error("InventoryController.requestRestockAuthorization error", error);
       return res.status(500).json({
         code: 500,
         status: "error",
-        message: "Unable to authorize restock",
+        message: "Unable to generate restock authorization",
       });
     }
   };
@@ -122,8 +120,8 @@ export class InventoryController {
     try {
       const userId = (req as AuthenticatedRequest).user?.sub as string;
       const id = req.params.id as string;
-      const { quantity, authorizationToken } = req.body;
-      const result = await restockInventoryService(userId, id, quantity, authorizationToken);
+      const { quantity, authorizationCode } = req.body;
+      const result = await restockInventoryService(userId, id, quantity, authorizationCode);
       return res.status(result.code).json(result);
     } catch (error) {
       console.error("InventoryController.restock error", error);

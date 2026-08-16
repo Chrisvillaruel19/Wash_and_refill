@@ -1,11 +1,10 @@
 import { z } from "zod";
 
+// No body fields: the caller's own verified Admin JWT (requireRole(ADMIN)
+// on this route) is the only proof required — nothing to submit.
 export const requestRestockAuthorizationSchema = z.object({
   params: z.object({
     id: z.string().uuid("Invalid inventory id"),
   }),
-  body: z.object({
-    adminUsername: z.string().min(1, "Admin username is required"),
-    adminPassword: z.string().min(1, "Admin password is required"),
-  }),
+  body: z.object({}),
 });

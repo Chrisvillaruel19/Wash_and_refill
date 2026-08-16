@@ -9,8 +9,9 @@ export const restockInventorySchema = z.object({
       .number({ message: "Quantity to add is required" })
       .int("Quantity must be a whole number")
       .positive("Quantity to add must be greater than zero"),
-    // Short-lived, single-use proof from POST /:id/restock-authorization —
-    // never the Admin's password itself. See restock-inventory.service.ts.
-    authorizationToken: z.string().min(1, "Restock authorization is required"),
+    // The one-time code an Admin generated from their own session and
+    // handed to Staff in person — never the Admin's password itself. See
+    // restock-inventory.service.ts.
+    authorizationCode: z.string().min(1, "Restock authorization code is required"),
   }),
 });

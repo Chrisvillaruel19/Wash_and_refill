@@ -28,11 +28,11 @@ function InventoryPageContent() {
   const [restockTarget, setRestockTarget] = useState<InventoryItem | null>(null);
   // Held only in memory for the brief window between AuthModal succeeding
   // and RestockModal being confirmed or cancelled — never persisted to
-  // localStorage/sessionStorage. This is a scoped, single-use, 3-minute
-  // authorization token, not the Admin's password (that never leaves
-  // AuthModal's own request). Cleared on every path out of the restock
-  // flow (confirm, cancel, or error) so it can never be reused.
-  const [authorizationToken, setAuthorizationToken] = useState<string | null>(null);
+  // localStorage/sessionStorage. This is the one-time, 6-digit, 3-minute
+  // code an Admin generated on their own device — not the Admin's password,
+  // which this page never sees at all. Cleared on every path out of the
+  // restock flow (confirm, cancel, or error) so it can never be reused.
+  const [authorizationCode, setAuthorizationCode] = useState<string | null>(null);
   const [restocking, setRestocking] = useState(false);
   const [restockError, setRestockError] = useState("");
 
@@ -55,9 +55,9 @@ function InventoryPageContent() {
     setAuthTarget(item);
   }
 
-  function handleAuthorized(token: string) {
+  function handleAuthorized(code: string) {
     setRestockTarget(authTarget);
-    setAuthorizationToken(token);
+    setAuthorizationCode(code);
     setAuthTarget(null);
     setRestockError("");
   }
@@ -68,39 +68,39 @@ function InventoryPageContent() {
 
   function handleRestockCancel() {
     setRestockTarget(null);
-    setAuthorizationToken(null);
+    setAuthorizationCode(null);
     setRestockError("");
   }
 
   async function handleRestockConfirm(quantity: number) {
     if (!restockTarget) return;
-    if (!authorizationToken) {
-      // Reached only after a prior attempt already consumed/invalidated
-      // the token (see the catch block below) — never silently no-op here,
-      // since a Staff member re-clicking Confirm deserves to know why
-      // nothing is happening rather than a frozen button.
-      setRestockError("Your Admin authorization has expired or already been used. Please cancel and try again.");
+    if (!authorizationCode) {
+      // Reached only after a prior attempt already failed (see the catch
+      // block below) — never silently no-op here, since a Staff member
+      // re-clicking Confirm deserves to know why nothing is happening
+      // rather than a frozen button.
+      setRestockError("Your authorization code was rejected. Please cancel and ask an Admin for a new one.");
       return;
     }
     setRestocking(true);
     setRestockError("");
     try {
-      const updatedItem = await restockInventoryItem(restockTarget.id, quantity, authorizationToken);
+      const updatedItem = await restockInventoryItem(restockTarget.id, quantity, authorizationCode);
       setItems((prev) => prev.map((i) => (i.id === updatedItem.id ? updatedItem : i)));
       setRestockTarget(null);
-      setAuthorizationToken(null);
+      setAuthorizationCode(null);
     } catch (err) {
-      // The authorization token is single-use and expires in 3 minutes —
+      // The authorization code is single-use and expires in 3 minutes —
       // surfacing the backend's actual message (rather than a generic one)
       // matters here specifically, so a Staff member who waited too long
-      // knows to request a fresh Admin authorization rather than retrying
-      // a doomed request.
+      // knows to ask for a fresh code rather than retrying a doomed
+      // request.
       setRestockError(err instanceof ApiError ? err.message : "Unable to restock item. Please try again.");
-      // The token is consumed atomically server-side on success only; on
+      // The code is consumed atomically server-side on success only; on
       // any failure it's still unconsumed there, but it's simplest and
-      // safest to always require a fresh authorization after an error
-      // rather than let a stale one linger in this component's state.
-      setAuthorizationToken(null);
+      // safest to always require a fresh code after an error rather than
+      // let a stale one linger in this component's state.
+      setAuthorizationCode(null);
     } finally {
       setRestocking(false);
     }
@@ -150,7 +150,6 @@ function InventoryPageContent() {
 
       {authTarget && (
         <AuthModal
-          inventoryId={authTarget.id}
           onAuthorized={handleAuthorized}
           onCancel={handleAuthCancel}
         />

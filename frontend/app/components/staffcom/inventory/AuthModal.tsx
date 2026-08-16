@@ -2,15 +2,23 @@
 
 import { useState } from "react";
 import { X, Lock } from "lucide-react";
-import { verifyAdminCredentials } from "../../../lib/auth";
+import { requestRestockAuthorization } from "../../../lib/services/inventoryApi.service";
+import { ApiError } from "../../../lib/apiClient";
 import { useEscapeKey } from "../../../lib/useEscapeKey";
 
 interface AuthModalProps {
-  onAuthorized: () => void;
+  inventoryId: string;
+  onAuthorized: (authorizationToken: string) => void;
   onCancel: () => void;
 }
 
-export default function AuthModal({ onAuthorized, onCancel }: AuthModalProps) {
+// The Admin's password is typed here and sent once, to the backend, to be
+// verified — it is never stored (not in localStorage/sessionStorage, not
+// in component state after this call returns), never sent again, and
+// never part of the actual restock request. What this modal hands back to
+// its caller is a short-lived, single-use authorization token, not the
+// password itself.
+export default function AuthModal({ inventoryId, onAuthorized, onCancel }: AuthModalProps) {
   useEscapeKey(onCancel);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -25,14 +33,10 @@ export default function AuthModal({ onAuthorized, onCancel }: AuthModalProps) {
     setVerifying(true);
     setError("");
     try {
-      const authorized = await verifyAdminCredentials(username.trim(), password);
-      if (authorized) {
-        onAuthorized();
-      } else {
-        setError("Incorrect Admin username or password.");
-      }
-    } catch {
-      setError("Unable to verify credentials. Please try again.");
+      const authorizationToken = await requestRestockAuthorization(inventoryId, username.trim(), password);
+      onAuthorized(authorizationToken);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Unable to verify credentials. Please try again.");
     } finally {
       setVerifying(false);
     }

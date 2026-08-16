@@ -4,6 +4,20 @@ import { Role } from "../../generated/prisma/client.js";
 
 export type JwtPayload = { sub: string; type: "access" | "refresh"; role?: Role; jti?: string };
 
+// Distinct from JwtPayload (sub/role are meaningless here — there is no
+// single "subject" user, since a restock authorization deliberately spans
+// two different users: the Admin who approved it and the Staff member who
+// will spend it). staffUserId/inventoryId are what "scoped to the specific
+// restock operation/item" is enforced against; authorizedByAdminId exists
+// only to attribute the approval in the audit log.
+export type RestockAuthorizationPayload = {
+  type: "restock-authorization";
+  staffUserId: string;
+  inventoryId: string;
+  authorizedByAdminId: string;
+  jti: string;
+};
+
 // No fallback: signing tokens with a hardcoded, source-visible secret would
 // make every token forgeable. Fail fast at startup instead. Written as a
 // single expression (rather than an `if` guard above the functions below)
@@ -21,6 +35,11 @@ const jwtSecret: string =
 export enum TokenExpiry {
   ACCESS_TOKEN_EXPIRES = "15m",
   REFRESH_TOKEN_EXPIRES = "7d",
+  // Deliberately short — this is a standing approval to perform one
+  // sensitive write, not a session. Long enough for the Staff member to
+  // finish typing a quantity into the next modal, short enough that a
+  // leaked/unused authorization is worthless within minutes.
+  RESTOCK_AUTHORIZATION_EXPIRES = "3m",
 }
 
 export function signAccessToken(userId: string, role: Role, duration: SignOptions["expiresIn"]) {
@@ -53,6 +72,31 @@ export function verifyRefreshToken(token: string): JwtPayload | null {
   try {
     const payload = jwt.verify(token, jwtSecret) as JwtPayload;
     return payload.type === "refresh" ? payload : null;
+  } catch {
+    return null;
+  }
+}
+
+export function signRestockAuthorization(
+  params: { staffUserId: string; inventoryId: string; authorizedByAdminId: string },
+  duration: SignOptions["expiresIn"]
+) {
+  // jti for the same collision-avoidance reason as signRefreshToken above —
+  // without it, two authorizations issued for the same staff+item within
+  // the same second could be byte-identical, colliding with the Token
+  // table's unique constraint.
+  const payload: RestockAuthorizationPayload = {
+    type: "restock-authorization",
+    jti: crypto.randomBytes(16).toString("hex"),
+    ...params,
+  };
+  return jwt.sign(payload, jwtSecret, { expiresIn: duration });
+}
+
+export function verifyRestockAuthorization(token: string): RestockAuthorizationPayload | null {
+  try {
+    const payload = jwt.verify(token, jwtSecret) as RestockAuthorizationPayload;
+    return payload.type === "restock-authorization" ? payload : null;
   } catch {
     return null;
   }

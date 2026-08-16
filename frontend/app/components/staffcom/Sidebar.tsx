@@ -63,18 +63,18 @@ export default function Sidebar() {
       )}
 
       <aside
-        className={`w-56 min-h-screen bg-sky-600 text-white flex flex-col shadow-lg fixed md:static top-0 left-0 z-50 transition-transform duration-300 ${
+        className={`w-56 h-screen md:h-auto md:min-h-screen bg-sky-600 text-white flex flex-col shadow-lg fixed md:static top-0 left-0 z-50 transition-transform duration-300 ${
           isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         }`}
       >
         <button
           onClick={() => setIsOpen(false)}
-          className="md:hidden self-end p-4 text-white"
+          className="md:hidden self-end p-4 text-white shrink-0"
         >
           <X size={22} />
         </button>
 
-        <div className="flex flex-col items-center py-6 border-b border-blue-500">
+        <div className="flex flex-col items-center py-6 border-b border-blue-500 shrink-0">
           <Image
             src="/LOGO.png"
             alt="Logo"
@@ -85,7 +85,7 @@ export default function Sidebar() {
           />
         </div>
 
-        <nav className="flex-1 mt-6">
+        <nav className="flex-1 min-h-0 overflow-y-auto mt-6">
           {menuItems.map((item) => {
             const isActive = pathname === item.href;
             const Icon = item.icon;
@@ -109,7 +109,7 @@ export default function Sidebar() {
           })}
         </nav>
 
-        <div className="p-5 border-t border-blue-500">
+        <div className="p-5 border-t border-blue-500 shrink-0">
           <button
             onClick={handleLogout}
             className="flex items-center justify-center gap-2 w-full bg-sky-700 hover:bg-sky-800 py-3 rounded-lg transition"

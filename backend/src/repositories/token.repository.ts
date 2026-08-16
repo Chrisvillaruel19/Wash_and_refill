@@ -81,6 +81,48 @@ async findActiveResetToken(token: string): Promise<Token | null> {
   });
 }
 
+  async createRestockAuthorizationToken(
+    params: {
+      userId: string;
+      token: string;
+      expiresAt: Date;
+    },
+    tx: PrismaClientOrTx = prisma
+  ) {
+    const { userId, token, expiresAt } = params;
+
+    return tx.token.create({
+      data: {
+        userId,
+        token: hashToken(token),
+        expiresAt,
+        type: TokenType.RESTOCK_AUTHORIZATION,
+      },
+    });
+  }
+
+  // Atomic conditional consume, not read-then-write — mirrors
+  // order.repository.ts's updatePaymentStatusIfCurrentlyIs. The WHERE
+  // clause also asserts the token is still unconsumed/unrevoked at write
+  // time, so two concurrent restock requests replaying the same
+  // authorization token can't both succeed: the second's updateMany
+  // matches 0 rows, which the caller treats as "already used." Expiry
+  // itself is enforced by verifyRestockAuthorization's JWT check before
+  // this is ever called — this table only needs to track single-use.
+  async consumeRestockAuthorizationToken(token: string, tx: PrismaClientOrTx = prisma) {
+    return tx.token.updateMany({
+      where: {
+        token: hashToken(token),
+        type: TokenType.RESTOCK_AUTHORIZATION,
+        consumedAt: null,
+        revokedAt: null,
+      },
+      data: {
+        consumedAt: new Date(),
+      },
+    });
+  }
+
   async consumeToken(id: string, tx: PrismaClientOrTx = prisma) {
 
     return tx.token.update({

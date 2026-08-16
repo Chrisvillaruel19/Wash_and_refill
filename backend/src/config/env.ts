@@ -31,20 +31,20 @@ if (!parsedEnv.success) {
 
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
-// FRONTEND_URL/EMAIL_FROM/SMTP_* are optional in development (safe,
+// FRONTEND_URL/EMAIL_FROM/RESEND_API_KEY are optional in development (safe,
 // self-documenting fallbacks — see below), but silently falling back to
 // them in a real production deployment would mean: CORS configured for
-// localhost (every request blocked, at least it's loud) or, worse, SMTP
-// silently unset and password-reset links quietly logged to console/host
-// logs instead of emailed (see mailer.ts) — a real credential-exposure
-// risk, not just a broken feature. Fail fast here instead, matching the
-// DATABASE_URL/JWT_SECRET pattern above.
+// localhost (every request blocked, at least it's loud) or, worse, the
+// email provider key silently unset and password-reset links quietly
+// logged to console/host logs instead of emailed (see mailer.ts) — a real
+// credential-exposure risk, not just a broken feature. Fail fast here
+// instead, matching the DATABASE_URL/JWT_SECRET pattern above.
 if (IS_PRODUCTION) {
   const productionIssues: string[] = [];
   if (!process.env.FRONTEND_URL) productionIssues.push("FRONTEND_URL is required in production");
   if (!process.env.EMAIL_FROM) productionIssues.push("EMAIL_FROM is required in production");
-  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    productionIssues.push("SMTP_HOST, SMTP_USER, and SMTP_PASS are all required in production (password reset would otherwise silently fail to send)");
+  if (!process.env.RESEND_API_KEY) {
+    productionIssues.push("RESEND_API_KEY is required in production (password reset would otherwise silently fail to send)");
   }
   if (productionIssues.length > 0) {
     console.error("Invalid production environment configuration:");
@@ -72,13 +72,11 @@ export const ENV = {
     // set by every hosting platform) — so a cross-site deployment forces
     // this true unconditionally rather than trusting NODE_ENV alone.
     COOKIE_SECURE: parsedEnv.data.COOKIE_SAMESITE === "none" || IS_PRODUCTION,
-    // Used by src/lib/mailer.ts to send password-reset emails. If unset,
-    // the mailer falls back to logging the email content to the console
-    // instead of sending it, so local dev works without real SMTP creds.
-    // (Unreachable in production — enforced above.)
-    SMTP_HOST: process.env.SMTP_HOST,
-    SMTP_PORT: process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587,
-    SMTP_USER: process.env.SMTP_USER,
-    SMTP_PASS: process.env.SMTP_PASS,
+    // Used by src/lib/mailer.ts to send password-reset emails via Resend's
+    // HTTPS API. If unset, the mailer falls back to logging the email
+    // content to the console instead of sending it, so local dev works
+    // without a real API key. (Unreachable in production — enforced above.)
+    // Backend-only: never exposed to the frontend, never NEXT_PUBLIC_*.
+    RESEND_API_KEY: process.env.RESEND_API_KEY,
     EMAIL_FROM: process.env.EMAIL_FROM || "no-reply@wrlms.local",
 }

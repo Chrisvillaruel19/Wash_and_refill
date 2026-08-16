@@ -69,6 +69,13 @@ enum TokenType {
   REFRESH
   VERIFY_EMAIL
   RESET_PASSWORD
+  // Short-lived, single-use proof that an Admin approved a specific Staff
+  // restock action (see restock-inventory.service.ts). Reuses this table's
+  // existing hash-at-rest + expiresAt + consumedAt mechanics rather than a
+  // separate authorization system — the token itself is a signed JWT
+  // (see lib/jwt.ts) scoped to one staff user + one inventory item; this
+  // row exists purely to enforce single-use.
+  RESTOCK_AUTHORIZATION
 }
 
 // Customer Data

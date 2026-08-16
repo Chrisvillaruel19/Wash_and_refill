@@ -9,6 +9,7 @@ import {
   createInventorySchema,
   updateInventorySchema,
   restockInventorySchema,
+  requestRestockAuthorizationSchema,
 } from "../schema/inventory/index.js";
 
 const router = Router();
@@ -48,6 +49,22 @@ router.patch(
   inventoryController.update
 );
 
+// Issues a short-lived, single-use, item-scoped authorization after
+// verifying the submitted credentials belong to an ACTIVE Admin. Open to
+// any authenticated user (not requireRole(ADMIN)) — it's Staff who calls
+// this, verifying someone ELSE's (an Admin's) credentials, not their own
+// role. The credentials never reach the actual restock endpoint below.
+router.post(
+  "/:id/restock-authorization",
+  authMiddleware.execute,
+  validateSchema(requestRestockAuthorizationSchema),
+  inventoryController.requestRestockAuthorization
+);
+
+// Enforced server-side by restockInventoryService verifying
+// authorizationToken (signature, expiry, staff+item scope, single-use) —
+// not by this route trusting that the frontend showed an authorization
+// modal first. A direct API call without a valid token is rejected there.
 router.post(
   "/:id/restock",
   authMiddleware.execute,

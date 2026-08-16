@@ -6,6 +6,7 @@ import {
   getInventoryService,
   updateInventoryService,
   restockInventoryService,
+  requestRestockAuthorizationService,
   deleteInventoryService,
 } from "../services/inventory/index.js";
 import { JwtPayload } from "../lib/jwt.js";
@@ -96,12 +97,33 @@ export class InventoryController {
     }
   };
 
+  // Never logs req.body directly (adminUsername/adminPassword live only in
+  // this call's stack, passed straight through to the service and nowhere
+  // else) — only the generic error branches below, which log the caught
+  // Error object, not the request.
+  public requestRestockAuthorization = async (req: Request, res: Response) => {
+    try {
+      const userId = (req as AuthenticatedRequest).user?.sub as string;
+      const id = req.params.id as string;
+      const { adminUsername, adminPassword } = req.body;
+      const result = await requestRestockAuthorizationService(userId, id, adminUsername, adminPassword);
+      return res.status(result.code).json(result);
+    } catch (error) {
+      console.error("InventoryController.requestRestockAuthorization error", error);
+      return res.status(500).json({
+        code: 500,
+        status: "error",
+        message: "Unable to authorize restock",
+      });
+    }
+  };
+
   public restock = async (req: Request, res: Response) => {
     try {
       const userId = (req as AuthenticatedRequest).user?.sub as string;
       const id = req.params.id as string;
-      const { quantity } = req.body;
-      const result = await restockInventoryService(userId, id, quantity);
+      const { quantity, authorizationToken } = req.body;
+      const result = await restockInventoryService(userId, id, quantity, authorizationToken);
       return res.status(result.code).json(result);
     } catch (error) {
       console.error("InventoryController.restock error", error);

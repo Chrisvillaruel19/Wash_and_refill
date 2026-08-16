@@ -9,6 +9,7 @@ import AuthModal from "../../../components/staffcom/inventory/AuthModal";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
 import { getInventory, restockInventoryItem } from "../../../lib/services/inventoryApi.service";
+import { ApiError } from "../../../lib/apiClient";
 import { InventoryItem } from "../types";
 
 const PAGE_SIZE = 8;
@@ -25,6 +26,13 @@ function InventoryPageContent() {
   const [authTarget, setAuthTarget] = useState<InventoryItem | null>(null);
 
   const [restockTarget, setRestockTarget] = useState<InventoryItem | null>(null);
+  // Held only in memory for the brief window between AuthModal succeeding
+  // and RestockModal being confirmed or cancelled — never persisted to
+  // localStorage/sessionStorage. This is a scoped, single-use, 3-minute
+  // authorization token, not the Admin's password (that never leaves
+  // AuthModal's own request). Cleared on every path out of the restock
+  // flow (confirm, cancel, or error) so it can never be reused.
+  const [authorizationToken, setAuthorizationToken] = useState<string | null>(null);
   const [restocking, setRestocking] = useState(false);
   const [restockError, setRestockError] = useState("");
 
@@ -47,8 +55,9 @@ function InventoryPageContent() {
     setAuthTarget(item);
   }
 
-  function handleAuthorized() {
+  function handleAuthorized(token: string) {
     setRestockTarget(authTarget);
+    setAuthorizationToken(token);
     setAuthTarget(null);
     setRestockError("");
   }
@@ -57,16 +66,41 @@ function InventoryPageContent() {
     setAuthTarget(null);
   }
 
+  function handleRestockCancel() {
+    setRestockTarget(null);
+    setAuthorizationToken(null);
+    setRestockError("");
+  }
+
   async function handleRestockConfirm(quantity: number) {
     if (!restockTarget) return;
+    if (!authorizationToken) {
+      // Reached only after a prior attempt already consumed/invalidated
+      // the token (see the catch block below) — never silently no-op here,
+      // since a Staff member re-clicking Confirm deserves to know why
+      // nothing is happening rather than a frozen button.
+      setRestockError("Your Admin authorization has expired or already been used. Please cancel and try again.");
+      return;
+    }
     setRestocking(true);
     setRestockError("");
     try {
-      const updatedItem = await restockInventoryItem(restockTarget.id, quantity);
+      const updatedItem = await restockInventoryItem(restockTarget.id, quantity, authorizationToken);
       setItems((prev) => prev.map((i) => (i.id === updatedItem.id ? updatedItem : i)));
       setRestockTarget(null);
-    } catch {
-      setRestockError("Unable to restock item. Please try again.");
+      setAuthorizationToken(null);
+    } catch (err) {
+      // The authorization token is single-use and expires in 3 minutes —
+      // surfacing the backend's actual message (rather than a generic one)
+      // matters here specifically, so a Staff member who waited too long
+      // knows to request a fresh Admin authorization rather than retrying
+      // a doomed request.
+      setRestockError(err instanceof ApiError ? err.message : "Unable to restock item. Please try again.");
+      // The token is consumed atomically server-side on success only; on
+      // any failure it's still unconsumed there, but it's simplest and
+      // safest to always require a fresh authorization after an error
+      // rather than let a stale one linger in this component's state.
+      setAuthorizationToken(null);
     } finally {
       setRestocking(false);
     }
@@ -116,6 +150,7 @@ function InventoryPageContent() {
 
       {authTarget && (
         <AuthModal
+          inventoryId={authTarget.id}
           onAuthorized={handleAuthorized}
           onCancel={handleAuthCancel}
         />
@@ -125,7 +160,7 @@ function InventoryPageContent() {
         <RestockModal
           item={restockTarget}
           onConfirm={handleRestockConfirm}
-          onCancel={() => setRestockTarget(null)}
+          onCancel={handleRestockCancel}
           submitting={restocking}
           error={restockError}
         />

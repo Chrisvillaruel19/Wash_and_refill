@@ -91,18 +91,3 @@ export async function resetPassword(
   return apiClient.postMessage("/auth/reset-password", { token, newPassword, confirmPassword });
 }
 
-// Manager-override check (Staff Inventory's restock re-auth) — confirms the
-// given credentials belong to an active Admin, via a real backend call that
-// deliberately never issues tokens or touches the current session's cookie
-// (see backend/src/services/auth/verify-password.service.ts). Returns false
-// for both "wrong password" (401) and "valid but not an Admin" (403) —
-// callers only need a yes/no answer, not the distinction.
-export async function verifyAdminCredentials(username: string, password: string): Promise<boolean> {
-  try {
-    await apiClient.post("/auth/verify-password", { username, password });
-    return true;
-  } catch (error) {
-    if (error instanceof ApiError) return false;
-    throw error;
-  }
-}

@@ -28,11 +28,11 @@ function InventoryPageContent() {
   const [restockTarget, setRestockTarget] = useState<InventoryItem | null>(null);
   // Held only in memory for the brief window between AuthModal succeeding
   // and RestockModal being confirmed or cancelled — never persisted to
-  // localStorage/sessionStorage. This is the one-time, 6-digit, 3-minute
-  // code an Admin generated on their own device — not the Admin's password,
+  // localStorage/sessionStorage. This is the shared Restock Authorization
+  // PIN an Admin set from their own account — not the Admin's password,
   // which this page never sees at all. Cleared on every path out of the
-  // restock flow (confirm, cancel, or error) so it can never be reused.
-  const [authorizationCode, setAuthorizationCode] = useState<string | null>(null);
+  // restock flow (confirm, cancel, or error).
+  const [pin, setPin] = useState<string | null>(null);
   const [restocking, setRestocking] = useState(false);
   const [restockError, setRestockError] = useState("");
 
@@ -55,9 +55,9 @@ function InventoryPageContent() {
     setAuthTarget(item);
   }
 
-  function handleAuthorized(code: string) {
+  function handleAuthorized(enteredPin: string) {
     setRestockTarget(authTarget);
-    setAuthorizationCode(code);
+    setPin(enteredPin);
     setAuthTarget(null);
     setRestockError("");
   }
@@ -68,39 +68,35 @@ function InventoryPageContent() {
 
   function handleRestockCancel() {
     setRestockTarget(null);
-    setAuthorizationCode(null);
+    setPin(null);
     setRestockError("");
   }
 
   async function handleRestockConfirm(quantity: number) {
     if (!restockTarget) return;
-    if (!authorizationCode) {
+    if (!pin) {
       // Reached only after a prior attempt already failed (see the catch
       // block below) — never silently no-op here, since a Staff member
       // re-clicking Confirm deserves to know why nothing is happening
       // rather than a frozen button.
-      setRestockError("Your authorization code was rejected. Please cancel and ask an Admin for a new one.");
+      setRestockError("Your Restock Authorization PIN was rejected. Please cancel and try again.");
       return;
     }
     setRestocking(true);
     setRestockError("");
     try {
-      const updatedItem = await restockInventoryItem(restockTarget.id, quantity, authorizationCode);
+      const updatedItem = await restockInventoryItem(restockTarget.id, quantity, pin);
       setItems((prev) => prev.map((i) => (i.id === updatedItem.id ? updatedItem : i)));
       setRestockTarget(null);
-      setAuthorizationCode(null);
+      setPin(null);
     } catch (err) {
-      // The authorization code is single-use and expires in 3 minutes —
-      // surfacing the backend's actual message (rather than a generic one)
-      // matters here specifically, so a Staff member who waited too long
-      // knows to ask for a fresh code rather than retrying a doomed
-      // request.
+      // Surfacing the backend's actual message (rather than a generic one)
+      // matters here specifically, so a Staff member who mistyped the PIN
+      // knows exactly what went wrong rather than retrying blindly.
       setRestockError(err instanceof ApiError ? err.message : "Unable to restock item. Please try again.");
-      // The code is consumed atomically server-side on success only; on
-      // any failure it's still unconsumed there, but it's simplest and
-      // safest to always require a fresh code after an error rather than
-      // let a stale one linger in this component's state.
-      setAuthorizationCode(null);
+      // Always require the PIN to be re-entered after an error rather than
+      // let a rejected value linger in this component's state.
+      setPin(null);
     } finally {
       setRestocking(false);
     }

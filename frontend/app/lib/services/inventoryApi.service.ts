@@ -26,29 +26,17 @@ export async function getInventory(): Promise<InventoryItem[]> {
   return items.map(mapItem);
 }
 
-// Admin-only — called from the Admin's own authenticated session, with no
-// credentials in the request (requireRole(ADMIN) on the backend route is
-// the proof). Returns a short-lived, single-use, item-scoped 6-digit code
-// the Admin then reads aloud/hands to a Staff member in person. Never the
-// Admin's password — this call doesn't touch it at all.
-export async function requestRestockAuthorizationCode(
-  id: string
-): Promise<{ code: string; expiresIn: string }> {
-  const { authorizationCode, expiresIn } = await apiClient.post<{
-    authorizationCode: string;
-    expiresIn: string;
-  }>(`/inventory/${id}/restock-authorization`, {});
-  return { code: authorizationCode, expiresIn };
-}
-
+// pin is the shared Restock Authorization PIN an Admin set from their own
+// account (see lib/auth.ts's setRestockPin) — never the Admin's login
+// password, and never requested from Staff anywhere else in this flow.
 export async function restockInventoryItem(
   id: string,
   quantity: number,
-  authorizationCode: string
+  pin: string
 ): Promise<InventoryItem> {
   const { item } = await apiClient.post<{ item: BackendInventoryItem }>(`/inventory/${id}/restock`, {
     quantity,
-    authorizationCode,
+    pin,
   });
   return mapItem(item);
 }

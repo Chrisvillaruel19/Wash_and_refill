@@ -6,6 +6,7 @@ import {
   forgotPasswordService,
   resetPasswordService,
   verifyPasswordService,
+  setRestockPinService,
 } from "../services/auth/index.js";
 import { toMilliseconds, TokenExpiry, JwtPayload } from "../lib/jwt.js";
 import { ENV } from "../config/env.js";
@@ -133,6 +134,26 @@ export class AuthController {
 
       return res.status(500).json({
         message: "Unable to verify credentials",
+      });
+    }
+  };
+
+// Admin-only (enforced by requireRole(ADMIN) on the route): sets/updates
+// the shared Restock Authorization PIN used by restockInventoryService.
+// The caller's own verified JWT is the only identity check needed — no
+// separate re-authentication, and the PIN itself is never echoed back.
+  public setRestockPin = async (req: Request, res: Response) => {
+    try {
+      const adminUserId = (req as AuthenticatedRequest).user?.sub as string;
+      const { pin } = req.body;
+      const result = await setRestockPinService(adminUserId, pin);
+      return res.status(result.code).json(result);
+    } catch (error) {
+      console.error("AuthController.setRestockPin error", error);
+      return res.status(500).json({
+        code: 500,
+        status: "error",
+        message: "Unable to update Restock Authorization PIN",
       });
     }
   };

@@ -7,8 +7,8 @@ import {
   createInventoryItem,
   updateInventoryItem,
   deleteInventoryItem,
-  requestRestockAuthorizationCode,
 } from "../../../lib/services/inventoryApi.service";
+import { setRestockPin } from "../../../lib/auth";
 import { ApiError } from "../../../lib/apiClient";
 // isCriticalInventoryItem is a pure name/unit check with no localStorage
 // dependency — still imported from the old seam since that's the single
@@ -39,7 +39,7 @@ import AdminServiceFormModal, {
   ServiceFormData,
 } from "../../../components/admincom/AdminServiceFormModal";
 import ConfirmDeleteModal from "../../../components/admincom/ConfirmDeleteModal";
-import RestockAuthorizationModal from "../../../components/admincom/RestockAuthorizationModal";
+import SetRestockPinModal from "../../../components/admincom/SetRestockPinModal";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
 
@@ -70,11 +70,10 @@ export default function AdminCatalogPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editTarget, setEditTarget] = useState<InventoryItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<InventoryItem | null>(null);
-  const [restockAuthTarget, setRestockAuthTarget] = useState<InventoryItem | null>(null);
-  const [restockAuthCode, setRestockAuthCode] = useState<string | null>(null);
-  const [restockAuthExpiresIn, setRestockAuthExpiresIn] = useState<string | null>(null);
-  const [restockAuthLoading, setRestockAuthLoading] = useState(false);
-  const [restockAuthError, setRestockAuthError] = useState("");
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinModalLoading, setPinModalLoading] = useState(false);
+  const [pinModalError, setPinModalError] = useState("");
+  const [pinModalSuccess, setPinModalSuccess] = useState("");
 
   // Drop off (Packages) state
   const [packages, setPackages] = useState<Package[]>([]);
@@ -185,34 +184,31 @@ export default function AdminCatalogPage() {
     }
   }
 
-  function openRestockAuth(item: InventoryItem) {
-    setRestockAuthTarget(item);
-    setRestockAuthCode(null);
-    setRestockAuthExpiresIn(null);
-    setRestockAuthError("");
+  function openPinModal() {
+    setPinModalError("");
+    setPinModalSuccess("");
+    setShowPinModal(true);
   }
 
-  function closeRestockAuth() {
-    setRestockAuthTarget(null);
-    setRestockAuthCode(null);
-    setRestockAuthExpiresIn(null);
-    setRestockAuthError("");
+  function closePinModal() {
+    setShowPinModal(false);
+    setPinModalError("");
+    setPinModalSuccess("");
   }
 
-  async function handleGenerateRestockCode() {
-    if (!restockAuthTarget) return;
-    setRestockAuthLoading(true);
-    setRestockAuthError("");
+  async function handleSetRestockPin(pin: string, confirmPin: string) {
+    setPinModalLoading(true);
+    setPinModalError("");
+    setPinModalSuccess("");
     try {
-      const { code, expiresIn } = await requestRestockAuthorizationCode(restockAuthTarget.id);
-      setRestockAuthCode(code);
-      setRestockAuthExpiresIn(expiresIn);
+      await setRestockPin(pin, confirmPin);
+      setPinModalSuccess("Restock Authorization PIN updated.");
     } catch (err) {
-      setRestockAuthError(
-        err instanceof ApiError ? err.message : "Unable to generate a code. Please try again."
+      setPinModalError(
+        err instanceof ApiError ? err.message : "Unable to update the PIN. Please try again."
       );
     } finally {
-      setRestockAuthLoading(false);
+      setPinModalLoading(false);
     }
   }
 
@@ -493,6 +489,14 @@ export default function AdminCatalogPage() {
               />
             </div>
             <button
+              onClick={openPinModal}
+              className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg font-semibold hover:bg-gray-50 whitespace-nowrap"
+              title="Set the shared PIN Staff enter to authorize a restock"
+            >
+              <KeyRound size={16} />
+              Restock PIN
+            </button>
+            <button
               onClick={() => {
                 setActionError("");
                 setShowAddModal(true);
@@ -547,13 +551,6 @@ export default function AdminCatalogPage() {
                           </td>
                           <td className="p-3 sm:p-4 whitespace-nowrap">
                             <div className="flex items-center gap-3">
-                              <button
-                                onClick={() => openRestockAuth(item)}
-                                className="text-gray-500 hover:text-green-600"
-                                title="Authorize Restock"
-                              >
-                                <KeyRound size={16} />
-                              </button>
                               <button
                                 onClick={() => {
                                   setActionError("");
@@ -691,15 +688,13 @@ export default function AdminCatalogPage() {
         />
       )}
 
-      {restockAuthTarget && (
-        <RestockAuthorizationModal
-          itemName={restockAuthTarget.name}
-          code={restockAuthCode}
-          expiresIn={restockAuthExpiresIn}
-          loading={restockAuthLoading}
-          error={restockAuthError}
-          onGenerate={handleGenerateRestockCode}
-          onClose={closeRestockAuth}
+      {showPinModal && (
+        <SetRestockPinModal
+          loading={pinModalLoading}
+          error={pinModalError}
+          success={pinModalSuccess}
+          onSave={handleSetRestockPin}
+          onClose={closePinModal}
         />
       )}
 

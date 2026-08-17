@@ -91,3 +91,11 @@ export async function resetPassword(
   return apiClient.postMessage("/auth/reset-password", { token, newPassword, confirmPassword });
 }
 
+// Admin-only (enforced server-side by requireRole(ADMIN)): sets/updates the
+// shared Restock Authorization PIN Staff enter on the Inventory page. The
+// PIN itself is never returned by the backend — success is indicated only
+// by this not throwing.
+export async function setRestockPin(pin: string, confirmPin: string): Promise<void> {
+  await apiClient.patch("/auth/restock-pin", { pin, confirmPin });
+}
+

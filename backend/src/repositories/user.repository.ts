@@ -142,4 +142,25 @@ export class UserRepository {
   });
 }
 
+  async setRestockPinHash(id: string, restockPinHash: string, tx: PrismaClientOrTx = prisma) {
+    return tx.user.update({
+      where: { id },
+      data: { restockPinHash },
+      select: { id: true },
+    });
+  }
+
+  // Restock PINs are shared, business-wide (any Admin's PIN authorizes any
+  // Staff restock) rather than tied to a specific Admin session — matching
+  // how a shared cash-drawer PIN works in the physical store. Only ADMIN
+  // rows that have actually set one are candidates; verifying against the
+  // hash happens in the caller (utils/password.ts's verifyPassword), never
+  // here, so this repository never sees a raw PIN.
+  async findAdminsWithRestockPin(tx: PrismaClientOrTx = prisma) {
+    return tx.user.findMany({
+      where: { role: Role.ADMIN, restockPinHash: { not: null } },
+      select: { id: true, restockPinHash: true },
+    });
+  }
+
 }

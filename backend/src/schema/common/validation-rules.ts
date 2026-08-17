@@ -54,6 +54,17 @@ export const passwordRule = z
   .string({ message: "Password is required" })
   .min(8, "Password must be at least 8 characters");
 
+// Restock Authorization PIN: 4-6 digits, numeric only. Deliberately short
+// like a bank card PIN (not a password) — it's meant to be quickly typed by
+// Staff at the point of restocking, memorized by whichever Admin set it,
+// and rate-limited server-side against brute-force rather than relying on
+// length for security.
+export const pinRule = z
+  .string({ message: "PIN is required" })
+  .regex(/^\d+$/, "PIN must contain digits only")
+  .min(4, "PIN must be at least 4 digits")
+  .max(6, "PIN must be at most 6 digits");
+
 // Generic short text field (item/service/package names) — same "required,
 // trimmed, reasonable max length" shape used in several catalog schemas.
 export function shortTextRule(label: string, max = 100) {

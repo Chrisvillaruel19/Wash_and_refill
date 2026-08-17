@@ -6,7 +6,6 @@ import {
   getInventoryService,
   updateInventoryService,
   restockInventoryService,
-  requestRestockAuthorizationService,
   deleteInventoryService,
 } from "../services/inventory/index.js";
 import { JwtPayload } from "../lib/jwt.js";
@@ -97,31 +96,12 @@ export class InventoryController {
     }
   };
 
-  // Admin-only (enforced by requireRole(ADMIN) on the route) — the caller's
-  // own verified JWT is the only identity check needed, no credentials in
-  // the request body at all.
-  public requestRestockAuthorization = async (req: Request, res: Response) => {
-    try {
-      const adminUserId = (req as AuthenticatedRequest).user?.sub as string;
-      const id = req.params.id as string;
-      const result = await requestRestockAuthorizationService(adminUserId, id);
-      return res.status(result.code).json(result);
-    } catch (error) {
-      console.error("InventoryController.requestRestockAuthorization error", error);
-      return res.status(500).json({
-        code: 500,
-        status: "error",
-        message: "Unable to generate restock authorization",
-      });
-    }
-  };
-
   public restock = async (req: Request, res: Response) => {
     try {
       const userId = (req as AuthenticatedRequest).user?.sub as string;
       const id = req.params.id as string;
-      const { quantity, authorizationCode } = req.body;
-      const result = await restockInventoryService(userId, id, quantity, authorizationCode);
+      const { quantity, pin } = req.body;
+      const result = await restockInventoryService(userId, id, quantity, pin);
       return res.status(result.code).json(result);
     } catch (error) {
       console.error("InventoryController.restock error", error);

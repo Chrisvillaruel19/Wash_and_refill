@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { pinRule } from "../common/validation-rules.js";
 
 export const restockInventorySchema = z.object({
   params: z.object({
@@ -9,9 +10,9 @@ export const restockInventorySchema = z.object({
       .number({ message: "Quantity to add is required" })
       .int("Quantity must be a whole number")
       .positive("Quantity to add must be greater than zero"),
-    // The one-time code an Admin generated from their own session and
-    // handed to Staff in person — never the Admin's password itself. See
+    // The shared Restock Authorization PIN an Admin set from their own
+    // account — never the Admin's login password. See
     // restock-inventory.service.ts.
-    authorizationCode: z.string().min(1, "Restock authorization code is required"),
+    pin: pinRule,
   }),
 });

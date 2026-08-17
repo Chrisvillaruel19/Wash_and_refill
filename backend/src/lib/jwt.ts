@@ -21,11 +21,6 @@ const jwtSecret: string =
 export enum TokenExpiry {
   ACCESS_TOKEN_EXPIRES = "15m",
   REFRESH_TOKEN_EXPIRES = "7d",
-  // Deliberately short — this is a standing approval to perform one
-  // sensitive write, not a session. Long enough for the Staff member to
-  // finish typing a quantity into the next modal, short enough that a
-  // leaked/unused authorization is worthless within minutes.
-  RESTOCK_AUTHORIZATION_EXPIRES = "3m",
 }
 
 export function signAccessToken(userId: string, role: Role, duration: SignOptions["expiresIn"]) {

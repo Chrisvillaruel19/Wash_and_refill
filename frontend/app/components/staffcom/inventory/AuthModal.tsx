@@ -5,24 +5,24 @@ import { X, KeyRound } from "lucide-react";
 import { useEscapeKey } from "../../../lib/useEscapeKey";
 
 interface AuthModalProps {
-  onAuthorized: (authorizationCode: string) => void;
+  onAuthorized: (pin: string) => void;
   onCancel: () => void;
 }
 
-// Collects only the one-time code an Admin generated from their own device
-// and handed over in person — never an Admin username or password. This
-// component makes no API call itself: the code is validated when the
+// Collects only the shared Restock Authorization PIN an Admin set from
+// their own account settings — never an Admin username or password. This
+// component makes no API call itself: the PIN is validated when the
 // actual restock is submitted (see the parent page's handleRestockConfirm),
-// so a wrong or expired code surfaces there, not here.
+// so a wrong PIN surfaces there, not here.
 export default function AuthModal({ onAuthorized, onCancel }: AuthModalProps) {
   useEscapeKey(onCancel);
-  const [code, setCode] = useState("");
+  const [pin, setPin] = useState("");
   const [error, setError] = useState("");
 
   function handleConfirm() {
-    const trimmed = code.trim();
+    const trimmed = pin.trim();
     if (!trimmed) {
-      setError("Enter the authorization code your Admin gave you.");
+      setError("Enter the Restock Authorization PIN.");
       return;
     }
     onAuthorized(trimmed);
@@ -43,19 +43,18 @@ export default function AuthModal({ onAuthorized, onCancel }: AuthModalProps) {
           <h2 className="text-base sm:text-lg font-bold text-gray-900">Authorization Required</h2>
         </div>
         <p className="text-gray-500 text-xs sm:text-sm mb-4">
-          Ask an Admin to authorize this restock. They&apos;ll generate a code on their own device —
-          enter it below.
+          Enter the Restock Authorization PIN to continue.
         </p>
 
-        <label htmlFor="restock-auth-code" className="sr-only">Authorization code</label>
+        <label htmlFor="restock-auth-pin" className="sr-only">Restock Authorization PIN</label>
         <input
-          id="restock-auth-code"
+          id="restock-auth-pin"
           type="text"
           inputMode="numeric"
-          placeholder="6-digit code"
-          value={code}
+          placeholder="Restock Authorization PIN"
+          value={pin}
           onChange={(e) => {
-            setCode(e.target.value);
+            setPin(e.target.value.replace(/\D/g, "").slice(0, 6));
             setError("");
           }}
           onKeyDown={(e) => e.key === "Enter" && handleConfirm()}

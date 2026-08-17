@@ -28,6 +28,13 @@ model User {
   role            Role @default(STAFF)
   accountStatus   AccountStatus @default(ACTIVE)
 
+  // Shared Restock Authorization PIN, set by an Admin from their own
+  // account. Hashed with the same PBKDF2 scheme as `password` (see
+  // utils/password.ts) — never stored or returned in plaintext. Null until
+  // an Admin sets one; only meaningful on ADMIN-role rows, but not
+  // constrained to that at the schema level since role can change.
+  restockPinHash  String?
+
   orders          Order[]
   attendances     Attendance[]
   expenses        Expense[]

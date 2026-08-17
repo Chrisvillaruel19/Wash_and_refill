@@ -1,8 +1,10 @@
 import { Router } from "express";
-import { loginSchema, refreshTokenSchema, forgotPasswordSchema, resetPasswordSchema, verifyPasswordSchema } from "../schema/auth/index.js";
+import { loginSchema, refreshTokenSchema, forgotPasswordSchema, resetPasswordSchema, verifyPasswordSchema, setRestockPinSchema } from "../schema/auth/index.js";
 import { AuthController } from "../controllers/auth.controller.js";
 import { validateSchema } from "../middlewares/validate-schema.js";
 import { AuthMiddleware } from "../middlewares/auth-middleware.js";
+import { requireRole } from "../middlewares/require-role.js";
+import { Role } from "../../generated/prisma/client.js";
 
 const router = Router();
 
@@ -45,6 +47,16 @@ router.post(
   authMiddleware.execute,
   validateSchema(verifyPasswordSchema),
   authController.verifyPassword
+);
+
+// Admin-only: sets/updates the shared Restock Authorization PIN. See
+// AuthController.setRestockPin.
+router.patch(
+  "/restock-pin",
+  authMiddleware.execute,
+  requireRole(Role.ADMIN),
+  validateSchema(setRestockPinSchema),
+  authController.setRestockPin
 );
 
 // Server-verified identity for frontend route guards (M8) — see

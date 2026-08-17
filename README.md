@@ -55,6 +55,8 @@ Required environment variables in `backend/.env`:
 
 **`.env` must never be committed.** It's gitignored for exactly this reason — only `backend/.env.example` (placeholder values only, no real credentials) is tracked in version control.
 
+**Known limitation — production readiness:** Forgot Password only delivers to `villaruelnino191@gmail.com` (dev owner's personal Resend account) due to Resend's no-domain sandbox restriction. Before any real client uses this system: (a) Admin's email must be updated to the client's real address, and (b) a domain must be purchased and verified in Resend. This is a Resend platform requirement, not something more code can work around.
+
 ### Database migrations — dev vs. production
 
 - `npm run db:migrate` (`prisma migrate dev`) — **local development only.** Can prompt interactively and, on schema drift, offer to reset the database. Never run this against the production database.

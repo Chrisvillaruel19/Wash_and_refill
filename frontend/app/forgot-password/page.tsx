@@ -66,8 +66,12 @@ export default function ForgotPassword() {
           <h1 className="text-xl sm:text-2xl font-bold text-center text-gray-800 mb-2 leading-snug">
             Forgot Password
           </h1>
-          <p className="text-center text-sm text-gray-700 mb-6">
+          <p className="text-center text-sm text-gray-700 mb-2">
             Enter your account email and we&apos;ll send you a password reset link.
+          </p>
+          <p className="text-center text-xs text-gray-500 mb-6">
+            Only Admin accounts can reset via email. Staff — please contact your
+            Administrator to reset your password.
           </p>
 
           {error && (

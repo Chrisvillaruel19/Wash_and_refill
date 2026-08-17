@@ -5,3 +5,4 @@ export { forgotPasswordService } from "./forgot-password.service.js";
 export { resetPasswordService } from "./reset-password.service.js";
 export { verifyPasswordService } from "./verify-password.service.js";
 export { setRestockPinService } from "./set-restock-pin.service.js";
+export { verifyRestockPinService } from "./verify-restock-pin.service.js";

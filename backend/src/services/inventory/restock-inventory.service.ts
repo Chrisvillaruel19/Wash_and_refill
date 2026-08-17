@@ -3,7 +3,6 @@ import { InventoryRepository } from "../../repositories/inventory.repository.js"
 import { UserRepository } from "../../repositories/user.repository.js";
 import { computeStockStatus } from "./stock-status.util.js";
 import { writeAuditLog } from "../../lib/audit-log.js";
-import { verifyPassword } from "../../utils/password.js";
 import { AuditAction } from "../../../generated/prisma/client.js";
 
 const inventoryRepository = new InventoryRepository();
@@ -15,6 +14,12 @@ const userRepository = new UserRepository();
 // identity. The PIN is a standing, shared secret an Admin sets from their
 // own account settings (see set-restock-pin.service.ts) — never the
 // Admin's login password, and never entered by Staff anywhere else.
+//
+// This check is authoritative and independent of any prior client-side
+// pre-check (see verify-restock-pin.service.ts, used by the Authorization
+// modal for immediate feedback) — frontend state can be manipulated, so
+// the actual inventory mutation below is never trusted to a PIN check that
+// already happened once in an earlier request.
 export async function restockInventoryService(
   userId: string,
   id: string,
@@ -26,10 +31,7 @@ export async function restockInventoryService(
     // cash-drawer PIN in the physical store, since this business runs
     // with the same PIN valid for every Admin, not scoped to whichever
     // Admin happens to be logged in elsewhere.
-    const admins = await userRepository.findAdminsWithRestockPin();
-    const isAuthorized = admins.some(
-      (admin) => admin.restockPinHash && verifyPassword(pin, admin.restockPinHash)
-    );
+    const isAuthorized = await userRepository.verifyRestockPin(pin);
 
     if (!isAuthorized) {
       return {

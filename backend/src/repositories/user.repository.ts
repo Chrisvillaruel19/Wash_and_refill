@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { Prisma, Role, AccountStatus } from "../../generated/prisma/client.js";
+import { verifyPassword } from "../utils/password.js";
 
 type PrismaClientOrTx = typeof prisma | Prisma.TransactionClient;
 
@@ -153,14 +154,22 @@ export class UserRepository {
   // Restock PINs are shared, business-wide (any Admin's PIN authorizes any
   // Staff restock) rather than tied to a specific Admin session — matching
   // how a shared cash-drawer PIN works in the physical store. Only ADMIN
-  // rows that have actually set one are candidates; verifying against the
-  // hash happens in the caller (utils/password.ts's verifyPassword), never
-  // here, so this repository never sees a raw PIN.
+  // rows that have actually set one are candidates.
   async findAdminsWithRestockPin(tx: PrismaClientOrTx = prisma) {
     return tx.user.findMany({
       where: { role: Role.ADMIN, restockPinHash: { not: null } },
       select: { id: true, restockPinHash: true },
     });
+  }
+
+  // Single source of truth for "does this PIN match any Admin's restock
+  // PIN" — used identically by the pre-check endpoint (verify-restock-pin)
+  // and the actual restock write (restockInventoryService), so the two can
+  // never drift out of sync. Only ever returns a boolean; the raw PIN is
+  // never stored, logged, or returned past this function.
+  async verifyRestockPin(pin: string, tx: PrismaClientOrTx = prisma): Promise<boolean> {
+    const admins = await this.findAdminsWithRestockPin(tx);
+    return admins.some((admin) => admin.restockPinHash && verifyPassword(pin, admin.restockPinHash));
   }
 
 }

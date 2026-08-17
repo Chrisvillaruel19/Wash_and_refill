@@ -99,3 +99,14 @@ export async function setRestockPin(pin: string, confirmPin: string): Promise<vo
   await apiClient.patch("/auth/restock-pin", { pin, confirmPin });
 }
 
+// Pre-check used by the Staff Authorization modal for immediate feedback —
+// NOT the authoritative check (the restock endpoint independently
+// re-verifies). Returns a plain boolean for the 200 {valid} case; a
+// thrown ApiError means the check itself failed (network/rate-limit/server
+// error), which callers should treat as "not yet verified", not as a
+// definitive wrong-PIN answer.
+export async function verifyRestockPin(pin: string): Promise<boolean> {
+  const result = await apiClient.post<{ valid: boolean }>("/auth/verify-restock-pin", { pin });
+  return result.valid;
+}
+

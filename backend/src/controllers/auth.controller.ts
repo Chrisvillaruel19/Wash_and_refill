@@ -7,6 +7,7 @@ import {
   resetPasswordService,
   verifyPasswordService,
   setRestockPinService,
+  verifyRestockPinService,
 } from "../services/auth/index.js";
 import { toMilliseconds, TokenExpiry, JwtPayload } from "../lib/jwt.js";
 import { ENV } from "../config/env.js";
@@ -134,6 +135,26 @@ export class AuthController {
 
       return res.status(500).json({
         message: "Unable to verify credentials",
+      });
+    }
+  };
+
+// Any authenticated user (Staff or Admin) — a pre-check only, used by the
+// Staff Authorization modal for immediate feedback while the Admin (or
+// Staff) is still typing the PIN. Never mutates inventory, never writes an
+// audit record. The actual restock endpoint independently re-verifies the
+// PIN and is the only authoritative check (see restockInventoryService).
+  public verifyRestockPin = async (req: Request, res: Response) => {
+    try {
+      const { pin } = req.body;
+      const result = await verifyRestockPinService(pin);
+      return res.status(result.code).json(result);
+    } catch (error) {
+      console.error("AuthController.verifyRestockPin error", error);
+      return res.status(500).json({
+        code: 500,
+        status: "error",
+        message: "Unable to verify PIN",
       });
     }
   };

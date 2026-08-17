@@ -1,9 +1,10 @@
 import { Router } from "express";
-import { loginSchema, refreshTokenSchema, forgotPasswordSchema, resetPasswordSchema, verifyPasswordSchema, setRestockPinSchema } from "../schema/auth/index.js";
+import { loginSchema, refreshTokenSchema, forgotPasswordSchema, resetPasswordSchema, verifyPasswordSchema, setRestockPinSchema, verifyRestockPinSchema } from "../schema/auth/index.js";
 import { AuthController } from "../controllers/auth.controller.js";
 import { validateSchema } from "../middlewares/validate-schema.js";
 import { AuthMiddleware } from "../middlewares/auth-middleware.js";
 import { requireRole } from "../middlewares/require-role.js";
+import { restockLimiter } from "../middlewares/rate-limiters.js";
 import { Role } from "../../generated/prisma/client.js";
 
 const router = Router();
@@ -57,6 +58,17 @@ router.patch(
   requireRole(Role.ADMIN),
   validateSchema(setRestockPinSchema),
   authController.setRestockPin
+);
+
+// Any authenticated user: pre-check used by the Staff Authorization modal
+// for immediate feedback. NOT the authoritative check — restockInventoryService
+// re-verifies independently. See AuthController.verifyRestockPin.
+router.post(
+  "/verify-restock-pin",
+  authMiddleware.execute,
+  restockLimiter,
+  validateSchema(verifyRestockPinSchema),
+  authController.verifyRestockPin
 );
 
 // Server-verified identity for frontend route guards (M8) — see

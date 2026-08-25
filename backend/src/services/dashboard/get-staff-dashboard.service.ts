@@ -1,5 +1,6 @@
 import { OrderRepository } from "../../repositories/order.repository.js";
 import { lowStockInventoryService } from "../inventory/index.js";
+import { getBusinessDayRange } from "../../lib/business-timezone.js";
 
 const orderRepository = new OrderRepository();
 
@@ -9,8 +10,9 @@ const orderRepository = new OrderRepository();
 // endpoints serving the same rows.
 export async function getStaffDashboardService() {
   try {
+    const todayRange = getBusinessDayRange();
     const [todaysSales, statusCounts, lowStockResult] = await Promise.all([
-      orderRepository.sumPaidRevenue(),
+      orderRepository.sumPaidRevenue(todayRange),
       orderRepository.countByStatus(),
       lowStockInventoryService(),
     ]);

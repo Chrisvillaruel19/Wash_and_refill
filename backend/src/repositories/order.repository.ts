@@ -19,11 +19,18 @@ const detailInclude = {
 } as const;
 
 export class OrderRepository {
-  async findAll(tx: PrismaClientOrTx = prisma) {
+  // Paginated, newest first — matches AuditLogRepository.findAll's shape.
+  async findAll(params: { page: number; pageSize: number }, tx: PrismaClientOrTx = prisma) {
     return tx.order.findMany({
       include: listInclude,
       orderBy: { createdAt: "desc" },
+      skip: (params.page - 1) * params.pageSize,
+      take: params.pageSize,
     });
+  }
+
+  async count(tx: PrismaClientOrTx = prisma) {
+    return tx.order.count();
   }
 
   async findById(id: string, tx: PrismaClientOrTx = prisma) {
@@ -40,10 +47,18 @@ export class OrderRepository {
       amountPaid: number;
       totalAmount: number;
       paymentDate: Date | null;
+      idempotencyKey: string;
     },
     tx: PrismaClientOrTx = prisma
   ) {
     return tx.order.create({ data });
+  }
+
+  // Idempotent-replay lookup: after a P2002 on idempotencyKey, fetch the
+  // order that already owns that key (via findById's full detailInclude)
+  // to return as-is instead of creating a duplicate.
+  async findByIdempotencyKey(idempotencyKey: string, tx: PrismaClientOrTx = prisma) {
+    return tx.order.findUnique({ where: { idempotencyKey }, include: detailInclude });
   }
 
   async createOrderDetails(
@@ -190,20 +205,42 @@ export class OrderRepository {
     });
   }
 
-  // Dashboard: total revenue from every paid, non-cancelled order —
-  // matches the frontend's "todaysSales"/"totalCashToday", which despite
-  // the name is deliberately unfiltered by date (the frontend's own
-  // computeStatsFromOrders sums every paid order ever stored; there's no
-  // real date-boundary logic anywhere in this system yet). Replicated
-  // faithfully, not silently "fixed" with date filtering that wasn't asked
-  // for. Independent of Shift Handover's claim status — a sale is revenue
+  // Dashboard: total revenue from every paid, non-cancelled order — now
+  // date-scoped via paymentDate when a range is passed (both dashboard
+  // services pass getBusinessDayRange() for "today"). Range omitted =
+  // all-time, kept for any future caller that genuinely wants that.
+  // Independent of Shift Handover's claim status — a sale is revenue
   // whether or not it's been reconciled into a handover yet.
-  async sumPaidRevenue(tx: PrismaClientOrTx = prisma): Promise<number> {
+  async sumPaidRevenue(
+    range?: { start: Date; end: Date },
+    tx: PrismaClientOrTx = prisma
+  ): Promise<number> {
     const result = await tx.order.aggregate({
-      where: { paymentStatus: PaymentStatus.PAID, status: { not: OrderStatus.CANCELLED } },
+      where: {
+        paymentStatus: PaymentStatus.PAID,
+        status: { not: OrderStatus.CANCELLED },
+        ...(range ? { paymentDate: { gte: range.start, lt: range.end } } : {}),
+      },
       _sum: { totalAmount: true },
     });
     return Number(result._sum.totalAmount ?? 0);
+  }
+
+  // Analytics source: every paid, non-cancelled order whose paymentDate
+  // falls in [start, end) — same shape as findUnclaimedPaid (orderDetails
+  // included) plus the owning staff member, so callers can feed this
+  // straight into summarizeOrders (reconciliation.util.ts) for the
+  // category/cash-vs-gcash breakdown, or group by user for per-staff
+  // revenue, without a second query.
+  async findPaidInRange(start: Date, end: Date, tx: PrismaClientOrTx = prisma) {
+    return tx.order.findMany({
+      where: {
+        paymentStatus: PaymentStatus.PAID,
+        status: { not: OrderStatus.CANCELLED },
+        paymentDate: { gte: start, lt: end },
+      },
+      include: { orderDetails: true, user: { select: { id: true, name: true } } },
+    });
   }
 
   // Dashboard: order counts by status, for the status-count cards and the

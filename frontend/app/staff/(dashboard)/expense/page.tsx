@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Search, CheckCircle2, Upload } from "lucide-react";
-import { getExpenses, createExpense } from "../../../lib/services/expensesApi.service";
+import { getExpenses, getExpensesPage, createExpense } from "../../../lib/services/expensesApi.service";
 import { ExpenseRecord, ExpenseCategory } from "../types";
 import ExpandableText from "../../../components/staffcom/ExpandableText";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
+import { useServerPage } from "../../../lib/useServerPage";
 
 const PAGE_SIZE = 6;
 
@@ -19,7 +20,6 @@ const categories: ExpenseCategory[] = [
 ];
 
 export default function Expense() {
-  const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
   const [search, setSearch] = useState("");
   const [amount, setAmount] = useState(0);
   const [category, setCategory] = useState<ExpenseCategory>("Supplies & Materials");
@@ -28,24 +28,46 @@ export default function Expense() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isSubmittingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [submitError, setSubmitError] = useState("");
+  // Bumped after a successful submit to force a refetch of whichever data
+  // source (server page or the lazily-loaded full set below) is active.
+  const [reloadKey, setReloadKey] = useState(0);
+
+  // Real server-side pagination by default. "Search Date" needs to reach
+  // every historical expense, which the backend's page/pageSize support has
+  // no search param for — so searching lazily falls back to a full fetch +
+  // client-side filter, same hybrid pattern as Admin Expenses/Logs.
+  const isSearching = search !== "";
+  const [expensesFull, setExpensesFull] = useState<ExpenseRecord[] | null>(null);
+  const [expensesFullLoading, setExpensesFullLoading] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    async function load() {
-      try {
-        const data = await getExpenses();
-         
-        setExpenses(data);
-      } catch {
-        setError("Unable to load expenses. Please try again.");
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, []);
+    if (!isSearching) return;
+    let cancelled = false;
+    setExpensesFullLoading(true);
+    getExpenses()
+      .then((data) => {
+        if (!cancelled) setExpensesFull(data);
+      })
+      .catch(() => {
+        if (!cancelled) setError("Unable to load expenses. Please try again.");
+      })
+      .finally(() => {
+        if (!cancelled) setExpensesFullLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isSearching, reloadKey]);
+
+  const {
+    page: serverPage,
+    setPage: setServerPage,
+    totalPages: serverTotalPages,
+    items: serverItems,
+    loading: serverLoading,
+  } = useServerPage(getExpensesPage, PAGE_SIZE, !isSearching, reloadKey);
 
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -77,8 +99,7 @@ export default function Expense() {
     setSubmitError("");
     try {
       await createExpense({ amount, category, description: trimmedDescription, imageDataUrl });
-      const refreshed = await getExpenses();
-      setExpenses(refreshed);
+      setReloadKey((k) => k + 1);
       setAmount(0);
       setCategory("Supplies & Materials");
       setDescription("");
@@ -92,19 +113,22 @@ export default function Expense() {
     }
   }
 
-  const filteredExpenses = expenses.filter((e) =>
+  const filteredExpenses = (expensesFull ?? []).filter((e) =>
     new Date(e.timestamp).toLocaleDateString().includes(search)
   );
 
-  const { page, setPage, totalPages, paginatedItems } = usePagination(
-    filteredExpenses,
-    PAGE_SIZE,
-    search
-  );
+  const {
+    page: clientPage,
+    setPage: setClientPage,
+    totalPages: clientTotalPages,
+    paginatedItems: clientPaginatedItems,
+  } = usePagination(filteredExpenses, PAGE_SIZE, search);
 
-  if (loading) {
-    return <p className="text-gray-400 p-6">Loading expenses...</p>;
-  }
+  const page = isSearching ? clientPage : serverPage;
+  const setPage = isSearching ? setClientPage : setServerPage;
+  const totalPages = isSearching ? clientTotalPages : serverTotalPages;
+  const paginatedItems = isSearching ? clientPaginatedItems : serverItems;
+  const listLoading = isSearching ? expensesFullLoading : serverLoading;
 
   if (error) {
     return <p className="text-red-500 p-6">{error}</p>;
@@ -215,7 +239,7 @@ export default function Expense() {
         </div>
       </div>
 
-      <div className="space-y-4">
+      <div className={`space-y-4 ${listLoading ? "opacity-50" : ""}`}>
         {paginatedItems.length > 0 ? (
           paginatedItems.map((e) => (
             <div

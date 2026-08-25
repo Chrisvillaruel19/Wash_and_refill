@@ -6,7 +6,8 @@ import SalesFilters, { SalesFilter } from "../../../components/staffcom/sales/Sa
 import SalesTable from "../../../components/staffcom/sales/SalesTable";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
-import { getOrders, getOrderDetail } from "../../../lib/services/ordersApi.service";
+import { useServerPage } from "../../../lib/useServerPage";
+import { getOrders, getOrdersPage, getOrderDetail } from "../../../lib/services/ordersApi.service";
 import { getPackages } from "../../../lib/services/packageApi.service";
 import { getDropOffSummary, getAverageOrderValue } from "../../../lib/orderStats";
 import { Order } from "../types";
@@ -56,6 +57,22 @@ export default function SalesPage() {
   const totalInProgress = orders.filter((o) => o.status === "In progress").length;
   const totalClaimed = orders.filter((o) => o.status === "Claimed").length;
 
+  const isFiltering = activeFilter !== "All" || dateFrom !== "" || dateTo !== "";
+
+  // Default (unfiltered) table browsing — real server-side pagination, one
+  // request per page turn. The stat cards/average/drop-off breakdown above
+  // still need the complete `orders` fetch regardless of filter state (see
+  // load() above) — there's no backend endpoint for "average order value"
+  // or per-package drop-off totals, so that fetch can't be eliminated here.
+  // This only decouples the raw table listing from it once unfiltered.
+  const {
+    page: serverPage,
+    setPage: setServerPage,
+    totalPages: serverTotalPages,
+    items: serverItems,
+    loading: serverLoading,
+  } = useServerPage(getOrdersPage, PAGE_SIZE, !isFiltering);
+
   const filteredOrders = orders.filter((order) => {
     const matchesFilter =
       activeFilter === "All" ||
@@ -87,11 +104,20 @@ export default function SalesPage() {
   // accepted on Admin Sales (see the banner below); not a bug here either.
   const packageBreakdown = getDropOffSummary(filteredOrders, packages);
 
-  const { page, setPage, totalPages, paginatedItems } = usePagination(
-    filteredOrders,
-    PAGE_SIZE,
-    `${activeFilter}-${dateFrom}-${dateTo}`
-  );
+  const {
+    page: clientPage,
+    setPage: setClientPage,
+    totalPages: clientTotalPages,
+    paginatedItems: clientPaginatedItems,
+  } = usePagination(filteredOrders, PAGE_SIZE, `${activeFilter}-${dateFrom}-${dateTo}`);
+
+  // Unified view: real server pages while unfiltered, the already-loaded
+  // (for the stats above) full set paginated client-side once filtered.
+  const page = isFiltering ? clientPage : serverPage;
+  const setPage = isFiltering ? setClientPage : setServerPage;
+  const totalPages = isFiltering ? clientTotalPages : serverTotalPages;
+  const paginatedItems = isFiltering ? clientPaginatedItems : serverItems;
+  const tableLoading = !isFiltering && serverLoading;
 
   useEffect(() => {
     const missingIds = paginatedItems.map((o) => o.id).filter((id) => !(id in itemsByOrderId));
@@ -183,7 +209,7 @@ export default function SalesPage() {
         </div>
       </div>
 
-      <SalesTable orders={displayedItems} />
+      <SalesTable orders={displayedItems} loading={tableLoading} />
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
     </div>
   );

@@ -1,15 +1,23 @@
 import { prisma } from "../../lib/prisma.js";
 import { OrderRepository } from "../../repositories/order.repository.js";
-import { OrderStatus, PaymentStatus, AuditAction } from "../../../generated/prisma/client.js";
+import { canModifyOrder } from "./order-status-flow.util.js";
+import { OrderStatus, PaymentStatus, AuditAction, Role } from "../../../generated/prisma/client.js";
 import { writeAuditLog } from "../../lib/audit-log.js";
 
 const orderRepository = new OrderRepository();
 
-export async function markOrderPaidService(userId: string, id: string) {
+export async function markOrderPaidService(userId: string, id: string, actorRole?: Role) {
   try {
     const result = await prisma.$transaction(async (tx) => {
       const existing = await orderRepository.findById(id, tx);
       if (!existing) return { notFound: true } as const;
+
+      if (!canModifyOrder(existing.userId, userId, actorRole)) {
+        return {
+          forbidden: true as const,
+          message: "You can only mark orders you created as paid.",
+        };
+      }
 
       if (existing.status === OrderStatus.CANCELLED) {
         return {
@@ -61,6 +69,9 @@ export async function markOrderPaidService(userId: string, id: string) {
 
     if ("notFound" in result) {
       return { code: 404, status: "error", message: "Order not found" };
+    }
+    if ("forbidden" in result) {
+      return { code: 403, status: "error", message: result.message };
     }
     if ("notEligible" in result) {
       return { code: 400, status: "error", message: result.message };

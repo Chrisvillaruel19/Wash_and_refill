@@ -5,7 +5,8 @@ import { Search, Receipt, Wallet } from "lucide-react";
 import AdminStatCard from "../../../components/admincom/AdminStatCard";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
-import { getExpenses } from "../../../lib/services/expensesApi.service";
+import { useServerPage } from "../../../lib/useServerPage";
+import { getExpenses, getExpensesPage } from "../../../lib/services/expensesApi.service";
 import { ExpenseRecord, ExpenseCategory } from "../../../staff/(dashboard)/types";
 
 const PAGE_SIZE = 8;
@@ -46,6 +47,21 @@ export default function AdminExpensesPage() {
 
   const totalAmount = expenses.reduce((sum, e) => sum + e.amount, 0);
 
+  const isFiltering = activeCategory !== "All" || search !== "";
+
+  // Default (unfiltered) table browsing — real server-side pagination. The
+  // stat cards above still need the complete `expenses` fetch regardless of
+  // filter state (they're all-time totals, not filtered ones) — there's no
+  // backend "total expenses / record count" endpoint, so that fetch can't be
+  // eliminated here. This only decouples the raw table listing from it.
+  const {
+    page: serverPage,
+    setPage: setServerPage,
+    totalPages: serverTotalPages,
+    items: serverItems,
+    loading: serverLoading,
+  } = useServerPage(getExpensesPage, PAGE_SIZE, !isFiltering);
+
   const filteredExpenses = expenses.filter((e) => {
     const matchesCategory = activeCategory === "All" || e.category === activeCategory;
     const matchesSearch =
@@ -54,11 +70,18 @@ export default function AdminExpensesPage() {
     return matchesCategory && matchesSearch;
   });
 
-  const { page, setPage, totalPages, paginatedItems } = usePagination(
-    filteredExpenses,
-    PAGE_SIZE,
-    `${activeCategory}-${search}`
-  );
+  const {
+    page: clientPage,
+    setPage: setClientPage,
+    totalPages: clientTotalPages,
+    paginatedItems: clientPaginatedItems,
+  } = usePagination(filteredExpenses, PAGE_SIZE, `${activeCategory}-${search}`);
+
+  const page = isFiltering ? clientPage : serverPage;
+  const setPage = isFiltering ? setClientPage : setServerPage;
+  const totalPages = isFiltering ? clientTotalPages : serverTotalPages;
+  const paginatedItems = isFiltering ? clientPaginatedItems : serverItems;
+  const tableLoading = !isFiltering && serverLoading;
 
   if (loading) {
     return <p className="text-gray-400 p-6">Loading expenses...</p>;
@@ -129,7 +152,7 @@ export default function AdminExpensesPage() {
                 <th className="p-3 sm:p-4 whitespace-nowrap">Receipt</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className={tableLoading ? "opacity-50" : undefined}>
               {paginatedItems.length > 0 ? (
                 paginatedItems.map((e) => (
                   <tr key={e.id} className="border-b last:border-0">

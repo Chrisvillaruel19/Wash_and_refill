@@ -3,6 +3,7 @@ import { formatGroupedItems } from "../../../lib/groupItems";
 
 interface SalesTableProps {
   orders: Order[];
+  loading?: boolean;
 }
 
 const statusStyles: Record<OrderStatus, string> = {
@@ -13,7 +14,7 @@ const statusStyles: Record<OrderStatus, string> = {
   Cancelled: "text-red-500",
 };
 
-export default function SalesTable({ orders }: SalesTableProps) {
+export default function SalesTable({ orders, loading }: SalesTableProps) {
   return (
     <div className="bg-white rounded-xl shadow-md overflow-hidden">
       <div className="overflow-x-auto">
@@ -30,7 +31,7 @@ export default function SalesTable({ orders }: SalesTableProps) {
               <th className="p-3 sm:p-4 whitespace-nowrap">Status</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className={loading ? "opacity-50" : undefined}>
             {orders.length > 0 ? (
               orders.map((order) => (
                 <tr key={order.id} className="border-b last:border-0">

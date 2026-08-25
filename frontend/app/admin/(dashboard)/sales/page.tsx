@@ -8,7 +8,7 @@ import AdminWithdrawalFormModal, {
 } from "../../../components/admincom/AdminWithdrawalFormModal";
 import { getOrders } from "../../../lib/services/ordersApi.service";
 import { getPackages } from "../../../lib/services/packageApi.service";
-import { getShiftHandovers } from "../../../lib/services/shiftHandoverApi.service";
+import { getShiftHandoversPage } from "../../../lib/services/shiftHandoverApi.service";
 import {
   getWithdrawals,
   createWithdrawal,
@@ -16,13 +16,16 @@ import {
 } from "../../../lib/services/withdrawalApi.service";
 import { getTotalCashToday, getDropOffSummary, getAverageOrderValue } from "../../../lib/orderStats";
 import { ApiError } from "../../../lib/apiClient";
-import { Order, ShiftHandoverRecord } from "../../../staff/(dashboard)/types";
+import { Order } from "../../../staff/(dashboard)/types";
 import { Package } from "../../../staff/(dashboard)/neworder/types";
+import Pagination from "../../../components/staffcom/Pagination";
+import { useServerPage } from "../../../lib/useServerPage";
+
+const HANDOVERS_PAGE_SIZE = 6;
 
 export default function AdminSalesPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [packages, setPackages] = useState<Package[]>([]);
-  const [handovers, setHandovers] = useState<ShiftHandoverRecord[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>([]);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -30,22 +33,30 @@ export default function AdminSalesPage() {
   const [withdrawSubmitting, setWithdrawSubmitting] = useState(false);
   const [withdrawError, setWithdrawError] = useState("");
 
+  // Shift handover grid — real server-side pagination (previously dumped
+  // every handover ever into one unbounded grid, same bug class as
+  // Orders/Expenses before Item 6). No filter/search on this view, so no
+  // hybrid fallback is needed.
+  const {
+    page: handoverPage,
+    setPage: setHandoverPage,
+    totalPages: handoverTotalPages,
+    items: handovers,
+  } = useServerPage(getShiftHandoversPage, HANDOVERS_PAGE_SIZE, true);
+
   useEffect(() => {
     async function load() {
       try {
-        const [ordersData, packagesData, handoversData, withdrawalsData] = await Promise.all([
+        const [ordersData, packagesData, withdrawalsData] = await Promise.all([
           getOrders(),
           getPackages(),
-          getShiftHandovers(),
           getWithdrawals(),
         ]);
-         
+
         setOrders(ordersData);
-         
+
         setPackages(packagesData);
-         
-        setHandovers(handoversData);
-         
+
         setWithdrawals(withdrawalsData);
       } catch {
         setLoadError("Unable to load sales data. Please try again.");
@@ -226,6 +237,7 @@ export default function AdminSalesPage() {
         ) : (
           <p className="text-gray-400 text-center py-4">No shift handovers submitted yet.</p>
         )}
+        <Pagination page={handoverPage} totalPages={handoverTotalPages} onPageChange={setHandoverPage} />
       </div>
 
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">

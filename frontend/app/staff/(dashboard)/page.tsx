@@ -6,7 +6,7 @@ import StatCard from "../../components/staffcom/dashboard/StatCard";
 import LowStockCard from "../../components/staffcom/dashboard/LowStockCard";
 import RecentActivityCard from "../../components/staffcom/dashboard/RecentActivityCard";
 import OrdersTable from "../../components/staffcom/dashboard/OrdersTable";
-import { getOrders } from "../../lib/services/ordersApi.service";
+import { getOrdersPage } from "../../lib/services/ordersApi.service";
 import { getStaffDashboard, getRecentActivity } from "../../lib/services/dashboard.service";
 import { Order, LowStockItem, ActivityLog } from "./types";
 
@@ -21,11 +21,11 @@ export default function StaffDashboardPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [dashboard, orderList] = await Promise.all([getStaffDashboard(), getOrders()]);
-         
+        const [dashboard, orderPage] = await Promise.all([getStaffDashboard(), getOrdersPage(1, 20)]);
+
         setStats({ todaysSales: dashboard.todaysSales, claimedToday: dashboard.claimedToday, ready: dashboard.ready });
         setLowStock(dashboard.lowStock);
-        setOrders(orderList);
+        setOrders(orderPage.items);
       } catch {
         setError("Unable to load dashboard data. Please try again.");
         setLoading(false);

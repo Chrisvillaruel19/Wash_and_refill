@@ -5,6 +5,12 @@ import Link from "next/link";
 import { Search } from "lucide-react";
 import { Order, OrderStatus } from "../../../staff/(dashboard)/types";
 
+// `orders` is now the 20 most recent orders (a single bounded server page,
+// not the full history) — the dashboard widget's stated purpose is "recent
+// orders," and full-history search here was an accidental side effect of
+// the old full-fetch, not an intentional feature. The filter/search below
+// only searches within that recent page; browsing/searching full order
+// history belongs on Sales or Service, which still fetch everything.
 interface OrdersTableProps {
   orders: Order[];
 }

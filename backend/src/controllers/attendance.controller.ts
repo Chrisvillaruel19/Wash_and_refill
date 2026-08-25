@@ -46,7 +46,9 @@ export class AttendanceController {
 
   public list = async (req: Request, res: Response) => {
     try {
-      const result = await listAttendanceService();
+      const authReq = req as AuthenticatedRequest;
+      const userId = authReq.user?.sub as string;
+      const result = await listAttendanceService(userId, authReq.user?.role);
       return res.status(result.code).json(result);
     } catch (error) {
       console.error("AttendanceController.list error", error);

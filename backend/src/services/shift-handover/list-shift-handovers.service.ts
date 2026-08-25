@@ -4,9 +4,12 @@ const shiftHandoverRepository = new ShiftHandoverRepository();
 
 // Shared visibility (approved): every authenticated user sees every
 // handover — one physical drawer, not private per-user data.
-export async function listShiftHandoversService() {
+export async function listShiftHandoversService(params: { page: number; pageSize: number }) {
   try {
-    const records = await shiftHandoverRepository.findAll();
+    const [records, total] = await Promise.all([
+      shiftHandoverRepository.findAll(params),
+      shiftHandoverRepository.count(),
+    ]);
 
     const shiftHandovers = records.map(({ user, ...record }) => ({
       ...record,
@@ -17,7 +20,15 @@ export async function listShiftHandoversService() {
       code: 200,
       status: "success",
       message: "Shift handover records retrieved successfully",
-      data: { shiftHandovers },
+      data: {
+        shiftHandovers,
+        pagination: {
+          page: params.page,
+          pageSize: params.pageSize,
+          total,
+          totalPages: Math.ceil(total / params.pageSize) || 1,
+        },
+      },
     };
   } catch (error) {
     console.error("listShiftHandoversService error", error);

@@ -6,7 +6,14 @@ import AdminStatCard from "../../../components/admincom/AdminStatCard";
 import ConfirmReversePaymentModal from "../../../components/admincom/ConfirmReversePaymentModal";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
-import { getOrders, getOrderDetail, reverseOrderPayment } from "../../../lib/services/ordersApi.service";
+import { useServerPage } from "../../../lib/useServerPage";
+import {
+  getOrders,
+  getOrdersPage,
+  getOrderDetail,
+  reverseOrderPayment,
+} from "../../../lib/services/ordersApi.service";
+import { getAdminDashboard } from "../../../lib/services/dashboard.service";
 import { formatGroupedItems } from "../../../lib/groupItems";
 import { Order, OrderStatus } from "../../../staff/(dashboard)/types";
 
@@ -25,10 +32,8 @@ const statusStyles: Record<OrderStatus, string> = {
 };
 
 export default function ClaimMonitoringPage() {
-  const [orders, setOrders] = useState<Order[]>([]);
   const [activeFilter, setActiveFilter] = useState<MonitoringFilter>("All");
   const [searchDate, setSearchDate] = useState("");
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   // GET /orders (list) omits line items to stay lean — populated per-order,
   // bounded to whatever page is currently visible, via GET /orders/:id.
@@ -37,44 +42,65 @@ export default function ClaimMonitoringPage() {
   const [pendingReverseId, setPendingReverseId] = useState<string | null>(null);
   const [actionSubmitting, setActionSubmitting] = useState(false);
   const [actionError, setActionError] = useState("");
+  // Bumped after a payment reversal to force a refetch of whichever data
+  // source (server page or the lazily-loaded full set below) is active.
+  const [reloadKey, setReloadKey] = useState(0);
 
-  async function loadOrders() {
-    try {
-      const data = await getOrders();
-      setOrders(data);
-    } catch {
-      setError("Unable to load orders. Please try again.");
-    }
-  }
+  // All-time Pending/In Progress/Claimed counts — sourced from the existing
+  // Admin Dashboard endpoint (orderStatusCounts) instead of computing them
+  // from a full order fetch. Backend-authoritative, and means the stat
+  // cards no longer require fetching every order just to count three numbers.
+  const [statusCounts, setStatusCounts] = useState({ pending: 0, inProgress: 0, ready: 0, claimed: 0 });
 
   useEffect(() => {
-    async function load() {
-      await loadOrders();
-      setLoading(false);
-    }
-    load();
-  }, []);
+    getAdminDashboard()
+      .then((d) => setStatusCounts(d.statusCounts))
+      .catch(() => {
+        // Non-critical — the table below still works without the stat cards.
+      });
+  }, [reloadKey]);
 
-  async function confirmReversePayment() {
-    if (!pendingReverseId) return;
-    setActionSubmitting(true);
-    setActionError("");
-    try {
-      await reverseOrderPayment(pendingReverseId);
-      await loadOrders();
-      setPendingReverseId(null);
-    } catch {
-      setActionError("Unable to reverse this payment. Please try again.");
-    } finally {
-      setActionSubmitting(false);
-    }
-  }
+  const isFiltering = activeFilter !== "All" || searchDate !== "";
 
-  const totalPending = orders.filter((o) => o.status === "Pending").length;
-  const totalInProgress = orders.filter((o) => o.status === "In progress").length;
-  const totalClaimed = orders.filter((o) => o.status === "Claimed").length;
+  // Default (unfiltered) browsing — real server-side pagination, one
+  // request per page turn, verifiable in the network tab.
+  const {
+    page: serverPage,
+    setPage: setServerPage,
+    totalPages: serverTotalPages,
+    items: serverItems,
+    loading: serverLoading,
+  } = useServerPage(getOrdersPage, PAGE_SIZE, !isFiltering, reloadKey);
 
-  const filteredOrders = orders.filter((order) => {
+  // The filter tabs and date search need to reach every historical order,
+  // not just whatever page is currently loaded — the backend's page/pageSize
+  // support has no filter/search params to push this server-side. Lazily
+  // fetched only once a filter or search is actually used, and cached for
+  // the rest of this filtered session.
+  const [fullOrders, setFullOrders] = useState<Order[] | null>(null);
+  const [fullOrdersLoading, setFullOrdersLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isFiltering) return;
+    let cancelled = false;
+    setFullOrdersLoading(true);
+    getOrders()
+      .then((data) => {
+        if (!cancelled) setFullOrders(data);
+      })
+      .catch(() => {
+        if (!cancelled) setError("Unable to load orders. Please try again.");
+      })
+      .finally(() => {
+        if (!cancelled) setFullOrdersLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFiltering, reloadKey]);
+
+  const filteredOrders = (fullOrders ?? []).filter((order) => {
     const matchesFilter =
       activeFilter === "All" ||
       (activeFilter === "Claimed" && order.status === "Claimed") ||
@@ -87,11 +113,35 @@ export default function ClaimMonitoringPage() {
     return matchesFilter && matchesDate;
   });
 
-  const { page, setPage, totalPages, paginatedItems } = usePagination(
-    filteredOrders,
-    PAGE_SIZE,
-    `${activeFilter}-${searchDate}`
-  );
+  const {
+    page: clientPage,
+    setPage: setClientPage,
+    totalPages: clientTotalPages,
+    paginatedItems: clientPaginatedItems,
+  } = usePagination(filteredOrders, PAGE_SIZE, `${activeFilter}-${searchDate}`);
+
+  // Unified view regardless of which mode is active, so the render below
+  // (and the per-order line-item lookup effect) doesn't need to know which.
+  const page = isFiltering ? clientPage : serverPage;
+  const setPage = isFiltering ? setClientPage : setServerPage;
+  const totalPages = isFiltering ? clientTotalPages : serverTotalPages;
+  const paginatedItems = isFiltering ? clientPaginatedItems : serverItems;
+  const tableLoading = isFiltering ? fullOrdersLoading : serverLoading;
+
+  async function confirmReversePayment() {
+    if (!pendingReverseId) return;
+    setActionSubmitting(true);
+    setActionError("");
+    try {
+      await reverseOrderPayment(pendingReverseId);
+      setReloadKey((k) => k + 1);
+      setPendingReverseId(null);
+    } catch {
+      setActionError("Unable to reverse this payment. Please try again.");
+    } finally {
+      setActionSubmitting(false);
+    }
+  }
 
   useEffect(() => {
     const missingIds = paginatedItems.map((o) => o.id).filter((id) => !(id in itemsByOrderId));
@@ -119,10 +169,6 @@ export default function ClaimMonitoringPage() {
     items: itemsByOrderId[order.id] ?? order.items,
   }));
 
-  if (loading) {
-    return <p className="text-gray-400 p-6">Loading orders...</p>;
-  }
-
   if (error) {
     return <p className="text-red-500 p-6">{error}</p>;
   }
@@ -132,19 +178,19 @@ export default function ClaimMonitoringPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-6">
         <AdminStatCard
           label="Total pending"
-          value={totalPending}
+          value={statusCounts.pending}
           icon={Clock}
           iconColor="text-orange-500 bg-orange-100"
         />
         <AdminStatCard
           label="Total In Progress"
-          value={totalInProgress}
+          value={statusCounts.inProgress}
           icon={RefreshCw}
           iconColor="text-blue-600 bg-blue-100"
         />
         <AdminStatCard
           label="Total claimed"
-          value={totalClaimed}
+          value={statusCounts.claimed}
           icon={CheckCircle2}
           iconColor="text-green-600 bg-green-100"
         />
@@ -196,7 +242,7 @@ export default function ClaimMonitoringPage() {
                 <th className="p-3 sm:p-4 whitespace-nowrap">Payment</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className={tableLoading ? "opacity-50" : undefined}>
               {displayedItems.length > 0 ? (
                 displayedItems.map((order) => (
                   <tr key={order.id} className="border-b last:border-0">

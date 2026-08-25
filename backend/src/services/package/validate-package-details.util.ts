@@ -6,6 +6,9 @@ const inventoryRepository = new InventoryRepository();
 // reference a real, active Inventory row, and the same ingredient can't be
 // listed twice in one request. Returns an error message string, or null if
 // the details array is valid.
+//
+// Single batched findMany instead of one findById per ingredient — a
+// package with N ingredients previously issued N sequential round trips.
 export async function validatePackageDetails(
   details: { inventoryId: string; quantity: number }[]
 ): Promise<string | null> {
@@ -15,10 +18,15 @@ export async function validatePackageDetails(
       return `Duplicate inventory item in package details: ${detail.inventoryId}`;
     }
     seen.add(detail.inventoryId);
+  }
 
-    const item = await inventoryRepository.findById(detail.inventoryId);
+  const items = await inventoryRepository.findByIds([...seen]);
+  const itemsById = new Map(items.map((item) => [item.id, item]));
+
+  for (const inventoryId of seen) {
+    const item = itemsById.get(inventoryId);
     if (!item || !item.isActive) {
-      return `Inventory item not found or inactive: ${detail.inventoryId}`;
+      return `Inventory item not found or inactive: ${inventoryId}`;
     }
   }
 

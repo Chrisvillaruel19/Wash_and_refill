@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import { getRestockLogs, getEditedLogs } from "../../../lib/services/auditLogApi.service";
-import { getExpenses } from "../../../lib/services/expensesApi.service";
+import { getExpenses, getExpensesPage } from "../../../lib/services/expensesApi.service";
 import { getWithdrawals, WithdrawalRecord } from "../../../lib/services/withdrawalApi.service";
 import { ActivityLog, ExpenseRecord } from "../../../staff/(dashboard)/types";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
+import { useServerPage } from "../../../lib/useServerPage";
 
 const PAGE_SIZE = 8;
 
@@ -24,7 +25,6 @@ function formatTime(iso: string) {
 export default function AdminLogsPage() {
   const [restockLogsAll, setRestockLogsAll] = useState<ActivityLog[]>([]);
   const [editedLogsAll, setEditedLogsAll] = useState<ActivityLog[]>([]);
-  const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>([]);
   const [activeTab, setActiveTab] = useState<LogTab>("restock");
   const [search, setSearch] = useState("");
@@ -34,19 +34,16 @@ export default function AdminLogsPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [restockData, editedData, expensesData, withdrawalsData] = await Promise.all([
+        const [restockData, editedData, withdrawalsData] = await Promise.all([
           getRestockLogs(),
           getEditedLogs(),
-          getExpenses(),
           getWithdrawals(),
         ]);
-         
+
         setRestockLogsAll(restockData);
-         
+
         setEditedLogsAll(editedData);
-         
-        setExpenses(expensesData);
-         
+
         setWithdrawals(withdrawalsData);
       } catch {
         setLoadError("Unable to load logs. Please try again.");
@@ -63,12 +60,6 @@ export default function AdminLogsPage() {
   const editedLogs = editedLogsAll.filter((l) =>
     l.message.toLowerCase().includes(search.toLowerCase())
   );
-  const filteredExpenses = expenses.filter(
-    (e) =>
-      e.category.toLowerCase().includes(search.toLowerCase()) ||
-      e.submittedBy.toLowerCase().includes(search.toLowerCase()) ||
-      e.description.toLowerCase().includes(search.toLowerCase())
-  );
   const filteredWithdrawals = withdrawals.filter(
     (w) =>
       w.adminName.toLowerCase().includes(search.toLowerCase()) ||
@@ -84,12 +75,64 @@ export default function AdminLogsPage() {
     paginatedItems: paginatedActivity,
   } = usePagination(activityList, PAGE_SIZE, `${activeTab}-${search}`);
 
+  // Expense Logs tab — real server-side pagination by default. The search
+  // box is shared across every tab and searches full expense history (by
+  // category/staff/description), which the backend's page/pageSize support
+  // has no params for — so a search lazily falls back to a full fetch +
+  // client-side filter, same hybrid pattern as Admin Expenses/Claim
+  // Monitoring. Unlike those pages, there are no stat cards here needing the
+  // complete set unconditionally, so the full fetch only ever happens once
+  // the user actually searches.
+  const isSearchingExpenses = search !== "";
+  const [expensesFull, setExpensesFull] = useState<ExpenseRecord[] | null>(null);
+  const [expensesFullLoading, setExpensesFullLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isSearchingExpenses) return;
+    let cancelled = false;
+    setExpensesFullLoading(true);
+    getExpenses()
+      .then((data) => {
+        if (!cancelled) setExpensesFull(data);
+      })
+      .catch(() => {
+        if (!cancelled) setLoadError("Unable to load expense logs. Please try again.");
+      })
+      .finally(() => {
+        if (!cancelled) setExpensesFullLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isSearchingExpenses]);
+
   const {
-    page: expensePage,
-    setPage: setExpensePage,
-    totalPages: expenseTotalPages,
-    paginatedItems: paginatedExpenses,
+    page: expenseServerPage,
+    setPage: setExpenseServerPage,
+    totalPages: expenseServerTotalPages,
+    items: expenseServerItems,
+    loading: expenseServerLoading,
+  } = useServerPage(getExpensesPage, PAGE_SIZE, !isSearchingExpenses);
+
+  const filteredExpenses = (expensesFull ?? []).filter(
+    (e) =>
+      e.category.toLowerCase().includes(search.toLowerCase()) ||
+      e.submittedBy.toLowerCase().includes(search.toLowerCase()) ||
+      e.description.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const {
+    page: expenseClientPage,
+    setPage: setExpenseClientPage,
+    totalPages: expenseClientTotalPages,
+    paginatedItems: expenseClientPaginatedItems,
   } = usePagination(filteredExpenses, PAGE_SIZE, search);
+
+  const expensePage = isSearchingExpenses ? expenseClientPage : expenseServerPage;
+  const setExpensePage = isSearchingExpenses ? setExpenseClientPage : setExpenseServerPage;
+  const expenseTotalPages = isSearchingExpenses ? expenseClientTotalPages : expenseServerTotalPages;
+  const paginatedExpenses = isSearchingExpenses ? expenseClientPaginatedItems : expenseServerItems;
+  const expenseTableLoading = isSearchingExpenses ? expensesFullLoading : expenseServerLoading;
 
   const {
     page: withdrawalPage,
@@ -196,7 +239,7 @@ export default function AdminLogsPage() {
                     <th className="p-3 whitespace-nowrap">Description</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className={expenseTableLoading ? "opacity-50" : undefined}>
                   {paginatedExpenses.length > 0 ? (
                     paginatedExpenses.map((e) => (
                       <tr key={e.id} className="border-b last:border-0">

@@ -2,6 +2,7 @@ import { OrderRepository } from "../../repositories/order.repository.js";
 import { UserRepository } from "../../repositories/user.repository.js";
 import { PackageRepository } from "../../repositories/package.repository.js";
 import { lowStockInventoryService } from "../inventory/index.js";
+import { getBusinessDayRange } from "../../lib/business-timezone.js";
 import { Role } from "../../../generated/prisma/client.js";
 
 const orderRepository = new OrderRepository();
@@ -12,9 +13,10 @@ const BEST_SELLING_LIMIT = 5;
 
 export async function getAdminDashboardService() {
   try {
+    const todayRange = getBusinessDayRange();
     const [totalSales, statusCounts, packageLines, lowStockResult, employeeCount, activePackages] =
       await Promise.all([
-        orderRepository.sumPaidRevenue(),
+        orderRepository.sumPaidRevenue(todayRange),
         orderRepository.countByStatus(),
         orderRepository.findPaidPackageLines(),
         lowStockInventoryService(),

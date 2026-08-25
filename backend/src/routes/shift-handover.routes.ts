@@ -2,7 +2,10 @@ import { Router } from "express";
 import { ShiftHandoverController } from "../controllers/shift-handover.controller.js";
 import { validateSchema } from "../middlewares/validate-schema.js";
 import { AuthMiddleware } from "../middlewares/auth-middleware.js";
-import { createShiftHandoverSchema } from "../schema/shift-handover/index.js";
+import {
+  createShiftHandoverSchema,
+  listShiftHandoversSchema,
+} from "../schema/shift-handover/index.js";
 
 const router = Router();
 const shiftHandoverController = new ShiftHandoverController();
@@ -20,6 +23,11 @@ router.post(
   shiftHandoverController.create
 );
 
-router.get("/", authMiddleware.execute, shiftHandoverController.list);
+router.get(
+  "/",
+  authMiddleware.execute,
+  validateSchema(listShiftHandoversSchema),
+  shiftHandoverController.list
+);
 
 export default router;

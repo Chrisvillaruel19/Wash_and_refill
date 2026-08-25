@@ -5,12 +5,19 @@ const expenseRepository = new ExpenseRepository();
 
 // Scope is a business rule, not a route gate: Admin sees every expense,
 // Staff sees only their own. Both hit the same endpoint.
-export async function listExpensesService(userId: string, role?: Role) {
+export async function listExpensesService(
+  userId: string,
+  role: Role | undefined,
+  params: { page: number; pageSize: number }
+) {
   try {
-    const records =
+    const [records, total] =
       role === Role.ADMIN
-        ? await expenseRepository.findAll()
-        : await expenseRepository.findAllForUser(userId);
+        ? await Promise.all([expenseRepository.findAll(params), expenseRepository.count()])
+        : await Promise.all([
+            expenseRepository.findAllForUser(userId, params),
+            expenseRepository.countForUser(userId),
+          ]);
 
     // Derived at read time from the User relation — never a stored column,
     // never client-supplied.
@@ -23,7 +30,15 @@ export async function listExpensesService(userId: string, role?: Role) {
       code: 200,
       status: "success",
       message: "Expenses retrieved successfully",
-      data: { expenses },
+      data: {
+        expenses,
+        pagination: {
+          page: params.page,
+          pageSize: params.pageSize,
+          total,
+          totalPages: Math.ceil(total / params.pageSize) || 1,
+        },
+      },
     };
   } catch (error) {
     console.error("listExpensesService error", error);

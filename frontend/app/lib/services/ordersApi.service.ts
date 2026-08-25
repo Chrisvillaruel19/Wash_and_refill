@@ -2,9 +2,10 @@
 // orders from (Dashboard, Claim Monitoring, Service, Sales, New Order,
 // Shift Handover). The old localStorage-backed orders.service.ts/
 // localOrders.ts have been removed; every consumer now goes through here.
-import { apiClient } from "../apiClient";
+import { apiClient, fetchAllPages } from "../apiClient";
 import { Order, OrderStatus, PayStatus, PaymentMethod } from "../../staff/(dashboard)/types";
 import { ServiceType } from "../../staff/(dashboard)/neworder/types";
+import type { ServerPageResult } from "../useServerPage";
 
 interface BackendOrderDetail {
   quantity: number;
@@ -116,8 +117,20 @@ function mapOrder(order: BackendOrder): Order {
 }
 
 export async function getOrders(): Promise<Order[]> {
-  const result = await apiClient.get<{ orders: BackendOrder[] }>("/orders");
-  return result.orders.map(mapOrder);
+  const orders = await fetchAllPages<BackendOrder>("/orders", "orders");
+  return orders.map(mapOrder);
+}
+
+// Genuine single-page fetch — for browsable list views (Claim Monitoring,
+// Sales) driven by useServerPage.ts, as opposed to getOrders() above, which
+// walks every page for callers that need the complete set (dashboards,
+// stat cards, shift-handover reconciliation math).
+export async function getOrdersPage(page: number, pageSize: number): Promise<ServerPageResult<Order>> {
+  const result = await apiClient.get<{
+    orders: BackendOrder[];
+    pagination: { totalPages: number };
+  }>(`/orders?page=${page}&pageSize=${pageSize}`);
+  return { items: result.orders.map(mapOrder), totalPages: result.pagination.totalPages };
 }
 
 // GET /orders (list) deliberately omits orderDetails to stay lean — this
@@ -173,6 +186,7 @@ export async function createOrder(data: {
   paymentMethod: PaymentMethod;
   amountPaid: number;
   items: NewOrderItemInput[];
+  idempotencyKey: string;
 }): Promise<Order> {
   const items = data.items.map((item) =>
     item.type === "SERVICE" && item.serviceType
@@ -185,6 +199,7 @@ export async function createOrder(data: {
     paymentMethod: PAYMENT_METHOD_MAP_TO_BACKEND[data.paymentMethod],
     amountPaid: data.amountPaid,
     items,
+    idempotencyKey: data.idempotencyKey,
   });
   return mapOrder(order);
 }

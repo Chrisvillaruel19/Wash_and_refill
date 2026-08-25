@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { X, Check } from "lucide-react";
 import { SupplyItem } from "../../../staff/(dashboard)/neworder/types";
 import { useEscapeKey } from "../../../lib/useEscapeKey";
 
@@ -11,9 +11,27 @@ interface SuppliesModalProps {
   onClose: () => void;
 }
 
+const CONFIRMATION_DISPLAY_MS = 900;
+
 export default function SuppliesModal({ supplies, onAdd, onClose }: SuppliesModalProps) {
   useEscapeKey(onClose);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  // Which supply's Add button is currently showing "Added" — the quantity
+  // resets to 1 the instant Add is clicked (see handleAdd below), which
+  // previously looked exactly like the typed amount had been silently
+  // dropped: the box read "1" the moment a user glanced at it right after
+  // clicking, even though the Order Summary had already received the
+  // correct quantity. This makes the successful add visible for a beat
+  // before the input reflects its reset default, instead of the two
+  // happening invisibly in the same instant.
+  const [justAdded, setJustAdded] = useState<string | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
 
   function handleQuantityChange(id: string, value: number) {
     setQuantities((prev) => ({ ...prev, [id]: value }));
@@ -23,6 +41,10 @@ export default function SuppliesModal({ supplies, onAdd, onClose }: SuppliesModa
     const qty = quantities[supply.id] || 1;
     onAdd(supply, qty);
     setQuantities((prev) => ({ ...prev, [supply.id]: 1 }));
+
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    setJustAdded(supply.id);
+    timeoutRef.current = setTimeout(() => setJustAdded(null), CONFIRMATION_DISPLAY_MS);
   }
 
   return (
@@ -61,9 +83,19 @@ export default function SuppliesModal({ supplies, onAdd, onClose }: SuppliesModa
                 />
                 <button
                   onClick={() => handleAdd(supply)}
-                  className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-blue-700 whitespace-nowrap"
+                  className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap flex items-center gap-1 transition-colors ${
+                    justAdded === supply.id
+                      ? "bg-green-600 text-white"
+                      : "bg-blue-600 text-white hover:bg-blue-700"
+                  }`}
                 >
-                  Add
+                  {justAdded === supply.id ? (
+                    <>
+                      <Check size={14} /> Added
+                    </>
+                  ) : (
+                    "Add"
+                  )}
                 </button>
               </div>
             </div>

@@ -3,7 +3,12 @@ import { OrderController } from "../controllers/order.controller.js";
 import { validateSchema } from "../middlewares/validate-schema.js";
 import { AuthMiddleware } from "../middlewares/auth-middleware.js";
 import { requireRole } from "../middlewares/require-role.js";
-import { idParamSchema, createOrderSchema, updateOrderStatusSchema } from "../schema/order/index.js";
+import {
+  idParamSchema,
+  createOrderSchema,
+  updateOrderStatusSchema,
+  listOrdersSchema,
+} from "../schema/order/index.js";
 import { Role } from "../../generated/prisma/client.js";
 
 const router = Router();
@@ -22,7 +27,7 @@ router.post(
   orderController.create
 );
 
-router.get("/", authMiddleware.execute, orderController.list);
+router.get("/", authMiddleware.execute, validateSchema(listOrdersSchema), orderController.list);
 
 router.get(
   "/:id",

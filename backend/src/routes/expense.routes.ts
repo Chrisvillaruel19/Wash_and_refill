@@ -2,7 +2,11 @@ import { Router } from "express";
 import { ExpenseController } from "../controllers/expense.controller.js";
 import { validateSchema } from "../middlewares/validate-schema.js";
 import { AuthMiddleware } from "../middlewares/auth-middleware.js";
-import { createExpenseSchema } from "../schema/expense/index.js";
+import {
+  createExpenseSchema,
+  updateExpenseSchema,
+  listExpensesSchema,
+} from "../schema/expense/index.js";
 
 const router = Router();
 const expenseController = new ExpenseController();
@@ -20,6 +24,13 @@ router.post(
   expenseController.create
 );
 
-router.get("/", authMiddleware.execute, expenseController.list);
+router.get("/", authMiddleware.execute, validateSchema(listExpensesSchema), expenseController.list);
+
+router.patch(
+  "/:id",
+  authMiddleware.execute,
+  validateSchema(updateExpenseSchema),
+  expenseController.update
+);
 
 export default router;

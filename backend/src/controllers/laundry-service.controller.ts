@@ -5,6 +5,7 @@ import {
   getLaundryServiceService,
   updateLaundryServiceService,
   deleteLaundryServiceService,
+  restoreLaundryServiceService,
 } from "../services/laundry-service/index.js";
 import { JwtPayload } from "../lib/jwt.js";
 
@@ -84,6 +85,22 @@ export class LaundryServiceController {
         code: 500,
         status: "error",
         message: "Unable to remove laundry service",
+      });
+    }
+  };
+
+  public restore = async (req: Request, res: Response) => {
+    try {
+      const userId = (req as AuthenticatedRequest).user?.sub as string;
+      const id = req.params.id as string;
+      const result = await restoreLaundryServiceService(userId, id);
+      return res.status(result.code).json(result);
+    } catch (error) {
+      console.error("LaundryServiceController.restore error", error);
+      return res.status(500).json({
+        code: 500,
+        status: "error",
+        message: "Unable to restore laundry service",
       });
     }
   };

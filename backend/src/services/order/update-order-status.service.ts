@@ -1,16 +1,28 @@
 import { prisma } from "../../lib/prisma.js";
 import { OrderRepository } from "../../repositories/order.repository.js";
-import { isValidStatusTransition } from "./order-status-flow.util.js";
-import { OrderStatus, AuditAction } from "../../../generated/prisma/client.js";
+import { isValidStatusTransition, canModifyOrder } from "./order-status-flow.util.js";
+import { OrderStatus, AuditAction, Role } from "../../../generated/prisma/client.js";
 import { writeAuditLog } from "../../lib/audit-log.js";
 
 const orderRepository = new OrderRepository();
 
-export async function updateOrderStatusService(userId: string, id: string, targetStatus: OrderStatus) {
+export async function updateOrderStatusService(
+  userId: string,
+  id: string,
+  targetStatus: OrderStatus,
+  actorRole?: Role
+) {
   try {
     const result = await prisma.$transaction(async (tx) => {
       const existing = await orderRepository.findById(id, tx);
       if (!existing) return { notFound: true } as const;
+
+      if (!canModifyOrder(existing.userId, userId, actorRole)) {
+        return {
+          forbidden: true as const,
+          message: "You can only update orders you created.",
+        };
+      }
 
       if (!isValidStatusTransition(existing.status, targetStatus)) {
         return {
@@ -40,6 +52,9 @@ export async function updateOrderStatusService(userId: string, id: string, targe
 
     if ("notFound" in result) {
       return { code: 404, status: "error", message: "Order not found" };
+    }
+    if ("forbidden" in result) {
+      return { code: 403, status: "error", message: result.message };
     }
     if ("invalidTransition" in result) {
       return { code: 400, status: "error", message: result.message };

@@ -5,12 +5,19 @@ type PrismaClientOrTx = typeof prisma | Prisma.TransactionClient;
 
 export class ShiftHandoverRepository {
   // Shared visibility (approved): every authenticated user sees every
-  // record — one physical drawer, not per-user data.
-  async findAll(tx: PrismaClientOrTx = prisma) {
+  // record — one physical drawer, not per-user data. Paginated, newest
+  // first — matches AuditLogRepository.findAll's shape.
+  async findAll(params: { page: number; pageSize: number }, tx: PrismaClientOrTx = prisma) {
     return tx.shiftHandover.findMany({
       include: { user: { select: { id: true, name: true } } },
       orderBy: { endTime: "desc" },
+      skip: (params.page - 1) * params.pageSize,
+      take: params.pageSize,
     });
+  }
+
+  async count(tx: PrismaClientOrTx = prisma) {
+    return tx.shiftHandover.count();
   }
 
   // The single most recent handover across ALL staff — the shared drawer's

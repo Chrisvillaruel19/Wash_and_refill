@@ -35,4 +35,8 @@ export class LaundryServiceRepository {
   async softDelete(id: string, tx: PrismaClientOrTx = prisma) {
     return tx.laundryService.update({ where: { id }, data: { status: false } });
   }
+
+  async restore(id: string, tx: PrismaClientOrTx = prisma) {
+    return tx.laundryService.update({ where: { id }, data: { status: true } });
+  }
 }

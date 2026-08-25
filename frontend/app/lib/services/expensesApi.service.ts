@@ -1,5 +1,6 @@
-import { apiClient } from "../apiClient";
+import { apiClient, fetchAllPages } from "../apiClient";
 import { ExpenseRecord, ExpenseCategory } from "../../staff/(dashboard)/types";
+import type { ServerPageResult } from "../useServerPage";
 
 type BackendExpenseCategory =
   | "SUPPLIES_AND_MATERIALS"
@@ -49,8 +50,19 @@ function mapExpense(e: BackendExpense): ExpenseRecord {
 }
 
 export async function getExpenses(): Promise<ExpenseRecord[]> {
-  const { expenses } = await apiClient.get<{ expenses: BackendExpense[] }>("/expenses");
+  const expenses = await fetchAllPages<BackendExpense>("/expenses", "expenses");
   return expenses.map(mapExpense);
+}
+
+// Genuine single-page fetch — role-scoped server-side same as getExpenses()
+// (Admin sees every staff member's expenses, Staff sees only their own), for
+// browsable list views driven by useServerPage.ts.
+export async function getExpensesPage(page: number, pageSize: number): Promise<ServerPageResult<ExpenseRecord>> {
+  const result = await apiClient.get<{
+    expenses: BackendExpense[];
+    pagination: { totalPages: number };
+  }>(`/expenses?page=${page}&pageSize=${pageSize}`);
+  return { items: result.expenses.map(mapExpense), totalPages: result.pagination.totalPages };
 }
 
 // The create response's expense object has no `submittedBy` (list is the

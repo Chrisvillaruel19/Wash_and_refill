@@ -1,4 +1,4 @@
-import { OrderStatus } from "../../../generated/prisma/client.js";
+import { OrderStatus, Role } from "../../../generated/prisma/client.js";
 
 // Strict, sequential, forward-only — no skipping steps, no going backward.
 // CANCELLED is intentionally not reachable through this map at all; it has
@@ -22,4 +22,15 @@ export function isCancellable(current: OrderStatus): boolean {
     current === OrderStatus.IN_PROGRESS ||
     current === OrderStatus.READY
   );
+}
+
+// Staff may only cancel/advance-status/mark-paid an order they personally
+// created (Order.userId, set once at creation — never reassigned); Admin
+// bypasses this and may act on any order, matching Reverse Payment's
+// existing Admin-only carve-out for the one mutation that was already
+// role-gated. Not used by create (nothing to own yet) or reverse-payment
+// (already Admin-only at the route, so this check would be redundant
+// there).
+export function canModifyOrder(orderOwnerUserId: string, actorUserId: string, actorRole?: Role): boolean {
+  return actorRole === Role.ADMIN || orderOwnerUserId === actorUserId;
 }

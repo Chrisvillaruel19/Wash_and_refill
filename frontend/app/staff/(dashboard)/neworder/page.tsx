@@ -50,6 +50,16 @@ export default function NewOrderPage() {
   // event is dispatched, so the actual re-entrancy guard is this ref (set
   // synchronously, immediately) — isSubmitting state just drives the UI.
   const isSubmittingRef = useRef(false);
+  // One key per submission attempt, protecting against a double-submitted
+  // order at the network/server level (retry, double-tap, second tab) —
+  // isSubmittingRef only guards against a second click in this same tab.
+  // Reused across sequential retries of the same attempt (a failed request
+  // should be safely retryable with the same key); replaced only after a
+  // successful submission, once cartItems is cleared below.
+  const idempotencyKeyRef = useRef<string | null>(null);
+  if (idempotencyKeyRef.current === null) {
+    idempotencyKeyRef.current = crypto.randomUUID();
+  }
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showSuppliesModal, setShowSuppliesModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<ServiceCategory | null>(null);
@@ -189,9 +199,14 @@ export default function NewOrderPage() {
         paymentMethod,
         amountPaid,
         items,
+        idempotencyKey: idempotencyKeyRef.current!,
       });
 
       alertSuccess("Transaction completed!", "Check your dashboard for the updated summary.");
+      // Fresh key for the next, distinct transaction — a retry of THIS
+      // transaction is now impossible since the cart/form are about to
+      // reset anyway.
+      idempotencyKeyRef.current = crypto.randomUUID();
       setCartItems([]);
       setCustomerName("");
       setPhoneNumber("");

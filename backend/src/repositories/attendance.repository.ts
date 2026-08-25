@@ -4,8 +4,21 @@ import { Prisma, AttendanceStatus } from "../../generated/prisma/client.js";
 type PrismaClientOrTx = typeof prisma | Prisma.TransactionClient;
 
 export class AttendanceRepository {
+  // Admin scope — every employee's records.
   async findAll(tx: PrismaClientOrTx = prisma) {
     return tx.attendance.findMany({
+      include: { user: { select: { id: true, name: true } } },
+      orderBy: { date: "desc" },
+    });
+  }
+
+  // Staff scope — only the authenticated user's own records. Same shape as
+  // findAll (still joins User) so the service layer can derive a display
+  // name the same way for both scopes, matching ExpenseRepository's
+  // findAll/findAllForUser pair.
+  async findAllForUser(userId: string, tx: PrismaClientOrTx = prisma) {
+    return tx.attendance.findMany({
+      where: { userId },
       include: { user: { select: { id: true, name: true } } },
       orderBy: { date: "desc" },
     });

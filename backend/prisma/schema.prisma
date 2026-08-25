@@ -120,6 +120,15 @@ model Order {
   paymentDate     DateTime?
   claimedDate     DateTime?
 
+  // Client-generated per-submission-attempt token (New Order's "Finish
+  // Transaction"). Nullable so existing rows are unaffected — Postgres
+  // treats every NULL as distinct under a unique index, so legacy rows
+  // never collide with each other or with new ones. A retried/duplicated
+  // request reusing the same key hits this constraint (P2002), which the
+  // service catches and returns the original order instead of creating a
+  // second one — never trust a client to only submit once.
+  idempotencyKey  String? @unique
+
   orderDetails    OrderDetail[]
   consumptions    InventoryConsumption[]
 

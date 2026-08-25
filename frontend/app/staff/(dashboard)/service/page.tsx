@@ -46,6 +46,15 @@ export default function ServicePage() {
   // Persists across refetches so items already fetched aren't re-requested.
   const [itemsByOrderId, setItemsByOrderId] = useState<Record<string, string[]>>({});
 
+  // Deliberately NOT converted to server-side pagination (unlike
+  // Orders/Sales/Expenses — see Item 6 follow-up): this is an operational
+  // work queue, not a browsable archive. Staff must see every currently
+  // active (non-Claimed/Cancelled) order regardless of how many exist —
+  // capping this to one page could silently hide a real Pending order from
+  // whoever's supposed to act on it, which is a worse outcome than the
+  // performance cost of fetching it all. The "Claimed"/"Cancelled" filter
+  // tabs do let this grow into full historical browsing, but the primary,
+  // default use of this page is the small, naturally-bounded active queue.
   async function loadOrders() {
     try {
       const data = await getOrders();

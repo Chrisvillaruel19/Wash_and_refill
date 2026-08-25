@@ -2,18 +2,25 @@ import { prisma } from "../../lib/prisma.js";
 import { OrderRepository } from "../../repositories/order.repository.js";
 import { InventoryRepository } from "../../repositories/inventory.repository.js";
 import { refreshStockStatus } from "../inventory/stock-status.util.js";
-import { isCancellable } from "./order-status-flow.util.js";
-import { OrderStatus, AuditAction } from "../../../generated/prisma/client.js";
+import { isCancellable, canModifyOrder } from "./order-status-flow.util.js";
+import { OrderStatus, AuditAction, Role } from "../../../generated/prisma/client.js";
 import { writeAuditLog } from "../../lib/audit-log.js";
 
 const orderRepository = new OrderRepository();
 const inventoryRepository = new InventoryRepository();
 
-export async function cancelOrderService(userId: string, id: string) {
+export async function cancelOrderService(userId: string, id: string, actorRole?: Role) {
   try {
     const result = await prisma.$transaction(async (tx) => {
       const existing = await orderRepository.findById(id, tx);
       if (!existing) return { notFound: true } as const;
+
+      if (!canModifyOrder(existing.userId, userId, actorRole)) {
+        return {
+          forbidden: true as const,
+          message: "You can only cancel orders you created.",
+        };
+      }
 
       if (!isCancellable(existing.status)) {
         return {
@@ -53,6 +60,9 @@ export async function cancelOrderService(userId: string, id: string) {
 
     if ("notFound" in result) {
       return { code: 404, status: "error", message: "Order not found" };
+    }
+    if ("forbidden" in result) {
+      return { code: 403, status: "error", message: result.message };
     }
     if ("notCancellable" in result) {
       return { code: 400, status: "error", message: result.message };

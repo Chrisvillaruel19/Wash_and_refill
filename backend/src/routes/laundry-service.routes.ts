@@ -51,4 +51,12 @@ router.delete(
   laundryServiceController.remove
 );
 
+router.patch(
+  "/:id/restore",
+  authMiddleware.execute,
+  requireRole(Role.ADMIN),
+  validateSchema(idParamSchema),
+  laundryServiceController.restore
+);
+
 export default router;

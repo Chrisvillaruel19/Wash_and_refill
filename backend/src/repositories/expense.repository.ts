@@ -18,23 +18,57 @@ export class ExpenseRepository {
     return tx.expense.create({ data });
   }
 
-  // Admin scope — every expense, across all staff.
-  async findAll(tx: PrismaClientOrTx = prisma) {
+  async findById(id: string, tx: PrismaClientOrTx = prisma) {
+    return tx.expense.findUnique({ where: { id } });
+  }
+
+  async update(
+    id: string,
+    data: Partial<{
+      amount: number;
+      category: ExpenseCategory;
+      description: string;
+      receiptUrl: string;
+    }>,
+    tx: PrismaClientOrTx = prisma
+  ) {
+    return tx.expense.update({ where: { id }, data });
+  }
+
+  // Admin scope — every expense, across all staff. Paginated, newest first —
+  // matches AuditLogRepository.findAll's shape.
+  async findAll(params: { page: number; pageSize: number }, tx: PrismaClientOrTx = prisma) {
     return tx.expense.findMany({
       include: { user: { select: { id: true, name: true } } },
       orderBy: { expenseDate: "desc" },
+      skip: (params.page - 1) * params.pageSize,
+      take: params.pageSize,
     });
+  }
+
+  async count(tx: PrismaClientOrTx = prisma) {
+    return tx.expense.count();
   }
 
   // Staff scope — only the authenticated user's own submissions. Still
   // joins User (not just the already-known userId) so the service layer can
   // derive `submittedBy` the same way for both scopes.
-  async findAllForUser(userId: string, tx: PrismaClientOrTx = prisma) {
+  async findAllForUser(
+    userId: string,
+    params: { page: number; pageSize: number },
+    tx: PrismaClientOrTx = prisma
+  ) {
     return tx.expense.findMany({
       where: { userId },
       include: { user: { select: { id: true, name: true } } },
       orderBy: { expenseDate: "desc" },
+      skip: (params.page - 1) * params.pageSize,
+      take: params.pageSize,
     });
+  }
+
+  async countForUser(userId: string, tx: PrismaClientOrTx = prisma) {
+    return tx.expense.count({ where: { userId } });
   }
 
   // Claim-based reconciliation source (global): every currently-unclaimed
@@ -69,5 +103,17 @@ export class ExpenseRepository {
   // based, not timestamp based.
   async findUnclaimedForUser(userId: string, tx: PrismaClientOrTx = prisma) {
     return tx.expense.findMany({ where: { userId, shiftHandoverId: null } });
+  }
+
+  // Analytics source: every expense whose expenseDate falls in [start, end)
+  // — global (all staff), joined with the submitting user for per-staff
+  // breakdowns. Independent of shiftHandoverId/claim status, same reasoning
+  // as OrderRepository.findPaidInRange — an expense counts for the period
+  // it happened in regardless of whether it's been reconciled yet.
+  async findInRange(start: Date, end: Date, tx: PrismaClientOrTx = prisma) {
+    return tx.expense.findMany({
+      where: { expenseDate: { gte: start, lt: end } },
+      include: { user: { select: { id: true, name: true } } },
+    });
   }
 }

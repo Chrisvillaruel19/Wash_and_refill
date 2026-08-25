@@ -90,4 +90,13 @@ export class InventoryRepository {
   async softDelete(id: string, tx: PrismaClientOrTx = prisma) {
     return tx.inventory.update({ where: { id }, data: { isActive: false } });
   }
+
+  // Batched lookup for validating a package recipe's ingredient list in one
+  // round trip instead of one findById per ingredient. Not filtered by
+  // isActive, same reasoning as findById — the caller decides what to do
+  // with an inactive/missing id.
+  async findByIds(ids: string[], tx: PrismaClientOrTx = prisma) {
+    if (ids.length === 0) return [];
+    return tx.inventory.findMany({ where: { id: { in: ids } } });
+  }
 }

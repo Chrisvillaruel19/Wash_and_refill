@@ -17,5 +17,13 @@ export const createOrderSchema = z.object({
       .nonnegative("Amount paid cannot be negative"),
 
     items: z.array(orderItemSchema).min(1, "At least one item is required"),
+
+    // Client-generated per-submission-attempt token (crypto.randomUUID() on
+    // the frontend) — see Order.idempotencyKey in schema.prisma for why this
+    // exists and how a retried request is handled.
+    idempotencyKey: z
+      .string({ message: "Idempotency key is required" })
+      .min(1, "Idempotency key cannot be empty")
+      .max(100, "Idempotency key is too long"),
   }),
 });

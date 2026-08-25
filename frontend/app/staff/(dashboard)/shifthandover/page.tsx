@@ -4,11 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import { getOrders, getOrderDetailLines, OrderDetailLine } from "../../../lib/services/ordersApi.service";
 import { getExpenses } from "../../../lib/services/expensesApi.service";
 import { getInventory } from "../../../lib/services/inventoryApi.service";
-import { getShiftHandovers, createShiftHandover } from "../../../lib/services/shiftHandoverApi.service";
+import {
+  getShiftHandoversPage,
+  getMostRecentShiftHandover,
+  createShiftHandover,
+} from "../../../lib/services/shiftHandoverApi.service";
 import { ApiError } from "../../../lib/apiClient";
-import { Order, ExpenseRecord, InventoryItem, ShiftHandoverRecord } from "../types";
+import { Order, ExpenseRecord, InventoryItem } from "../types";
 import Pagination from "../../../components/staffcom/Pagination";
-import { usePagination } from "../../../lib/usePagination";
+import { useServerPage } from "../../../lib/useServerPage";
 
 const PAGE_SIZE = 6;
 
@@ -44,7 +48,9 @@ export default function ShiftHandover() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
-  const [history, setHistory] = useState<ShiftHandoverRecord[]>([]);
+  // Only the single most recent record — GET /shift-handover?pageSize=1
+  // instead of fetching the entire history just to find its max endTime.
+  const [mostRecentHandover, setMostRecentHandover] = useState<{ actualCashCounted: number } | null>(null);
   const [unclaimedOrderLines, setUnclaimedOrderLines] = useState<Record<string, OrderDetailLine[]>>({});
   const [actualCashCounted, setActualCashCounted] = useState(0);
   const [notes, setNotes] = useState("");
@@ -53,20 +59,36 @@ export default function ShiftHandover() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const isSubmittingRef = useRef(false);
+  // Bumped after a successful submit to force the history table and the
+  // most-recent-handover lookup to refetch, since a new handover changes
+  // both even when the user is already viewing page 1.
+  const [reloadKey, setReloadKey] = useState(0);
+
+  // Handover History table — real server-side pagination (Item 6 follow-up):
+  // each page turn is its own request, not a slice of a fully-loaded array.
+  // No filter/search exists on this table, so there's no hybrid mode needed
+  // here unlike Orders/Expenses' browsable lists.
+  const {
+    page,
+    setPage,
+    totalPages,
+    items: history,
+    loading: historyLoading,
+  } = useServerPage(getShiftHandoversPage, PAGE_SIZE, true, reloadKey);
 
   useEffect(() => {
     async function load() {
       try {
-        const [ordersData, expensesData, inventoryData, historyData] = await Promise.all([
+        const [ordersData, expensesData, inventoryData, recentHandover] = await Promise.all([
           getOrders(),
           getExpenses(),
           getInventory(),
-          getShiftHandovers(),
+          getMostRecentShiftHandover(),
         ]);
         setOrders(ordersData);
         setExpenses(expensesData);
         setInventory(inventoryData);
-        setHistory(historyData);
+        setMostRecentHandover(recentHandover);
       } catch {
         setLoadError("Unable to load shift handover data. Please try again.");
       } finally {
@@ -76,6 +98,14 @@ export default function ShiftHandover() {
     load();
   }, []);
 
+  // `orders` (and `expenses` below) are deliberately kept as a full fetch —
+  // DO NOT convert this to server-side pagination (see Item 6 follow-up).
+  // Cash reconciliation math must see every unclaimed record, not just
+  // whatever page happens to be loaded; capping this would silently drop
+  // real unclaimed orders/expenses out of the cash count. No backend
+  // "unclaimed-only" endpoint exists to narrow this server-side yet — if
+  // one is ever added, wire this to it instead of a paginated fetch.
+  //
   // "Unclaimed" mirrors the backend's own lockUnclaimedPaidIds filter
   // exactly (paid, not cancelled, shiftHandoverId null) — this is the one
   // shared drawer's pending activity, from any staff member, not just mine.
@@ -131,10 +161,7 @@ export default function ShiftHandover() {
   const myUnclaimedExpenses = expenses.filter((e) => !e.shiftHandoverId);
   const expenseTotal = myUnclaimedExpenses.reduce((sum, e) => sum + e.amount, 0);
 
-  const drawerStart =
-    history.length === 0
-      ? FALLBACK_CASH_DRAWER_START
-      : history.reduce((latest, h) => (h.timestamp > latest.timestamp ? h : latest)).actualCashCounted;
+  const drawerStart = mostRecentHandover === null ? FALLBACK_CASH_DRAWER_START : mostRecentHandover.actualCashCounted;
 
   // Withdrawals aren't visible to Staff (GET /withdrawals is Admin-only) —
   // excluded from this preview by necessity, disclosed below. The actual
@@ -163,14 +190,15 @@ export default function ShiftHandover() {
     try {
       await createShiftHandover({ actualCashCounted, notes: trimmedNotes || undefined });
 
-      const [ordersData, expensesData, historyData] = await Promise.all([
+      const [ordersData, expensesData, recentHandover] = await Promise.all([
         getOrders(),
         getExpenses(),
-        getShiftHandovers(),
+        getMostRecentShiftHandover(),
       ]);
       setOrders(ordersData);
       setExpenses(expensesData);
-      setHistory(historyData);
+      setMostRecentHandover(recentHandover);
+      setReloadKey((k) => k + 1);
       setActualCashCounted(0);
       setNotes("");
     } catch (err) {
@@ -182,8 +210,6 @@ export default function ShiftHandover() {
       setIsSubmitting(false);
     }
   }
-
-  const { page, setPage, totalPages, paginatedItems } = usePagination(history, PAGE_SIZE);
 
   if (loading) {
     return <p className="text-gray-400 p-6">Loading shift handover data...</p>;
@@ -358,7 +384,7 @@ export default function ShiftHandover() {
         </button>
       </div>
 
-      {history.length > 0 && (
+      {(history.length > 0 || historyLoading) && (
         <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 mt-6">
           <h2 className="text-lg font-bold text-gray-900 mb-4">Handover History</h2>
           <div className="overflow-x-auto">
@@ -372,8 +398,8 @@ export default function ShiftHandover() {
                   <th className="p-2 whitespace-nowrap">Shortage</th>
                 </tr>
               </thead>
-              <tbody>
-                {paginatedItems.map((h) => (
+              <tbody className={historyLoading ? "opacity-50" : undefined}>
+                {history.map((h) => (
                   <tr key={h.id} className="border-b last:border-0">
                     <td className="p-2 whitespace-nowrap text-gray-900">
                       {new Date(h.timestamp).toLocaleString([], {

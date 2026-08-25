@@ -6,7 +6,7 @@ import { LaundryServiceRepository } from "../../repositories/laundry-service.rep
 import { InventoryRepository } from "../../repositories/inventory.repository.js";
 import { refreshStockStatus } from "../inventory/stock-status.util.js";
 import { OrderValidationError, InsufficientStockError } from "./order-errors.js";
-import { OrderStatus, PaymentMethod, PaymentStatus, ServiceType, AuditAction } from "../../../generated/prisma/client.js";
+import { OrderStatus, PaymentMethod, PaymentStatus, ServiceType, AuditAction, Prisma } from "../../../generated/prisma/client.js";
 import type { OrderItemInput } from "../../schema/order/order-item.schema.js";
 import { writeAuditLog } from "../../lib/audit-log.js";
 
@@ -16,6 +16,18 @@ const packageRepository = new PackageRepository();
 const laundryServiceRepository = new LaundryServiceRepository();
 const inventoryRepository = new InventoryRepository();
 
+// Real cash transactions legitimately overpay (customer hands over a bigger
+// bill, expects change) — this is a sanity ceiling against data-entry
+// mistakes (an extra zero, a typo), not a clamp to exact change. Flat, not
+// percentage-based: a percentage cap would incorrectly reject completely
+// normal cash scenarios on small orders (e.g. a ₱30 order paid with a
+// ₱1,000 bill is 33x the total and totally ordinary in PHP cash handling,
+// but a fixed peso amount beyond any order's total is still a reasonable
+// ceiling regardless of order size). ₱2,000 comfortably covers the largest
+// commonly-circulated PHP bill being tendered against even a small order;
+// adjust here if real usage proves this wrong in either direction.
+const AMOUNT_PAID_TOLERANCE = 2000;
+
 export async function createOrderService(input: {
   customerName: string;
   phoneNumber: string;
@@ -23,6 +35,7 @@ export async function createOrderService(input: {
   amountPaid: number;
   items: OrderItemInput[];
   userId: string;
+  idempotencyKey: string;
 }) {
   try {
     const order = await prisma.$transaction(async (tx) => {
@@ -133,7 +146,15 @@ export async function createOrderService(input: {
 
       // 4. Payment status/date computed server-side only — never trusted
       // from the client, same principle already applied to Inventory's
-      // stockStatus.
+      // stockStatus. amountPaid itself is sanity-checked against the
+      // server-computed total before it's ever persisted — see
+      // AMOUNT_PAID_TOLERANCE above.
+      if (input.amountPaid > totalAmount + AMOUNT_PAID_TOLERANCE) {
+        throw new OrderValidationError(
+          `Amount paid (₱${input.amountPaid.toFixed(2)}) is unreasonably higher than the order total (₱${totalAmount.toFixed(2)}). Please confirm the amount.`
+        );
+      }
+
       const paymentStatus = input.amountPaid >= totalAmount ? PaymentStatus.PAID : PaymentStatus.UNPAID;
       const paymentDate = paymentStatus === PaymentStatus.PAID ? new Date() : null;
 
@@ -150,6 +171,7 @@ export async function createOrderService(input: {
           amountPaid: input.amountPaid,
           totalAmount,
           paymentDate,
+          idempotencyKey: input.idempotencyKey,
         },
         tx
       );
@@ -179,6 +201,22 @@ export async function createOrderService(input: {
       data: { order },
     };
   } catch (error) {
+    // A retried/double-submitted request reusing the same idempotencyKey
+    // hits the unique constraint — return the order that already exists
+    // for that key instead of erroring, so a network retry or double-tap
+    // is a no-op rather than a duplicate order or a confusing failure.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      const existing = await orderRepository.findByIdempotencyKey(input.idempotencyKey);
+      if (existing) {
+        return {
+          code: 200,
+          status: "success",
+          message: "Order already created for this request",
+          data: { order: existing },
+        };
+      }
+    }
+
     if (error instanceof OrderValidationError) {
       return { code: 400, status: "error", message: error.message };
     }

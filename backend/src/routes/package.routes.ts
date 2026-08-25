@@ -47,4 +47,12 @@ router.delete(
   packageController.remove
 );
 
+router.patch(
+  "/:id/restore",
+  authMiddleware.execute,
+  requireRole(Role.ADMIN),
+  validateSchema(idParamSchema),
+  packageController.restore
+);
+
 export default router;

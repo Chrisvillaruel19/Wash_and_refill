@@ -53,4 +53,8 @@ export class PackageRepository {
   async softDelete(id: string, tx: PrismaClientOrTx = prisma) {
     return tx.package.update({ where: { id }, data: { status: false } });
   }
+
+  async restore(id: string, tx: PrismaClientOrTx = prisma) {
+    return tx.package.update({ where: { id }, data: { status: true } });
+  }
 }

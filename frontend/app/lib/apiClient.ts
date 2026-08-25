@@ -198,6 +198,35 @@ async function refreshAccessToken(): Promise<boolean> {
   return refreshPromise;
 }
 
+// Orders/Expenses/Shift Handovers are now server-paginated (bounded query
+// size on the backend, capped at pageSize=100) — but every existing caller
+// of getOrders()/getExpenses()/getShiftHandovers() still expects "the
+// complete list" (dashboard totals, sales stat cards, the shift-handover
+// reconciliation's unclaimed-order check). Rather than rewrite every one of
+// those consumers to be pagination-aware, this walks every page server-side
+// and concatenates — callers keep their existing "fetch everything" contract
+// unchanged, while each individual request to the backend stays bounded.
+export async function fetchAllPages<T>(
+  path: string,
+  dataKey: string
+): Promise<T[]> {
+  const PAGE_SIZE = 100;
+  let page = 1;
+  const all: T[] = [];
+  for (;;) {
+    const separator = path.includes("?") ? "&" : "?";
+    const result = await request<Record<string, unknown>>(
+      `${path}${separator}page=${page}&pageSize=${PAGE_SIZE}`
+    );
+    const rows = (result[dataKey] as T[] | undefined) ?? [];
+    all.push(...rows);
+    const totalPages = (result.pagination as { totalPages?: number } | undefined)?.totalPages ?? 1;
+    if (page >= totalPages) break;
+    page++;
+  }
+  return all;
+}
+
 export const apiClient = {
   get: <T>(path: string) => request<T>(path, { method: "GET" }),
   post: <T>(path: string, body?: unknown) =>

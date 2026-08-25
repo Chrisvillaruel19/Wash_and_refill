@@ -17,7 +17,7 @@ export class OrderController {
     try {
       const authReq = req as AuthenticatedRequest;
       const userId = authReq.user?.sub as string;
-      const { customerName, phoneNumber, paymentMethod, amountPaid, items } = req.body;
+      const { customerName, phoneNumber, paymentMethod, amountPaid, items, idempotencyKey } = req.body;
 
       const result = await createOrderService({
         customerName,
@@ -26,6 +26,7 @@ export class OrderController {
         amountPaid,
         items,
         userId,
+        idempotencyKey,
       });
 
       return res.status(result.code).json(result);
@@ -41,7 +42,9 @@ export class OrderController {
 
   public list = async (req: Request, res: Response) => {
     try {
-      const result = await listOrdersService();
+      const page = Number(req.query.page) || 1;
+      const pageSize = Math.min(Number(req.query.pageSize) || 20, 100);
+      const result = await listOrdersService({ page, pageSize });
       return res.status(result.code).json(result);
     } catch (error) {
       console.error("OrderController.list error", error);
@@ -70,10 +73,11 @@ export class OrderController {
 
   public updateStatus = async (req: Request, res: Response) => {
     try {
-      const userId = (req as AuthenticatedRequest).user?.sub as string;
+      const authReq = req as AuthenticatedRequest;
+      const userId = authReq.user?.sub as string;
       const id = req.params.id as string;
       const { status } = req.body;
-      const result = await updateOrderStatusService(userId, id, status);
+      const result = await updateOrderStatusService(userId, id, status, authReq.user?.role);
       return res.status(result.code).json(result);
     } catch (error) {
       console.error("OrderController.updateStatus error", error);
@@ -87,9 +91,10 @@ export class OrderController {
 
   public cancel = async (req: Request, res: Response) => {
     try {
-      const userId = (req as AuthenticatedRequest).user?.sub as string;
+      const authReq = req as AuthenticatedRequest;
+      const userId = authReq.user?.sub as string;
       const id = req.params.id as string;
-      const result = await cancelOrderService(userId, id);
+      const result = await cancelOrderService(userId, id, authReq.user?.role);
       return res.status(result.code).json(result);
     } catch (error) {
       console.error("OrderController.cancel error", error);
@@ -103,9 +108,10 @@ export class OrderController {
 
   public markAsPaid = async (req: Request, res: Response) => {
     try {
-      const userId = (req as AuthenticatedRequest).user?.sub as string;
+      const authReq = req as AuthenticatedRequest;
+      const userId = authReq.user?.sub as string;
       const id = req.params.id as string;
-      const result = await markOrderPaidService(userId, id);
+      const result = await markOrderPaidService(userId, id, authReq.user?.role);
       return res.status(result.code).json(result);
     } catch (error) {
       console.error("OrderController.markAsPaid error", error);

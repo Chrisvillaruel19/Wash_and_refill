@@ -11,8 +11,9 @@ const orderRepository = new OrderRepository();
 export async function getStaffDashboardService() {
   try {
     const todayRange = getBusinessDayRange();
-    const [todaysSales, statusCounts, lowStockResult] = await Promise.all([
+    const [todaysSales, claimedToday, statusCounts, lowStockResult] = await Promise.all([
       orderRepository.sumPaidRevenue(todayRange),
+      orderRepository.countClaimedInRange(todayRange),
       orderRepository.countByStatus(),
       lowStockInventoryService(),
     ]);
@@ -23,7 +24,7 @@ export async function getStaffDashboardService() {
       message: "Staff dashboard statistics retrieved successfully",
       data: {
         todaysSales,
-        claimedToday: statusCounts.CLAIMED,
+        claimedToday,
         ready: statusCounts.READY,
         lowStockItems: lowStockResult.data?.items ?? [],
       },

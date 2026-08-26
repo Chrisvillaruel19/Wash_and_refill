@@ -1,7 +1,7 @@
 import { prisma } from "../../lib/prisma.js";
 import { OrderRepository } from "../../repositories/order.repository.js";
 import { isValidStatusTransition, canModifyOrder } from "./order-status-flow.util.js";
-import { OrderStatus, AuditAction, Role } from "../../../generated/prisma/client.js";
+import { OrderStatus, PaymentStatus, AuditAction, Role } from "../../../generated/prisma/client.js";
 import { writeAuditLog } from "../../lib/audit-log.js";
 
 const orderRepository = new OrderRepository();
@@ -28,6 +28,20 @@ export async function updateOrderStatusService(
         return {
           invalidTransition: true as const,
           message: `Cannot move an order from ${existing.status} to ${targetStatus}. Status must progress one step at a time (PENDING → IN_PROGRESS → READY → CLAIMED), and cannot move backward.`,
+        };
+      }
+
+      // A customer picking up their laundry (CLAIMED) must have actually
+      // paid for it — "Claimed" without "Paid" would mean goods left the
+      // shop with no payment ever recorded, and there's no gate anywhere
+      // else in the order lifecycle that would catch that later. Mirrors
+      // Shift Handover's own definition of a claimable order
+      // (lockUnclaimedPaidIds requires paymentStatus = PAID) — the two
+      // "claim" concepts share a name and should share this rule.
+      if (targetStatus === OrderStatus.CLAIMED && existing.paymentStatus !== PaymentStatus.PAID) {
+        return {
+          invalidTransition: true as const,
+          message: "This order must be marked as paid before it can be claimed.",
         };
       }
 

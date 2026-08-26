@@ -32,6 +32,22 @@ export async function cancelOrderService(userId: string, id: string, actorRole?:
         };
       }
 
+      // A paid order becomes claimable into a Shift Handover as soon as it's
+      // PAID and non-CANCELLED (see lockUnclaimedPaidIds) — independent of
+      // its own status, so a PENDING/IN_PROGRESS/READY order can already be
+      // sitting inside an already-submitted (and thus frozen-total) handover
+      // by the time someone tries to cancel it here. Same reasoning as
+      // reverse-order-payment.service.ts and update-expense.service.ts:
+      // cancelling now would restore inventory and change the order's status
+      // while the closed handover's revenue total silently keeps counting it.
+      if (existing.shiftHandoverId !== null) {
+        return {
+          alreadyClaimed: true as const,
+          message:
+            "This order has already been reconciled in a Shift Handover and can no longer be cancelled.",
+        };
+      }
+
       // Restore whatever this order actually consumed. The original
       // InventoryConsumption rows are left exactly as they are — they
       // remain a true historical record of what this order consumed before
@@ -66,6 +82,9 @@ export async function cancelOrderService(userId: string, id: string, actorRole?:
     }
     if ("notCancellable" in result) {
       return { code: 400, status: "error", message: result.message };
+    }
+    if ("alreadyClaimed" in result) {
+      return { code: 409, status: "error", message: result.message };
     }
 
     return {

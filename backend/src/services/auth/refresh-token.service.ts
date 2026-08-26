@@ -15,6 +15,17 @@ export async function RefreshTokenService(refreshToken: string) {
 
     const storedToken = await tokenRepository.findActiveRefreshToken(refreshToken);
     if (!storedToken) {
+      // Distinguish "never existed" from "existed but was already consumed
+      // or revoked" — a legitimate refresh token is rotated away the
+      // instant it's used, so it should only ever be presented once. Seeing
+      // it again is a signal the token was stolen and both the attacker and
+      // the legitimate holder are now racing to use it. Response: revoke
+      // every other active refresh token for this user, forcing every
+      // session (attacker included) to re-authenticate.
+      const raw = await tokenRepository.findRefreshTokenByRawValue(refreshToken);
+      if (raw && (raw.consumedAt !== null || raw.revokedAt !== null)) {
+        await tokenRepository.revokeAllActiveRefreshTokensForUser(raw.userId);
+      }
       return { code: 401, status: "error", message: "Invalid or expired refresh token" };
     }
 

@@ -10,6 +10,14 @@ import {
 const userRepository = new UserRepository();
 const tokenRepository = new TokenRepository();
 
+// A syntactically valid (but unusable — no real user has this salt/hash)
+// PBKDF2 record, used only to make the "unknown username" path pay the same
+// pbkdf2 cost as the "wrong password" path below. Without this, an attacker
+// measuring response latency could distinguish the two cases (fast return
+// vs. a ~120,000-iteration derivation) and enumerate valid usernames.
+const DUMMY_PASSWORD_HASH =
+  "0000000000000000000000000000000000000000000000000000000000000000:120000:" +
+  "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
 
 export async function LoginService(
   username: string,
@@ -21,6 +29,8 @@ export async function LoginService(
     const user = await userRepository.findByUsername(username);
 
     if (!user) {
+      // Still pay the pbkdf2 cost — see DUMMY_PASSWORD_HASH above.
+      verifyPassword(password, DUMMY_PASSWORD_HASH);
       return {
         code: 401,
         status: "error",

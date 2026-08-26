@@ -19,7 +19,6 @@ import {
   LogOut,
   Menu,
   X,
-  BarChart3,
 } from "lucide-react";
 
 import { logout } from "../../lib/auth";
@@ -35,7 +34,6 @@ const menuItems = [
   { label: "Sales", href: "/admin/sales", icon: DollarSign },
   { label: "Expenses", href: "/admin/expenses", icon: Receipt },
   { label: "Attendance", href: "/admin/attendance", icon: CalendarDays },
-  { label: "Analytics", href: "/admin/analytics", icon: BarChart3 },
 ];
 
 export default function AdminSidebar() {

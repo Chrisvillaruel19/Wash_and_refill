@@ -13,7 +13,6 @@ import shiftHandoverRoutes from "./shift-handover.routes.js";
 import withdrawalRoutes from "./withdrawal.routes.js";
 import dashboardRoutes from "./dashboard.routes.js";
 import auditLogRoutes from "./audit-log.routes.js";
-import analyticsRoutes from "./analytics.routes.js";
 
 const router = Router();
 
@@ -40,7 +39,6 @@ router.use("/shift-handover", shiftHandoverRoutes);
 router.use("/withdrawals", withdrawalRoutes);
 router.use("/dashboard", dashboardRoutes);
 router.use("/audit-logs", auditLogRoutes);
-router.use("/analytics", analyticsRoutes);
 
 
 export default router;

@@ -205,6 +205,21 @@ export class OrderRepository {
     });
   }
 
+  // Dashboard: how many orders were actually claimed within a date range
+  // (Staff Dashboard's "Claimed today" card) — scoped by claimedDate, the
+  // timestamp update-order-status.service.ts sets at the exact moment an
+  // order transitions to CLAIMED. Distinct from countByStatus().CLAIMED
+  // below, which is an all-time, unscoped count of every order currently
+  // sitting in CLAIMED status regardless of when that happened — that
+  // figure was previously (incorrectly) reused for "today," which meant a
+  // laundry business with zero claims today still saw yesterday's (or last
+  // month's) total displayed as "Claimed today."
+  async countClaimedInRange(range: { start: Date; end: Date }, tx: PrismaClientOrTx = prisma): Promise<number> {
+    return tx.order.count({
+      where: { status: OrderStatus.CLAIMED, claimedDate: { gte: range.start, lt: range.end } },
+    });
+  }
+
   // Dashboard: total revenue from every paid, non-cancelled order — now
   // date-scoped via paymentDate when a range is passed (both dashboard
   // services pass getBusinessDayRange() for "today"). Range omitted =
@@ -224,23 +239,6 @@ export class OrderRepository {
       _sum: { totalAmount: true },
     });
     return Number(result._sum.totalAmount ?? 0);
-  }
-
-  // Analytics source: every paid, non-cancelled order whose paymentDate
-  // falls in [start, end) — same shape as findUnclaimedPaid (orderDetails
-  // included) plus the owning staff member, so callers can feed this
-  // straight into summarizeOrders (reconciliation.util.ts) for the
-  // category/cash-vs-gcash breakdown, or group by user for per-staff
-  // revenue, without a second query.
-  async findPaidInRange(start: Date, end: Date, tx: PrismaClientOrTx = prisma) {
-    return tx.order.findMany({
-      where: {
-        paymentStatus: PaymentStatus.PAID,
-        status: { not: OrderStatus.CANCELLED },
-        paymentDate: { gte: start, lt: end },
-      },
-      include: { orderDetails: true, user: { select: { id: true, name: true } } },
-    });
   }
 
   // Dashboard: order counts by status, for the status-count cards and the

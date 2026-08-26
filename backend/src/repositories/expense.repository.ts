@@ -105,15 +105,4 @@ export class ExpenseRepository {
     return tx.expense.findMany({ where: { userId, shiftHandoverId: null } });
   }
 
-  // Analytics source: every expense whose expenseDate falls in [start, end)
-  // — global (all staff), joined with the submitting user for per-staff
-  // breakdowns. Independent of shiftHandoverId/claim status, same reasoning
-  // as OrderRepository.findPaidInRange — an expense counts for the period
-  // it happened in regardless of whether it's been reconciled yet.
-  async findInRange(start: Date, end: Date, tx: PrismaClientOrTx = prisma) {
-    return tx.expense.findMany({
-      where: { expenseDate: { gte: start, lt: end } },
-      include: { user: { select: { id: true, name: true } } },
-    });
-  }
 }

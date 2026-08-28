@@ -90,6 +90,7 @@ export default function AdminLogsPage() {
   useEffect(() => {
     if (!isSearchingExpenses) return;
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setExpensesFullLoading(true);
     getExpenses()
       .then((data) => {

@@ -646,8 +646,11 @@ export default function AdminCatalogPage() {
                     </div>
                     <h4 className="text-base sm:text-lg font-bold mb-2">{pkg.name}</h4>
                     <p className="text-xl sm:text-2xl font-bold mb-2">₱ {pkg.price.toFixed(2)}</p>
-                    <p className="text-xs opacity-90">Liquid Detergent: {pkg.liquidDetergent}</p>
-                    <p className="text-xs opacity-90">Downy: {pkg.downy}</p>
+                    {pkg.details.map((d) => (
+                      <p key={d.inventoryId} className="text-xs opacity-90">
+                        {d.itemName}: {d.quantity}
+                      </p>
+                    ))}
                   </div>
                 ))}
               </div>
@@ -700,6 +703,7 @@ export default function AdminCatalogPage() {
 
       {showAddPackageModal && (
         <AdminPackageFormModal
+          inventoryOptions={items}
           onSave={handleAddPackageSave}
           onCancel={() => setShowAddPackageModal(false)}
           submitting={actionSubmitting}
@@ -709,6 +713,7 @@ export default function AdminCatalogPage() {
 
       {editPackageTarget && (
         <AdminPackageFormModal
+          inventoryOptions={items}
           initialPackage={editPackageTarget}
           onSave={handleEditPackageSave}
           onCancel={() => setEditPackageTarget(null)}

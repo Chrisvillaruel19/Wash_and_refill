@@ -29,8 +29,11 @@ export default function PackageGrid({ packages, onAdd }: PackageGridProps) {
             </span>
             <h4 className="text-base sm:text-lg font-bold mb-2">{pkg.name}</h4>
             <p className="text-xl sm:text-2xl font-bold mb-2">₱ {pkg.price.toFixed(2)}</p>
-            <p className="text-xs opacity-90">Liquid Detergent: {pkg.liquidDetergent}</p>
-            <p className="text-xs opacity-90">Downy: {pkg.downy}</p>
+            {pkg.details.map((d) => (
+              <p key={d.inventoryId} className="text-xs opacity-90">
+                {d.itemName}: {d.quantity}
+              </p>
+            ))}
           </button>
         ))}
       </div>

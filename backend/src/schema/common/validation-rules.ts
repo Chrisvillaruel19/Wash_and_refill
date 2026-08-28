@@ -84,3 +84,19 @@ export function longTextRule(label: string, max = 500) {
     .min(1, `${label} is required`)
     .max(max, `${label} must be at most ${max} characters`);
 }
+
+// Shared by Expense create/update — a base64 image data URL from the
+// frontend's file input, stored as-is (no external file storage, approved
+// capstone-scale tradeoff). Bounded and shape-checked: previously accepted
+// any string of any length, which meant nothing stopped a malformed value
+// or an unbounded upload from being persisted. ~3MB of base64 text is
+// comfortably under the global 5MB JSON body limit (app.ts) with room left
+// for the rest of the request, while still fitting a genuine phone-camera
+// receipt photo (base64 runs ~33% larger than the underlying file, so this
+// covers roughly a 2.2MB image).
+const MAX_RECEIPT_DATA_URL_LENGTH = 3 * 1024 * 1024;
+
+export const receiptUrlRule = z
+  .string()
+  .max(MAX_RECEIPT_DATA_URL_LENGTH, "Receipt image is too large.")
+  .regex(/^data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/]+=*$/, "Receipt must be a valid image.");

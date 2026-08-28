@@ -45,6 +45,7 @@ export default function Expense() {
   useEffect(() => {
     if (!isSearching) return;
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setExpensesFullLoading(true);
     getExpenses()
       .then((data) => {

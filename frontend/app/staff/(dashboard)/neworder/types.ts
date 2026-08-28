@@ -19,12 +19,20 @@ export interface ServiceItem {
 
 export type ServiceType = "Wash & Dry" | "Wash Only" | "Dry Only";
 
+// One row of a package's recipe — any Inventory item, any quantity, not
+// limited to a fixed set of named ingredients.
+export interface PackageIngredient {
+  inventoryId: string;
+  itemName: string;
+  unit: string;
+  quantity: number;
+}
+
 export interface Package {
   id: string;
   name: string;
   price: number;
-  liquidDetergent: number;
-  downy: number;
+  details: PackageIngredient[];
   color: string;
 }
 

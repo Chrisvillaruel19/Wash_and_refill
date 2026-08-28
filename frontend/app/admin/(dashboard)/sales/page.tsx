@@ -130,9 +130,7 @@ export default function AdminSalesPage() {
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 mb-6">
         <h2 className="text-lg font-bold text-gray-900 mb-4">Drop off Summary</h2>
         <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg py-2 px-3 mb-4">
-          Per-package sales reporting is pending a dedicated backend endpoint — order line items
-          aren&apos;t exposed by the current orders list. This table will populate once that
-          endpoint is built.
+          This breakdown is estimated from order records and may not capture every package sold.
         </p>
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">

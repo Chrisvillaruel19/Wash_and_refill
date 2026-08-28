@@ -29,7 +29,7 @@ export default function SalesStats({
         iconColor="text-blue-600 bg-blue-100"
       />
       <StatCard
-        label="Total claimed"
+        label="Total claimed (all-time)"
         value={totalClaimed}
         icon={CheckCircle2}
         iconColor="text-green-600 bg-green-100"

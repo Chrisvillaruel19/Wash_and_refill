@@ -2,6 +2,7 @@ import { Router } from "express";
 import { ExpenseController } from "../controllers/expense.controller.js";
 import { validateSchema } from "../middlewares/validate-schema.js";
 import { AuthMiddleware } from "../middlewares/auth-middleware.js";
+import { mutationLimiter } from "../middlewares/rate-limiters.js";
 import {
   createExpenseSchema,
   updateExpenseSchema,
@@ -20,6 +21,7 @@ const authMiddleware = new AuthMiddleware();
 router.post(
   "/",
   authMiddleware.execute,
+  mutationLimiter,
   validateSchema(createExpenseSchema),
   expenseController.create
 );

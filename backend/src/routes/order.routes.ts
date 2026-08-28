@@ -3,6 +3,7 @@ import { OrderController } from "../controllers/order.controller.js";
 import { validateSchema } from "../middlewares/validate-schema.js";
 import { AuthMiddleware } from "../middlewares/auth-middleware.js";
 import { requireRole } from "../middlewares/require-role.js";
+import { mutationLimiter } from "../middlewares/rate-limiters.js";
 import {
   idParamSchema,
   createOrderSchema,
@@ -23,6 +24,7 @@ const authMiddleware = new AuthMiddleware();
 router.post(
   "/",
   authMiddleware.execute,
+  mutationLimiter,
   validateSchema(createOrderSchema),
   orderController.create
 );

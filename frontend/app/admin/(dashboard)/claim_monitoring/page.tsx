@@ -83,6 +83,7 @@ export default function ClaimMonitoringPage() {
   useEffect(() => {
     if (!isFiltering) return;
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFullOrdersLoading(true);
     getOrders()
       .then((data) => {
@@ -97,7 +98,6 @@ export default function ClaimMonitoringPage() {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFiltering, reloadKey]);
 
   const filteredOrders = (fullOrders ?? []).filter((order) => {
@@ -189,7 +189,7 @@ export default function ClaimMonitoringPage() {
           iconColor="text-blue-600 bg-blue-100"
         />
         <AdminStatCard
-          label="Total claimed"
+          label="Total claimed (all-time)"
           value={statusCounts.claimed}
           icon={CheckCircle2}
           iconColor="text-green-600 bg-green-100"

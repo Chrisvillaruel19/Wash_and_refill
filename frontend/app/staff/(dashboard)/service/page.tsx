@@ -219,7 +219,7 @@ export default function ServicePage() {
         </div>
         <div className="bg-white rounded-xl shadow-md p-4 sm:p-5 flex items-center justify-between">
           <div>
-            <p className="text-gray-500 text-sm">Claimed</p>
+            <p className="text-gray-500 text-sm">Claimed (all-time)</p>
             <p className="text-2xl font-bold text-gray-700 mt-1">{counts.Claimed}</p>
           </div>
           <ClipboardCheck size={28} className="text-gray-700 shrink-0" />

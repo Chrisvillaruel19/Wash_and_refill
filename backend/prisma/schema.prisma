@@ -152,6 +152,16 @@ model Order {
   // {customer: true}` (order.repository.ts findAll/findById) — same FK
   // reasoning as shiftHandoverId/userId above.
   @@index([customerId])
+  // countByStatus() (Admin/Staff Dashboard's status-count cards) does an
+  // unconditional groupBy over this column on every dashboard load —
+  // previously a full table scan regardless of table size.
+  @@index([status])
+  // sumPaidRevenue() (Today's Sales, both dashboards) filters on exactly
+  // this pair on every dashboard load — was a full scan before this index.
+  @@index([paymentStatus, paymentDate])
+  // countClaimedInRange() (Staff Dashboard's "Claimed today") filters on
+  // exactly this pair — same reasoning as the paymentStatus index above.
+  @@index([status, claimedDate])
 }
 
 enum OrderStatus {

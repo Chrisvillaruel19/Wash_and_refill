@@ -15,3 +15,17 @@ export const restockLimiter = rateLimit({
   legacyHeaders: false,
   message: { code: 429, status: "error", message: "Too many requests, please try again later." },
 });
+
+// Money-affecting create endpoints (Orders, Expenses, Withdrawals) had no
+// throttle at all beyond requiring a valid auth token — a compromised or
+// careless Staff session (or a stray script hitting these in a loop) could
+// otherwise hammer them without limit. 60 per 5 minutes is generous enough
+// that no real shop's peak usage would ever come close (that's one every 5
+// seconds, sustained) while still capping runaway/abusive traffic.
+export const mutationLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { code: 429, status: "error", message: "Too many requests, please try again later." },
+});

@@ -19,7 +19,7 @@ export default function ArchivePage() {
 
   async function loadEmployees() {
     try {
-      const data = await getEmployees();
+      const data = await getEmployees("archived");
       setEmployees(data);
     } catch {
       setLoadError("Unable to load archived employees. Please try again.");
@@ -34,7 +34,9 @@ export default function ArchivePage() {
     initialLoad();
   }, []);
 
-  const archivedEmployees = employees.filter((e) => e.status === "Inactive");
+  // `employees` is already archived-only — the backend filters by
+  // ?status=archived now, not a client-side slice of everyone.
+  const archivedEmployees = employees;
 
   const filteredEmployees = archivedEmployees.filter(
     (e) =>

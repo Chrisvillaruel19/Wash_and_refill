@@ -37,7 +37,8 @@ export class EmployeeController {
 
   public list = async (req: Request, res: Response) => {
     try {
-      const result = await listEmployeesService();
+      const status = req.query.status as "active" | "archived" | undefined;
+      const result = await listEmployeesService(status);
       return res.status(result.code).json(result);
     } catch (error) {
       console.error("EmployeeController.list error:", error);

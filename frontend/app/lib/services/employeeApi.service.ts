@@ -38,8 +38,9 @@ function mapEmployee(e: BackendEmployee): Employee {
   };
 }
 
-export async function getEmployees(): Promise<Employee[]> {
-  const result = await apiClient.get<{ employees: BackendEmployee[] }>("/employee");
+export async function getEmployees(status?: "active" | "archived"): Promise<Employee[]> {
+  const query = status ? `?status=${status}` : "";
+  const result = await apiClient.get<{ employees: BackendEmployee[] }>(`/employee${query}`);
   return result.employees.map(mapEmployee);
 }
 

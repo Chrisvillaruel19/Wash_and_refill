@@ -19,46 +19,82 @@ const PAGE_SIZE = 8;
 
 type FilterTab = "All" | "Active" | "Inactive";
 
+// Maps the tab to the backend's ?status= filter — server-side, not a
+// frontend array slice. "All" omits the param, which the backend treats
+// as "everyone" (its pre-existing default behavior).
+function statusForTab(tab: FilterTab): "active" | "archived" | undefined {
+  if (tab === "Active") return "active";
+  if (tab === "Inactive") return "archived";
+  return undefined;
+}
+
 export default function EmployeePage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [activeFilter, setActiveFilter] = useState<FilterTab>("All");
+  // Independent of the tab-scoped `employees` list above — sourced from an
+  // unfiltered fetch so the stat cards always show true totals regardless
+  // of which tab is currently selected.
+  const [counts, setCounts] = useState({ total: 0, active: 0, inactive: 0 });
+  const [activeFilter, setActiveFilter] = useState<FilterTab>("Active");
   const [search, setSearch] = useState("");
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [editTarget, setEditTarget] = useState<Employee | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<Employee | null>(null);
   const [loading, setLoading] = useState(true);
+  const [tableLoading, setTableLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [actionSubmitting, setActionSubmitting] = useState(false);
   const [actionError, setActionError] = useState("");
-
-  async function loadEmployees() {
-    try {
-      const data = await getEmployees();
-      setEmployees(data);
-    } catch {
-      setLoadError("Unable to load employees. Please try again.");
-    }
-  }
+  // Bumped after create/update/archive so both the tab-scoped list and the
+  // stat-card counts refetch together — same pattern as Sales/Expense/etc.
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    async function initialLoad() {
-      await loadEmployees();
-      setLoading(false);
-    }
-    initialLoad();
-  }, []);
+    let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTableLoading(true);
+    getEmployees(statusForTab(activeFilter))
+      .then((data) => {
+        if (!cancelled) setEmployees(data);
+      })
+      .catch(() => {
+        if (!cancelled) setLoadError("Unable to load employees. Please try again.");
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setTableLoading(false);
+          setLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeFilter, reloadKey]);
 
-  const activeCount = employees.filter((e) => e.status === "Active").length;
-  const inactiveCount = employees.filter((e) => e.status === "Inactive").length;
+  useEffect(() => {
+    let cancelled = false;
+    getEmployees()
+      .then((all) => {
+        if (cancelled) return;
+        setCounts({
+          total: all.length,
+          active: all.filter((e) => e.status === "Active").length,
+          inactive: all.filter((e) => e.status === "Inactive").length,
+        });
+      })
+      .catch(() => {
+        // Non-critical — the table above still works without accurate counts.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
 
-  const filteredEmployees = employees.filter((e) => {
-    const matchesFilter = activeFilter === "All" || e.status === activeFilter;
-    const matchesSearch =
+  const filteredEmployees = employees.filter(
+    (e) =>
       e.name.toLowerCase().includes(search.toLowerCase()) ||
-      e.email.toLowerCase().includes(search.toLowerCase());
-    return matchesFilter && matchesSearch;
-  });
+      e.email.toLowerCase().includes(search.toLowerCase())
+  );
 
   const { page, setPage, totalPages, paginatedItems } = usePagination(
     filteredEmployees,
@@ -78,7 +114,7 @@ export default function EmployeePage() {
         phone: data.phone,
         hiredDate: data.hiredDate,
       });
-      await loadEmployees();
+      setReloadKey((k) => k + 1);
       setShowAddModal(false);
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : "Unable to add employee. Please try again.");
@@ -100,7 +136,7 @@ export default function EmployeePage() {
         hiredDate: data.hiredDate,
         password: data.password || undefined,
       });
-      await loadEmployees();
+      setReloadKey((k) => k + 1);
       setEditTarget(null);
     } catch (err) {
       setActionError(
@@ -117,7 +153,7 @@ export default function EmployeePage() {
     setActionError("");
     try {
       await archiveEmployee(archiveTarget.id);
-      await loadEmployees();
+      setReloadKey((k) => k + 1);
       setArchiveTarget(null);
     } catch (err) {
       setActionError(
@@ -142,21 +178,21 @@ export default function EmployeePage() {
         <div className="bg-white rounded-xl shadow-md p-4 sm:p-5 flex items-center justify-between">
           <div>
             <p className="text-gray-500 text-sm">Employees</p>
-            <p className="text-2xl font-bold text-blue-600 mt-1">{employees.length}</p>
+            <p className="text-2xl font-bold text-blue-600 mt-1">{counts.total}</p>
           </div>
           <Users size={28} className="text-blue-600 shrink-0" />
         </div>
         <div className="bg-white rounded-xl shadow-md p-4 sm:p-5 flex items-center justify-between">
           <div>
             <p className="text-gray-500 text-sm">Active</p>
-            <p className="text-2xl font-bold text-green-600 mt-1">{activeCount}</p>
+            <p className="text-2xl font-bold text-green-600 mt-1">{counts.active}</p>
           </div>
           <UserCheck size={28} className="text-green-600 shrink-0" />
         </div>
         <div className="bg-white rounded-xl shadow-md p-4 sm:p-5 flex items-center justify-between">
           <div>
             <p className="text-gray-500 text-sm">Inactive</p>
-            <p className="text-2xl font-bold text-gray-700 mt-1">{inactiveCount}</p>
+            <p className="text-2xl font-bold text-gray-700 mt-1">{counts.inactive}</p>
           </div>
           <UserX size={28} className="text-gray-700 shrink-0" />
         </div>
@@ -216,7 +252,7 @@ export default function EmployeePage() {
               <th className="p-3 whitespace-nowrap">Actions</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className={tableLoading ? "opacity-50" : undefined}>
             {paginatedItems.length > 0 ? (
               paginatedItems.map((emp) => (
                 <tr key={emp.id} className="border-b last:border-0">

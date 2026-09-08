@@ -5,6 +5,7 @@ import {
   createEmployeeSchema,
   updateEmployeeSchema,
   idParamSchema,
+  listEmployeesSchema,
 } from "../schema/employee/index.js";
 import { AuthMiddleware } from "../middlewares/auth-middleware.js";
 import { requireRole } from "../middlewares/require-role.js";
@@ -27,7 +28,13 @@ router.post(
   employeeController.create
 );
 
-router.get("/", authMiddleware.execute, requireRole(Role.ADMIN), employeeController.list);
+router.get(
+  "/",
+  authMiddleware.execute,
+  requireRole(Role.ADMIN),
+  validateSchema(listEmployeesSchema),
+  employeeController.list
+);
 
 router.patch(
   "/:id",

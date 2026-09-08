@@ -88,9 +88,12 @@ export class UserRepository {
 
   // Employee Management list — scoped to STAFF only. Admin accounts are
   // managed outside this feature (there's no "archive the Admin" flow).
-  async findAllStaff(tx: PrismaClientOrTx = prisma) {
+  // accountStatus is optional so callers can request just the active
+  // roster, just the archived one, or (omitted) everyone — filtered here
+  // at the database query level, not by the caller slicing a full list.
+  async findAllStaff(accountStatus?: AccountStatus, tx: PrismaClientOrTx = prisma) {
     return tx.user.findMany({
-      where: { role: Role.STAFF },
+      where: { role: Role.STAFF, ...(accountStatus ? { accountStatus } : {}) },
       select: employeeSelect,
       orderBy: { name: "asc" },
     });

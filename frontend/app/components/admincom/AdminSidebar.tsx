@@ -8,7 +8,6 @@ import { useState, useEffect } from "react";
 import {
   LayoutDashboard,
   Users,
-  UserCircle,
   Package,
   ClipboardList,
   Archive,
@@ -26,7 +25,6 @@ import { logout } from "../../lib/auth";
 const menuItems = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { label: "Employee", href: "/admin/employee", icon: Users },
-  { label: "Customers", href: "/admin/customers", icon: UserCircle },
   { label: "Catalog", href: "/admin/catalog", icon: Package },
   { label: "Laundry", href: "/admin/claim_monitoring", icon: ClipboardList },
   { label: "Archive", href: "/admin/archive", icon: Archive },

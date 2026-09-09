@@ -63,8 +63,8 @@ export default function EmployeeFormModal({
     const trimmedEmail = email.trim();
     const trimmedPhone = phone.trim();
 
-    if (!trimmedUsername || !trimmedName || !hiredDate) {
-      setError("Username, name, and hired date are required.");
+    if (!trimmedUsername || !trimmedName || !trimmedEmail || !hiredDate) {
+      setError("Username, name, email, and hired date are required.");
       return;
     }
 
@@ -78,7 +78,7 @@ export default function EmployeeFormModal({
       return;
     }
 
-    if (trimmedEmail && !EMAIL_PATTERN.test(trimmedEmail)) {
+    if (!EMAIL_PATTERN.test(trimmedEmail)) {
       setError("Please enter a valid email address.");
       return;
     }

@@ -17,8 +17,11 @@ export async function createEmployeeService(
 ) {
   try {
     const result = await prisma.$transaction(async (tx) => {
-      const existing = await userRepository.findByUsername(username, tx);
-      if (existing) return null;
+      const existingUsername = await userRepository.findByUsername(username, tx);
+      if (existingUsername) return { conflict: "username" } as const;
+
+      const existingEmail = await userRepository.findByEmail(email, tx);
+      if (existingEmail) return { conflict: "email" } as const;
 
       const created = await userRepository.create(
         { username, email, name, phone, hiredDate, password: hashPassword(password) },
@@ -36,11 +39,11 @@ export async function createEmployeeService(
       return created;
     });
 
-    if (!result) {
+    if ("conflict" in result) {
       return {
         code: 409,
         status: "error",
-        message: "Username already registered",
+        message: result.conflict === "username" ? "Username already registered" : "Email already registered",
       };
     }
 

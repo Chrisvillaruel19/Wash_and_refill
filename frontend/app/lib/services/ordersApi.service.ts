@@ -173,6 +173,39 @@ export async function reverseOrderPayment(id: string): Promise<void> {
   await apiClient.patch(`/orders/${id}/reverse-payment`);
 }
 
+export interface SalesBreakdownRow {
+  id: string;
+  name: string;
+  totalQuantity: number;
+  totalAmount: number;
+}
+
+export interface SalesBreakdown {
+  packageBreakdown: SalesBreakdownRow[];
+  supplyBreakdown: SalesBreakdownRow[];
+}
+
+// Real per-order-detail breakdown from the backend (GET /orders/sales-
+// breakdown) — replaces the old client-side estimate that computed against
+// order.items, which GET /orders (list) never actually populates. Pass
+// either shiftHandoverId (Admin Sales Summary's per-shift view) or a
+// dateFrom/dateTo range; omit both for all-time.
+export async function getSalesBreakdown(params: {
+  shiftHandoverId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}): Promise<SalesBreakdown> {
+  const query = new URLSearchParams();
+  if (params.shiftHandoverId) query.set("shiftHandoverId", params.shiftHandoverId);
+  if (params.dateFrom) query.set("dateFrom", params.dateFrom);
+  if (params.dateTo) query.set("dateTo", params.dateTo);
+  const qs = query.toString();
+  const result = await apiClient.get<{ packageBreakdown: SalesBreakdownRow[]; supplyBreakdown: SalesBreakdownRow[] }>(
+    `/orders/sales-breakdown${qs ? `?${qs}` : ""}`
+  );
+  return result;
+}
+
 // Mirrors backend/src/schema/order/order-item.schema.ts's discriminated
 // union exactly — one of these three shapes per cart line.
 export type NewOrderItemInput =

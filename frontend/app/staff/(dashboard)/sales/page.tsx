@@ -7,11 +7,9 @@ import SalesTable from "../../../components/staffcom/sales/SalesTable";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
 import { useServerPage } from "../../../lib/useServerPage";
-import { getOrders, getOrdersPage, getOrderDetail } from "../../../lib/services/ordersApi.service";
-import { getPackages } from "../../../lib/services/packageApi.service";
-import { getDropOffSummary, getAverageOrderValue } from "../../../lib/orderStats";
+import { getOrders, getOrdersPage, getOrderDetail, getSalesBreakdown, SalesBreakdownRow } from "../../../lib/services/ordersApi.service";
+import { getAverageOrderValue } from "../../../lib/orderStats";
 import { Order } from "../types";
-import { Package } from "../neworder/types";
 
 const PAGE_SIZE = 8;
 
@@ -26,7 +24,6 @@ function toDateInputValue(date: Date): string {
 
 export default function SalesPage() {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [packages, setPackages] = useState<Package[]>([]);
   const [activeFilter, setActiveFilter] = useState<SalesFilter>("All");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -37,13 +34,17 @@ export default function SalesPage() {
   // Same pattern as Staff Service's itemsByOrderId. Persists across refetches
   // so items already fetched aren't re-requested.
   const [itemsByOrderId, setItemsByOrderId] = useState<Record<string, string[]>>({});
+  // Real per-order-detail breakdown from the backend (GET /orders/sales-
+  // breakdown), scoped to whatever date range is currently selected — not
+  // computed from `orders` above, which never carries line items.
+  const [packageBreakdown, setPackageBreakdown] = useState<SalesBreakdownRow[]>([]);
+  const [breakdownError, setBreakdownError] = useState("");
 
   useEffect(() => {
     async function load() {
       try {
-        const [ordersData, packagesData] = await Promise.all([getOrders(), getPackages()]);
+        const ordersData = await getOrders();
         setOrders(ordersData);
-        setPackages(packagesData);
       } catch {
         setLoadError("Unable to load sales data. Please try again.");
       } finally {
@@ -52,6 +53,20 @@ export default function SalesPage() {
     }
     load();
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    getSalesBreakdown({ dateFrom: dateFrom || undefined, dateTo: dateTo || undefined })
+      .then((data) => {
+        if (!cancelled) setPackageBreakdown(data.packageBreakdown);
+      })
+      .catch(() => {
+        if (!cancelled) setBreakdownError("Unable to load package sales breakdown.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [dateFrom, dateTo]);
 
   const totalPending = orders.filter((o) => o.status === "Pending").length;
   const totalInProgress = orders.filter((o) => o.status === "In progress").length;
@@ -98,11 +113,6 @@ export default function SalesPage() {
   });
 
   const averageOrderValue = getAverageOrderValue(filteredOrders);
-  // Needs order.items for every order in the filtered set, not just the
-  // visible page — GET /orders (list) doesn't carry that, so this reliably
-  // comes back empty against real data. Same known, disclosed gap already
-  // accepted on Admin Sales (see the banner below); not a bug here either.
-  const packageBreakdown = getDropOffSummary(filteredOrders, packages);
 
   const {
     page: clientPage,
@@ -172,32 +182,32 @@ export default function SalesPage() {
 
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 mb-6">
         <h2 className="text-lg font-bold text-gray-900 mb-4">Package Sales Breakdown</h2>
-        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg py-2 px-3 mb-4">
-          This breakdown is estimated from order records and may not capture every package sold.
-        </p>
+        {breakdownError && (
+          <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg py-2 px-3 mb-4">
+            {breakdownError}
+          </p>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead>
               <tr className="text-gray-700 border-b bg-gray-50">
                 <th className="p-2 whitespace-nowrap">Package</th>
-                <th className="p-2 whitespace-nowrap">Price</th>
-                <th className="p-2 whitespace-nowrap">Orders</th>
+                <th className="p-2 whitespace-nowrap">Qty Sold</th>
                 <th className="p-2 whitespace-nowrap">Total</th>
               </tr>
             </thead>
             <tbody>
               {packageBreakdown.length > 0 ? (
                 packageBreakdown.map((p) => (
-                  <tr key={p.name} className="border-b last:border-0">
+                  <tr key={p.id} className="border-b last:border-0">
                     <td className="p-2 whitespace-nowrap text-gray-900">{p.name}</td>
-                    <td className="p-2 whitespace-nowrap text-gray-900">₱{p.price}</td>
-                    <td className="p-2 whitespace-nowrap text-gray-900">{p.totalOrders}</td>
-                    <td className="p-2 whitespace-nowrap text-gray-900">₱{p.totalPrice.toFixed(2)}</td>
+                    <td className="p-2 whitespace-nowrap text-gray-900">{p.totalQuantity}</td>
+                    <td className="p-2 whitespace-nowrap text-gray-900">₱{p.totalAmount.toFixed(2)}</td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={4} className="p-4 text-center text-gray-400">
+                  <td colSpan={3} className="p-4 text-center text-gray-400">
                     No drop-off orders yet.
                   </td>
                 </tr>

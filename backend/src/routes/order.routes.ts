@@ -9,6 +9,7 @@ import {
   createOrderSchema,
   updateOrderStatusSchema,
   listOrdersSchema,
+  getSalesBreakdownSchema,
 } from "../schema/order/index.js";
 import { Role } from "../../generated/prisma/client.js";
 
@@ -30,6 +31,15 @@ router.post(
 );
 
 router.get("/", authMiddleware.execute, validateSchema(listOrdersSchema), orderController.list);
+
+// Registered before "/:id" — Express matches routes in order, and "/:id"
+// would otherwise greedily capture "sales-breakdown" as an id.
+router.get(
+  "/sales-breakdown",
+  authMiddleware.execute,
+  validateSchema(getSalesBreakdownSchema),
+  orderController.getSalesBreakdown
+);
 
 router.get(
   "/:id",

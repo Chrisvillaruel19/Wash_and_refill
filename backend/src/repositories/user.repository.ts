@@ -52,8 +52,8 @@ export class UserRepository {
     });
   }
 
-  async findByEmail(email: string) {
-    return await prisma.user.findFirst({
+  async findByEmail(email: string, tx: PrismaClientOrTx = prisma) {
+    return await tx.user.findFirst({
       where: {
         email,
       },

@@ -15,7 +15,7 @@ interface OrdersTableProps {
   orders: Order[];
 }
 
-const RECENT_LIMIT = 10;
+const RECENT_LIMIT = 5;
 
 const filters: ("All" | OrderStatus)[] = ["All", "Pending", "In progress", "Ready", "Claimed"];
 

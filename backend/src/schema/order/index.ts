@@ -4,3 +4,4 @@ export type { OrderItemInput } from "./order-item.schema.js";
 export { createOrderSchema } from "./create-order.schema.js";
 export { listOrdersSchema } from "./list-orders.schema.js";
 export { updateOrderStatusSchema } from "./update-order-status.schema.js";
+export { getSalesBreakdownSchema } from "./get-sales-breakdown.schema.js";

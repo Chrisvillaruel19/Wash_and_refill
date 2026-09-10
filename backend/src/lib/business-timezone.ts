@@ -56,3 +56,19 @@ export function getBusinessDayRange(instant: Date = new Date()): { start: Date; 
     end: new Date(Date.UTC(year, month - 1, day + 1, -BUSINESS_UTC_OFFSET_HOURS)),
   };
 }
+
+// Same UTC instant bounds as getBusinessDayRange, but for a Manila calendar
+// date the caller already knows explicitly (a "YYYY-MM-DD" string, e.g. from
+// a <input type="date">) rather than "the day containing this instant" — for
+// date-range filters like Sales' package/supply breakdown, where naively
+// coercing "YYYY-MM-DD" straight into `new Date()` would anchor the range to
+// UTC midnight instead of Manila midnight, an 8-hour misalignment that can
+// drop real Manila-morning sales from a "dateFrom" boundary or cut off a
+// "dateTo" day's evening sales.
+export function getBusinessDayRangeForDate(dateString: string): { start: Date; end: Date } {
+  const [year, month, day] = dateString.split("-").map(Number);
+  return {
+    start: new Date(Date.UTC(year, month - 1, day, -BUSINESS_UTC_OFFSET_HOURS)),
+    end: new Date(Date.UTC(year, month - 1, day + 1, -BUSINESS_UTC_OFFSET_HOURS)),
+  };
+}

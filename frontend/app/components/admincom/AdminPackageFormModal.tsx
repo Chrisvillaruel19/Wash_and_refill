@@ -5,6 +5,7 @@ import { Plus, X } from "lucide-react";
 import { Package } from "../../staff/(dashboard)/neworder/types";
 import { InventoryItem } from "../../staff/(dashboard)/types";
 import { useEscapeKey } from "../../lib/useEscapeKey";
+import ColorPicker from "./ColorPicker";
 
 export interface PackageFormData {
   name: string;
@@ -25,12 +26,10 @@ interface AdminPackageFormModalProps {
   submitError?: string;
 }
 
-const colorOptions = [
-  { value: "bg-green-600", label: "Green" },
-  { value: "bg-blue-600", label: "Blue" },
-  { value: "bg-purple-600", label: "Purple" },
-  { value: "bg-orange-500", label: "Orange" },
-];
+// Default for a brand-new package — a real hex value, matching ColorPicker's
+// own first preset. Existing packages keep whatever color (legacy Tailwind
+// class or hex) they already have on file; see lib/packageColor.ts.
+const DEFAULT_COLOR = "#16a34a";
 
 let nextRowId = 0;
 
@@ -61,7 +60,7 @@ export default function AdminPackageFormModal({
 
   const [name, setName] = useState(initialPackage?.name ?? "");
   const [price, setPrice] = useState(initialPackage?.price ?? 0);
-  const [color, setColor] = useState(initialPackage?.color ?? colorOptions[0].value);
+  const [color, setColor] = useState(initialPackage?.color ?? DEFAULT_COLOR);
   const [rows, setRows] = useState<SupplyRow[]>(
     () =>
       initialPackage?.details.map((d) => ({
@@ -270,21 +269,7 @@ export default function AdminPackageFormModal({
             </div>
           </div>
 
-          <div>
-            <label htmlFor="package-color" className="block text-sm text-gray-500 mb-1">Color</label>
-            <select
-              id="package-color"
-              value={color}
-              onChange={(e) => setColor(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
-            >
-              {colorOptions.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          <ColorPicker label="Color" value={color} onChange={setColor} />
 
           <div className="flex justify-end gap-3 pt-2">
             <button

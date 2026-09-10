@@ -190,6 +190,37 @@ export class OrderRepository {
     return tx.order.findMany({ where: { id: { in: ids } }, include: { orderDetails: true } });
   }
 
+  // Real per-order-detail data for Sales' Package/Supply breakdown widgets.
+  // GET /orders (list, findAll above) intentionally omits orderDetails to
+  // stay lean, which is why those widgets historically computed against
+  // `items: undefined` client-side and were always empty regardless of what
+  // was actually sold. Scoped either to a specific already-claimed
+  // ShiftHandover (Admin Sales Summary's per-shift view) or to a
+  // payment-date range (unscoped = all time, e.g. the general Sales page).
+  // paymentDateGte/paymentDateLt are already-resolved UTC instants (Manila
+  // business-day bounds) — this method does no date math of its own.
+  async findPaidWithDetails(
+    params: { shiftHandoverId?: string; paymentDateGte?: Date; paymentDateLt?: Date },
+    tx: PrismaClientOrTx = prisma
+  ) {
+    return tx.order.findMany({
+      where: {
+        paymentStatus: PaymentStatus.PAID,
+        status: { not: OrderStatus.CANCELLED },
+        ...(params.shiftHandoverId ? { shiftHandoverId: params.shiftHandoverId } : {}),
+        ...(params.paymentDateGte || params.paymentDateLt
+          ? {
+              paymentDate: {
+                ...(params.paymentDateGte ? { gte: params.paymentDateGte } : {}),
+                ...(params.paymentDateLt ? { lt: params.paymentDateLt } : {}),
+              },
+            }
+          : {}),
+      },
+      include: { orderDetails: { include: { package: true, inventory: true } } },
+    });
+  }
+
   // Unreported-activity check for Attendance's clock-out gate: any
   // unclaimed order still eligible for reconciliation. CANCELLED is
   // excluded here for the same reason it's excluded from the reconciliation

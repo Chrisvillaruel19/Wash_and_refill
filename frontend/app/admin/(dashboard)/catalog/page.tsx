@@ -14,6 +14,7 @@ import { ApiError } from "../../../lib/apiClient";
 // dependency — still imported from the old seam since that's the single
 // canonical definition AdminInventoryFormModal itself also relies on.
 import { isCriticalInventoryItem } from "../../../lib/inventoryRules";
+import { packageColorProps } from "../../../lib/packageColor";
 import { InventoryItem } from "../../../staff/(dashboard)/types";
 import {
   getPackages,
@@ -620,8 +621,14 @@ export default function AdminCatalogPage() {
           <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
             {filteredPackages.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {filteredPackages.map((pkg) => (
-                  <div key={pkg.id} className={`${pkg.color} text-white rounded-xl p-4 sm:p-5 relative`}>
+                {filteredPackages.map((pkg) => {
+                  const colorProps = packageColorProps(pkg.color);
+                  return (
+                  <div
+                    key={pkg.id}
+                    className={`${colorProps.className} text-white rounded-xl p-4 sm:p-5 relative`}
+                    style={colorProps.style}
+                  >
                     <div className="absolute top-3 right-3 sm:top-4 sm:right-4 flex gap-1">
                       <button
                         onClick={() => {
@@ -652,7 +659,8 @@ export default function AdminCatalogPage() {
                       </p>
                     ))}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <p className="text-center text-gray-400 py-8">No packages found.</p>

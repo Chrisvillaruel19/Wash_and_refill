@@ -6,18 +6,16 @@ import AdminStatCard from "../../../components/admincom/AdminStatCard";
 import AdminWithdrawalFormModal, {
   WithdrawalFormData,
 } from "../../../components/admincom/AdminWithdrawalFormModal";
-import { getOrders } from "../../../lib/services/ordersApi.service";
-import { getPackages } from "../../../lib/services/packageApi.service";
+import { getOrders, getSalesBreakdown, SalesBreakdownRow } from "../../../lib/services/ordersApi.service";
 import { getShiftHandoversPage } from "../../../lib/services/shiftHandoverApi.service";
 import {
   getWithdrawals,
   createWithdrawal,
   WithdrawalRecord,
 } from "../../../lib/services/withdrawalApi.service";
-import { getTotalCashToday, getDropOffSummary, getAverageOrderValue } from "../../../lib/orderStats";
+import { getTotalCashToday, getAverageOrderValue } from "../../../lib/orderStats";
 import { ApiError } from "../../../lib/apiClient";
 import { Order } from "../../../staff/(dashboard)/types";
-import { Package } from "../../../staff/(dashboard)/neworder/types";
 import Pagination from "../../../components/staffcom/Pagination";
 import { useServerPage } from "../../../lib/useServerPage";
 
@@ -25,13 +23,19 @@ const HANDOVERS_PAGE_SIZE = 6;
 
 export default function AdminSalesPage() {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [packages, setPackages] = useState<Package[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>([]);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [withdrawSubmitting, setWithdrawSubmitting] = useState(false);
   const [withdrawError, setWithdrawError] = useState("");
+
+  // Selecting a Cashier Shift Summary card scopes Drop off/Supply Summary
+  // below to exactly that shift's real sales; null = all-time (unscoped).
+  const [selectedShiftId, setSelectedShiftId] = useState<string | null>(null);
+  const [dropOffSummary, setDropOffSummary] = useState<SalesBreakdownRow[]>([]);
+  const [supplySummary, setSupplySummary] = useState<SalesBreakdownRow[]>([]);
+  const [breakdownError, setBreakdownError] = useState("");
 
   // Shift handover grid — real server-side pagination (previously dumped
   // every handover ever into one unbounded grid, same bug class as
@@ -47,16 +51,8 @@ export default function AdminSalesPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [ordersData, packagesData, withdrawalsData] = await Promise.all([
-          getOrders(),
-          getPackages(),
-          getWithdrawals(),
-        ]);
-
+        const [ordersData, withdrawalsData] = await Promise.all([getOrders(), getWithdrawals()]);
         setOrders(ordersData);
-
-        setPackages(packagesData);
-
         setWithdrawals(withdrawalsData);
       } catch {
         setLoadError("Unable to load sales data. Please try again.");
@@ -67,12 +63,28 @@ export default function AdminSalesPage() {
     load();
   }, []);
 
+  // Real per-order-detail breakdown from the backend (GET /orders/sales-
+  // breakdown) — not computed from `orders` above, which never carries line
+  // items. Refetches whenever the selected shift changes.
+  useEffect(() => {
+    let cancelled = false;
+    getSalesBreakdown(selectedShiftId ? { shiftHandoverId: selectedShiftId } : {})
+      .then((data) => {
+        if (cancelled) return;
+        setDropOffSummary(data.packageBreakdown);
+        setSupplySummary(data.supplyBreakdown);
+      })
+      .catch(() => {
+        if (!cancelled) setBreakdownError("Unable to load sales breakdown.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedShiftId]);
+
   const totalCashToday = getTotalCashToday(orders);
   const averageOrderValue = getAverageOrderValue(orders);
-  // GET /orders (list) deliberately omits order line items to stay lean, so
-  // this always returns empty against real data — a known, disclosed gap
-  // (see the "Drop off Summary" section below), not a bug in this call.
-  const dropOffSummary = getDropOffSummary(orders, packages);
+  const selectedShift = selectedShiftId ? handovers.find((h) => h.id === selectedShiftId) : undefined;
 
   async function handleWithdrawSave(data: WithdrawalFormData) {
     setWithdrawSubmitting(true);
@@ -127,35 +139,86 @@ export default function AdminSalesPage() {
         </button>
       </div>
 
+      {breakdownError && (
+        <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg py-2 px-3 mb-4">
+          {breakdownError}
+        </p>
+      )}
+
+      {selectedShift && (
+        <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg py-2 px-3 mb-4 text-sm">
+          <span className="text-blue-800">
+            Showing Drop off / Supply Summary for{" "}
+            <span className="font-semibold">
+              {new Date(selectedShift.timestamp).toLocaleDateString()}
+            </span>{" "}
+            — {selectedShift.staffName}
+          </span>
+          <button
+            onClick={() => setSelectedShiftId(null)}
+            className="text-blue-700 font-medium hover:text-blue-900"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 mb-6">
         <h2 className="text-lg font-bold text-gray-900 mb-4">Drop off Summary</h2>
-        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg py-2 px-3 mb-4">
-          This breakdown is estimated from order records and may not capture every package sold.
-        </p>
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead>
               <tr className="text-gray-700 border-b bg-gray-50">
                 <th className="p-2 whitespace-nowrap">Pack Name</th>
-                <th className="p-2 whitespace-nowrap">Price</th>
-                <th className="p-2 whitespace-nowrap">Total orders</th>
-                <th className="p-2 whitespace-nowrap">Total price</th>
+                <th className="p-2 whitespace-nowrap">Qty Sold</th>
+                <th className="p-2 whitespace-nowrap">Total</th>
               </tr>
             </thead>
             <tbody>
               {dropOffSummary.length > 0 ? (
                 dropOffSummary.map((p) => (
-                  <tr key={p.name} className="border-b last:border-0">
+                  <tr key={p.id} className="border-b last:border-0">
                     <td className="p-2 whitespace-nowrap text-gray-900">{p.name}</td>
-                    <td className="p-2 whitespace-nowrap text-gray-900">₱{p.price}</td>
-                    <td className="p-2 whitespace-nowrap text-gray-900">{p.totalOrders}</td>
-                    <td className="p-2 whitespace-nowrap text-gray-900">₱{p.totalPrice.toFixed(2)}</td>
+                    <td className="p-2 whitespace-nowrap text-gray-900">{p.totalQuantity}</td>
+                    <td className="p-2 whitespace-nowrap text-gray-900">₱{p.totalAmount.toFixed(2)}</td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={4} className="p-4 text-center text-gray-400">
+                  <td colSpan={3} className="p-4 text-center text-gray-400">
                     No drop-off orders yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 mb-6">
+        <h2 className="text-lg font-bold text-gray-900 mb-4">Supply Summary</h2>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead>
+              <tr className="text-gray-700 border-b bg-gray-50">
+                <th className="p-2 whitespace-nowrap">Item Name</th>
+                <th className="p-2 whitespace-nowrap">Qty Sold</th>
+                <th className="p-2 whitespace-nowrap">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {supplySummary.length > 0 ? (
+                supplySummary.map((s) => (
+                  <tr key={s.id} className="border-b last:border-0">
+                    <td className="p-2 whitespace-nowrap text-gray-900">{s.name}</td>
+                    <td className="p-2 whitespace-nowrap text-gray-900">{s.totalQuantity}</td>
+                    <td className="p-2 whitespace-nowrap text-gray-900">₱{s.totalAmount.toFixed(2)}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={3} className="p-4 text-center text-gray-400">
+                    No supplies sold yet.
                   </td>
                 </tr>
               )}
@@ -169,7 +232,16 @@ export default function AdminSalesPage() {
         {handovers.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {handovers.map((h) => (
-              <div key={h.id} className="border border-gray-200 rounded-xl p-4 text-sm">
+              <button
+                key={h.id}
+                type="button"
+                onClick={() => setSelectedShiftId(h.id === selectedShiftId ? null : h.id)}
+                className={`text-left border rounded-xl p-4 text-sm transition-colors ${
+                  h.id === selectedShiftId
+                    ? "border-blue-600 ring-2 ring-blue-200 bg-blue-50/40"
+                    : "border-gray-200 hover:border-gray-300"
+                }`}
+              >
                 <p className="text-gray-500">
                   Date:{" "}
                   <span className="text-gray-900 font-medium">
@@ -229,7 +301,7 @@ export default function AdminSalesPage() {
                     Notes: <span className="text-gray-900 font-medium">{h.notes}</span>
                   </p>
                 )}
-              </div>
+              </button>
             ))}
           </div>
         ) : (

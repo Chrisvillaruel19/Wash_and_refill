@@ -10,15 +10,11 @@ import {
   createShiftHandover,
 } from "../../../lib/services/shiftHandoverApi.service";
 import { ApiError } from "../../../lib/apiClient";
-import { Order, ExpenseRecord, InventoryItem } from "../types";
+import { Order, ExpenseRecord, InventoryItem, ShiftHandoverRecord } from "../types";
 import Pagination from "../../../components/staffcom/Pagination";
 import { useServerPage } from "../../../lib/useServerPage";
 
 const PAGE_SIZE = 6;
-
-// Matches the backend's own fallback (reconciliation.util.ts) for the
-// drawer's starting balance before any handover has ever been submitted.
-const FALLBACK_CASH_DRAWER_START = 5000;
 
 interface DropOffRow {
   name: string;
@@ -50,7 +46,15 @@ export default function ShiftHandover() {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   // Only the single most recent record — GET /shift-handover?pageSize=1
   // instead of fetching the entire history just to find its max endTime.
-  const [mostRecentHandover, setMostRecentHandover] = useState<{ actualCashCounted: number } | null>(null);
+  // Full record (not just actualCashCounted) so its inventorySnapshot can
+  // supply this shift's beginning quantities — same "previous ending
+  // becomes next beginning" read the backend itself uses, shown here only
+  // as a preview (the actual submission always recomputes this server-side).
+  const [mostRecentHandover, setMostRecentHandover] = useState<ShiftHandoverRecord | null>(null);
+  // Backend-authoritative fixed cash float — the shop always begins a new
+  // shift with this configured amount, never decided client-side (see
+  // getMostRecentShiftHandover).
+  const [defaultStartingCash, setDefaultStartingCash] = useState(0);
   const [unclaimedOrderLines, setUnclaimedOrderLines] = useState<Record<string, OrderDetailLine[]>>({});
   const [actualCashCounted, setActualCashCounted] = useState(0);
   const [notes, setNotes] = useState("");
@@ -88,7 +92,8 @@ export default function ShiftHandover() {
         setOrders(ordersData);
         setExpenses(expensesData);
         setInventory(inventoryData);
-        setMostRecentHandover(recentHandover);
+        setMostRecentHandover(recentHandover.record);
+        setDefaultStartingCash(recentHandover.defaultStartingCash);
       } catch {
         setLoadError("Unable to load shift handover data. Please try again.");
       } finally {
@@ -161,7 +166,20 @@ export default function ShiftHandover() {
   const myUnclaimedExpenses = expenses.filter((e) => !e.shiftHandoverId);
   const expenseTotal = myUnclaimedExpenses.reduce((sum, e) => sum + e.amount, 0);
 
-  const drawerStart = mostRecentHandover === null ? FALLBACK_CASH_DRAWER_START : mostRecentHandover.actualCashCounted;
+  // Fixed cash float, always — the shop remits earnings/excess out via
+  // Withdrawal at handover, so every new shift begins with this same
+  // Admin-configured amount, never the previous shift's actualCashCounted.
+  const drawerStart = defaultStartingCash;
+
+  // This shift's beginning quantity per item = that item's endingQty on the
+  // most recent submitted handover (matches the backend's own rule exactly —
+  // see create-shift-handover.service.ts). Items missing from that snapshot
+  // (no previous handover yet, or the item was added after it) fall back to
+  // the item's current live stock, same as the backend's own fallback —
+  // never a fabricated number, never Staff-entered.
+  const beginningQtyByItemName = new Map(
+    (mostRecentHandover?.inventorySnapshot ?? []).map((row) => [row.itemName, row.endingQty])
+  );
 
   // Withdrawals aren't visible to Staff (GET /withdrawals is Admin-only) —
   // excluded from this preview by necessity, disclosed below. The actual
@@ -190,14 +208,17 @@ export default function ShiftHandover() {
     try {
       await createShiftHandover({ actualCashCounted, notes: trimmedNotes || undefined });
 
-      const [ordersData, expensesData, recentHandover] = await Promise.all([
+      const [ordersData, expensesData, inventoryData, recentHandover] = await Promise.all([
         getOrders(),
         getExpenses(),
+        getInventory(),
         getMostRecentShiftHandover(),
       ]);
       setOrders(ordersData);
       setExpenses(expensesData);
-      setMostRecentHandover(recentHandover);
+      setInventory(inventoryData);
+      setMostRecentHandover(recentHandover.record);
+      setDefaultStartingCash(recentHandover.defaultStartingCash);
       setReloadKey((k) => k + 1);
       setActualCashCounted(0);
       setNotes("");
@@ -253,14 +274,19 @@ export default function ShiftHandover() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           <div>
-            <h3 className="font-semibold text-gray-900 mb-3">Stock Inventory Summary</h3>
+            <h3 className="font-semibold text-gray-900 mb-1">Inventory (Beginning → Now)</h3>
+            <p className="text-xs text-gray-500 mb-3">
+              Beginning comes from the last submitted handover&apos;s ending count. Your ending
+              count when you submit will become the next shift&apos;s beginning.
+            </p>
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
                 <thead>
                   <tr className="text-gray-700 border-b bg-gray-50">
                     <th className="p-2 whitespace-nowrap">Item</th>
                     <th className="p-2 whitespace-nowrap">Unit</th>
-                    <th className="p-2 whitespace-nowrap">Current Stock</th>
+                    <th className="p-2 whitespace-nowrap">Beginning</th>
+                    <th className="p-2 whitespace-nowrap">Now</th>
                     <th className="p-2 whitespace-nowrap">Unit Price</th>
                     <th className="p-2 whitespace-nowrap">Total Value</th>
                   </tr>
@@ -270,6 +296,9 @@ export default function ShiftHandover() {
                     <tr key={item.id} className="border-b last:border-0">
                       <td className="p-2 whitespace-nowrap text-gray-900">{item.name}</td>
                       <td className="p-2 whitespace-nowrap text-gray-900">{item.unit}</td>
+                      <td className="p-2 whitespace-nowrap text-gray-900">
+                        {beginningQtyByItemName.get(item.name) ?? item.currentStock}
+                      </td>
                       <td className="p-2 whitespace-nowrap text-gray-900">{item.currentStock}</td>
                       <td className="p-2 whitespace-nowrap text-gray-900">₱{item.price}</td>
                       <td className="p-2 whitespace-nowrap text-gray-900">

@@ -230,9 +230,24 @@ export class OrderRepository {
   // forever. Fixed as a targeted production bug (Module 8 regression found
   // during Module 10 verification), not a reconciliation-logic change: the
   // claim queries elsewhere in this file are untouched.
+  //
+  // paymentStatus: PAID for the same reason — matches lockUnclaimedPaidIds
+  // below exactly (and update-order-status.service.ts's CLAIMED-requires-
+  // PAID rule, which is deliberately the same "claim" concept). An unpaid
+  // order can never be claimed by a Shift Handover in the first place (its
+  // claim query only ever locks PAID rows), so without this filter an
+  // unpaid order would block Clock Out/Logout with no way to resolve it via
+  // the "submit a Shift Handover" guidance those flows actually give —
+  // Mark as Paid or Cancel are the real resolutions for an unpaid order,
+  // not a Shift Handover.
   async findUnclaimedForUser(userId: string, tx: PrismaClientOrTx = prisma) {
     return tx.order.findMany({
-      where: { userId, shiftHandoverId: null, status: { not: OrderStatus.CANCELLED } },
+      where: {
+        userId,
+        shiftHandoverId: null,
+        status: { not: OrderStatus.CANCELLED },
+        paymentStatus: PaymentStatus.PAID,
+      },
     });
   }
 

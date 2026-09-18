@@ -1,5 +1,9 @@
 import { Request, Response } from "express";
-import { createShiftHandoverService, listShiftHandoversService } from "../services/shift-handover/index.js";
+import {
+  createShiftHandoverService,
+  listShiftHandoversService,
+  updateDrawerSettingsService,
+} from "../services/shift-handover/index.js";
 import { JwtPayload } from "../lib/jwt.js";
 
 type AuthenticatedRequest = Request & { user?: JwtPayload };
@@ -33,6 +37,23 @@ export class ShiftHandoverController {
         code: 500,
         status: "error",
         message: "Unable to retrieve shift handover records",
+      });
+    }
+  };
+
+  public updateDrawerSettings = async (req: Request, res: Response) => {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      const adminUserId = authReq.user?.sub as string;
+      const { defaultStartingCash } = req.body;
+      const result = await updateDrawerSettingsService(adminUserId, defaultStartingCash);
+      return res.status(result.code).json(result);
+    } catch (error) {
+      console.error("ShiftHandoverController.updateDrawerSettings error", error);
+      return res.status(500).json({
+        code: 500,
+        status: "error",
+        message: "Unable to update default starting cash",
       });
     }
   };

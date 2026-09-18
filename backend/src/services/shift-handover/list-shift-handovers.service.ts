@@ -1,19 +1,28 @@
 import { ShiftHandoverRepository } from "../../repositories/shift-handover.repository.js";
+import { DrawerStateRepository } from "../../repositories/drawer-state.repository.js";
 
 const shiftHandoverRepository = new ShiftHandoverRepository();
+const drawerStateRepository = new DrawerStateRepository();
 
 // Shared visibility (approved): every authenticated user sees every
 // handover — one physical drawer, not private per-user data.
 export async function listShiftHandoversService(params: { page: number; pageSize: number }) {
   try {
-    const [records, total] = await Promise.all([
+    const [records, total, drawerState] = await Promise.all([
       shiftHandoverRepository.findAll(params),
       shiftHandoverRepository.count(),
+      drawerStateRepository.get(),
     ]);
 
-    const shiftHandovers = records.map(({ user, ...record }) => ({
+    const shiftHandovers = records.map(({ user, inventorySnapshot, ...record }) => ({
       ...record,
       staffName: user.name,
+      inventorySnapshot: inventorySnapshot.map(({ itemName, unit, beginningQty, endingQty }) => ({
+        itemName,
+        unit,
+        beginningQty,
+        endingQty,
+      })),
     }));
 
     return {
@@ -22,6 +31,12 @@ export async function listShiftHandoversService(params: { page: number; pageSize
       message: "Shift handover records retrieved successfully",
       data: {
         shiftHandovers,
+        // Backend-authoritative effective starting cash for "no previous
+        // handover" (see getDrawerStart) — included on every page so the
+        // Staff Shift Handover page (which only ever needs page 1) and the
+        // Admin drawer-settings UI can both read the current value from
+        // this already-existing endpoint instead of a new one.
+        defaultStartingCash: drawerState.defaultStartingCash,
         pagination: {
           page: params.page,
           pageSize: params.pageSize,

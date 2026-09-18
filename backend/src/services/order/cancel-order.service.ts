@@ -15,10 +15,10 @@ export async function cancelOrderService(userId: string, id: string, actorRole?:
       const existing = await orderRepository.findById(id, tx);
       if (!existing) return { notFound: true } as const;
 
-      if (!canModifyOrder(existing.userId, userId, actorRole)) {
+      if (!(await canModifyOrder(existing.userId, userId, actorRole, tx))) {
         return {
           forbidden: true as const,
-          message: "You can only cancel orders you created.",
+          message: "You cannot modify an order currently being handled by another active staff member.",
         };
       }
 

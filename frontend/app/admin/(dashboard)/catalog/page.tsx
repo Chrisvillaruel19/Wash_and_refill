@@ -10,10 +10,6 @@ import {
 } from "../../../lib/services/inventoryApi.service";
 import { setRestockPin } from "../../../lib/auth";
 import { ApiError } from "../../../lib/apiClient";
-// isCriticalInventoryItem is a pure name/unit check with no localStorage
-// dependency — still imported from the old seam since that's the single
-// canonical definition AdminInventoryFormModal itself also relies on.
-import { isCriticalInventoryItem } from "../../../lib/inventoryRules";
 import { packageColorProps } from "../../../lib/packageColor";
 import { InventoryItem } from "../../../staff/(dashboard)/types";
 import {
@@ -51,9 +47,6 @@ type ServiceFilter = "All" | string;
 
 const HISTORICAL_WARNING =
   "Renaming or deleting may affect how historical orders appear in Shift Handover reports.";
-
-const INVENTORY_CRITICAL_WARNING =
-  "This item's name is used to match stock deductions to specific packages or supplies sold at checkout. Deleting it will silently stop those deductions from working correctly.";
 
 const SERVICE_HISTORICAL_WARNING =
   "Renaming or deleting may cause this service to no longer group correctly with historical orders in reports.";
@@ -691,7 +684,6 @@ export default function AdminCatalogPage() {
       {deleteTarget && (
         <ConfirmDeleteModal
           itemName={deleteTarget.name}
-          warning={isCriticalInventoryItem(deleteTarget) ? INVENTORY_CRITICAL_WARNING : undefined}
           onConfirm={handleDeleteConfirm}
           onCancel={() => setDeleteTarget(null)}
           submitting={actionSubmitting}

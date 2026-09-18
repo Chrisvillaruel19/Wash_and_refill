@@ -14,7 +14,13 @@ const swal = Swal.mixin({
 });
 
 export function alertSuccess(title: string, text?: string) {
-  return swal.fire({ icon: "success", title, text, confirmButtonText: "OK" });
+  // Narrower than the shared 32em SweetAlert2 default — this dialog's
+  // message is short and the default popup felt oversized (New Order's
+  // "Transaction completed!"). Scoped to this one .fire() call only; the
+  // shared `swal` mixin and every other alert* export are untouched.
+  // SweetAlert2's popup always keeps `max-width: 100%`, so this still
+  // shrinks correctly on narrow/mobile viewports.
+  return swal.fire({ icon: "success", title, text, confirmButtonText: "OK", width: "24em" });
 }
 
 export function alertError(title: string, text?: string) {

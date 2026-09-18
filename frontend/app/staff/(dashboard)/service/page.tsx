@@ -8,6 +8,7 @@ import ConfirmCancelModal from "../../../components/staffcom/service/ConfirmCanc
 import ConfirmMarkPaidModal from "../../../components/staffcom/service/ConfirmMarkPaidModal";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
+import { ApiError } from "../../../lib/apiClient";
 import {
   getOrders,
   getOrderDetail,
@@ -103,8 +104,10 @@ export default function ServicePage() {
       setPendingClaimId(null);
       setPendingCancelId(null);
       setPendingMarkPaidId(null);
-    } catch {
-      setActionError("Unable to update this order. Please try again.");
+    } catch (err) {
+      setActionError(
+        err instanceof ApiError ? err.message : "Unable to update this order. Please try again."
+      );
     } finally {
       setActionSubmitting(false);
     }

@@ -1,10 +1,12 @@
 import { prisma } from "../../lib/prisma.js";
 import { AttendanceRepository } from "../../repositories/attendance.repository.js";
+import { ShiftHandoverRepository } from "../../repositories/shift-handover.repository.js";
 import { getUnreportedActivity } from "../shift-handover/reconciliation.util.js";
 import { AuditAction, Role } from "../../../generated/prisma/client.js";
 import { writeAuditLog } from "../../lib/audit-log.js";
 
 const attendanceRepository = new AttendanceRepository();
+const shiftHandoverRepository = new ShiftHandoverRepository();
 
 // Ownership is enforced here, not just at the route/frontend layer: Staff
 // may only clock out their own attendance record. Admin is exempt, matching
@@ -27,6 +29,19 @@ export async function clockOutService(userId: string, role: Role | undefined, id
 
       if (!existing.timeIn) {
         return { noTimeIn: true } as const;
+      }
+
+      // Same two-check gate as Logout (see logout.service.ts) — required
+      // here too, not just at Logout, so Staff can't bypass the Shift
+      // Handover requirement by clocking out manually first and then
+      // logging out with no active attendance left to gate on.
+      const handedOverThisShift = await shiftHandoverRepository.existsForUserSince(
+        existing.userId,
+        existing.timeIn,
+        tx
+      );
+      if (!handedOverThisShift) {
+        return { shiftHandoverRequired: true } as const;
       }
 
       // Cross-module business rule completed alongside Shift Handover
@@ -70,6 +85,13 @@ export async function clockOutService(userId: string, role: Role | undefined, id
     }
     if ("noTimeIn" in result) {
       return { code: 400, status: "error", message: "This attendance record has no clock-in time to measure from" };
+    }
+    if ("shiftHandoverRequired" in result) {
+      return {
+        code: 409,
+        status: "error",
+        message: "Please complete and submit your Shift Handover before logging out.",
+      };
     }
     if ("unreportedActivity" in result) {
       return {

@@ -47,6 +47,9 @@ export default function OrderCard({
         </p>
         <p className="text-sm text-gray-500">{order.time}</p>
         <p className="text-sm text-gray-500">{order.date}</p>
+        {order.staffName && (
+          <p className="text-xs text-gray-400 mt-1">Created by: {order.staffName}</p>
+        )}
       </div>
 
       <div className="flex-1 min-w-[200px] max-w-full">

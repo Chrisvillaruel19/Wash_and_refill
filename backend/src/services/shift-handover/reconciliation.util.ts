@@ -1,29 +1,32 @@
 import { prisma } from "../../lib/prisma.js";
 import { Prisma, PaymentMethod } from "../../../generated/prisma/client.js";
-import { ShiftHandoverRepository } from "../../repositories/shift-handover.repository.js";
 import { OrderRepository } from "../../repositories/order.repository.js";
 import { ExpenseRepository } from "../../repositories/expense.repository.js";
 import { WithdrawalRepository } from "../../repositories/withdrawal.repository.js";
+import { DrawerStateRepository } from "../../repositories/drawer-state.repository.js";
 
 type PrismaClientOrTx = typeof prisma | Prisma.TransactionClient;
 
-const shiftHandoverRepository = new ShiftHandoverRepository();
 const orderRepository = new OrderRepository();
 const expenseRepository = new ExpenseRepository();
 const withdrawalRepository = new WithdrawalRepository();
+const drawerStateRepository = new DrawerStateRepository();
 
-// Matches the frontend's FALLBACK_CASH_DRAWER_START — before any handover
-// has ever been submitted, the drawer's starting float is this constant.
-const FALLBACK_CASH_DRAWER_START = 5000;
-
-// The drawer's starting balance for a new reconciliation: the most recent
-// handover's physically-counted total, or the fallback if none exist yet.
+// The drawer's starting balance for a new reconciliation: always the
+// Admin-configured fixed cash float (DrawerState.defaultStartingCash),
+// never the previous handover's actualCashCount. The shop operates on a
+// fixed-float model — the shift's earnings/excess are remitted out via
+// Withdrawal, and only the float itself remains in the drawer for the next
+// shift. Carrying forward the previous actualCashCount would let cash
+// silently accumulate whenever remittance is skipped or partial; reading
+// the configured float here every time makes that impossible and correctly
+// surfaces any un-remitted excess as EXCESS on the next handover instead.
 // Safe to read here without its own lock because every caller of this
 // function has already acquired the DrawerState lock first — see
 // drawer-lock.ts. This function does not enforce that; it trusts it.
 export async function getDrawerStart(tx: PrismaClientOrTx = prisma): Promise<number> {
-  const mostRecent = await shiftHandoverRepository.findMostRecent(tx);
-  return mostRecent ? Number(mostRecent.actualCashCount) : FALLBACK_CASH_DRAWER_START;
+  const drawerState = await drawerStateRepository.get(tx);
+  return Number(drawerState.defaultStartingCash);
 }
 
 type UnclaimedOrder = Awaited<ReturnType<OrderRepository["findUnclaimedPaid"]>>[number];

@@ -1,5 +1,5 @@
 import { apiClient, fetchAllPages } from "../apiClient";
-import { ShiftHandoverRecord } from "../../staff/(dashboard)/types";
+import { ShiftHandoverRecord, ShiftHandoverInventoryRow } from "../../staff/(dashboard)/types";
 import type { ServerPageResult } from "../useServerPage";
 
 type BackendShiftHandover = {
@@ -16,6 +16,7 @@ type BackendShiftHandover = {
   actualCashCount: string | null;
   notes: string | null;
   staffName: string;
+  inventorySnapshot?: ShiftHandoverInventoryRow[];
 };
 
 function mapShiftHandover(h: BackendShiftHandover): ShiftHandoverRecord {
@@ -54,6 +55,7 @@ function mapShiftHandover(h: BackendShiftHandover): ShiftHandoverRecord {
     actualCashCounted,
     shortage: actualCashCounted - expectedCash,
     notes: h.notes ?? "",
+    inventorySnapshot: h.inventorySnapshot ?? [],
   };
 }
 
@@ -81,12 +83,40 @@ export async function getShiftHandoversPage(
 // (Shift Handover's starting balance) — GET /shift-handover is already
 // sorted endTime desc, so pageSize=1 hands back exactly that record without
 // fetching the entire history just to find its max. Reuses the existing
-// paginated endpoint; no new backend surface.
-export async function getMostRecentShiftHandover(): Promise<ShiftHandoverRecord | null> {
+// paginated endpoint; no new backend surface. Also returns the backend-
+// authoritative defaultStartingCash from the same response, so the caller
+// never has to independently decide "no previous handover" behavior —
+// see create-shift-handover.service.ts's getDrawerStart, which this
+// mirrors exactly: previous handover's actualCashCount if one exists,
+// else the Admin-configured default.
+export async function getMostRecentShiftHandover(): Promise<{
+  record: ShiftHandoverRecord | null;
+  defaultStartingCash: number;
+}> {
   const result = await apiClient.get<{
     shiftHandovers: BackendShiftHandover[];
+    defaultStartingCash: string;
   }>(`/shift-handover?page=1&pageSize=1`);
-  return result.shiftHandovers[0] ? mapShiftHandover(result.shiftHandovers[0]) : null;
+  return {
+    record: result.shiftHandovers[0] ? mapShiftHandover(result.shiftHandovers[0]) : null,
+    defaultStartingCash: Number(result.defaultStartingCash),
+  };
+}
+
+// Admin-only (enforced server-side by requireRole(ADMIN)) — reuses the same
+// GET /shift-handover response's defaultStartingCash field rather than a
+// dedicated read endpoint, matching the "smallest clean API" principle:
+// the value is already returned there for the Staff page's own use.
+export async function getDefaultStartingCash(): Promise<number> {
+  const result = await apiClient.get<{ defaultStartingCash: string }>(`/shift-handover?page=1&pageSize=1`);
+  return Number(result.defaultStartingCash);
+}
+
+// Admin-only. Backend validates positive/finite/sane-max and writes an
+// AuditLog entry — this call is a thin pass-through, no client-side
+// business logic duplicated here.
+export async function updateDefaultStartingCash(defaultStartingCash: number): Promise<void> {
+  await apiClient.patch("/shift-handover/drawer-settings", { defaultStartingCash });
 }
 
 // The response's shiftHandover object has no `staffName` (create doesn't

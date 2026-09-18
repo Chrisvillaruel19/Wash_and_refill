@@ -3,18 +3,22 @@ import { CashStatus, AuditAction } from "../../../generated/prisma/client.js";
 import { acquireDrawerLock } from "../../lib/drawer-lock.js";
 import { writeAuditLog } from "../../lib/audit-log.js";
 import { ShiftHandoverRepository } from "../../repositories/shift-handover.repository.js";
+import { ShiftHandoverInventoryRepository } from "../../repositories/shift-handover-inventory.repository.js";
 import { OrderRepository } from "../../repositories/order.repository.js";
 import { ExpenseRepository } from "../../repositories/expense.repository.js";
 import { WithdrawalRepository } from "../../repositories/withdrawal.repository.js";
 import { AttendanceRepository } from "../../repositories/attendance.repository.js";
+import { InventoryRepository } from "../../repositories/inventory.repository.js";
 import { getDrawerStart, summarizeOrders } from "./reconciliation.util.js";
 import { NoActiveAttendanceError } from "./shift-handover-errors.js";
 
 const shiftHandoverRepository = new ShiftHandoverRepository();
+const shiftHandoverInventoryRepository = new ShiftHandoverInventoryRepository();
 const orderRepository = new OrderRepository();
 const expenseRepository = new ExpenseRepository();
 const withdrawalRepository = new WithdrawalRepository();
 const attendanceRepository = new AttendanceRepository();
+const inventoryRepository = new InventoryRepository();
 
 export async function createShiftHandoverService(
   userId: string,
@@ -111,6 +115,32 @@ export async function createShiftHandoverService(
       await expenseRepository.claim(expenseIds, handover.id, tx);
       await withdrawalRepository.claim(withdrawalIds, handover.id, tx);
 
+      // Inventory snapshot: mirrors the cash drawer's own "previous ending
+      // becomes next beginning" pattern (getDrawerStart above), never a new
+      // mechanism. Ending = live Inventory.quantity, read once, right now,
+      // inside this same locked transaction — reflects every restock and
+      // every order consumption already committed by this instant.
+      // Beginning = that item's endingQty from its own most recent prior
+      // snapshot (global, any staff — one shared stockroom, same as cash's
+      // one shared drawer), or this same live reading if no prior snapshot
+      // exists yet (first-ever handover for that item — there is no
+      // earlier honest number to use). itemName/unit are frozen here, not
+      // re-read live later, so a future rename/archive of the Inventory row
+      // never changes this historical record.
+      const activeItems = await inventoryRepository.findAllActive(tx);
+      const beginningByItem = await shiftHandoverInventoryRepository.findLatestEndingQtyByInventoryIds(
+        activeItems.map((i) => i.id),
+        tx
+      );
+      const inventorySnapshotRows = activeItems.map((item) => ({
+        inventoryId: item.id,
+        itemName: item.itemName,
+        unit: item.unit,
+        beginningQty: beginningByItem.get(item.id) ?? item.quantity,
+        endingQty: item.quantity,
+      }));
+      await shiftHandoverInventoryRepository.createMany(handover.id, inventorySnapshotRows, tx);
+
       await writeAuditLog(tx, {
         userId,
         action: AuditAction.UPDATE,
@@ -119,7 +149,11 @@ export async function createShiftHandoverService(
         newValue: { expectedBalance, actualCashCount, cashStatus },
       });
 
-      return handover;
+      // Reuse the rows just computed above (already correct: itemName/unit/
+      // beginningQty/endingQty) instead of a redundant re-fetch — createMany
+      // doesn't return the inserted rows, and there's nothing about them a
+      // second read would tell us that this transaction doesn't already know.
+      return { ...handover, inventorySnapshot: inventorySnapshotRows };
     });
 
     return {

@@ -5,3 +5,4 @@ export { updateOrderStatusService } from "./update-order-status.service.js";
 export { cancelOrderService } from "./cancel-order.service.js";
 export { markOrderPaidService } from "./mark-order-paid.service.js";
 export { reverseOrderPaymentService } from "./reverse-order-payment.service.js";
+export { getSalesBreakdownService } from "./get-sales-breakdown.service.js";

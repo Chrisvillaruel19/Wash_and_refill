@@ -21,6 +21,9 @@ export default function Attendance() {
   const [submitting, setSubmitting] = useState(false);
   const isSubmittingRef = useRef(false);
   const [unreportedModal, setUnreportedModal] = useState(false);
+  // Distinct from unreportedModal — see Sidebar.tsx's identical gate for
+  // the reasoning (two independent server-side checks, checked in order).
+  const [shiftHandoverRequiredModal, setShiftHandoverRequiredModal] = useState(false);
 
   const staffName = getCurrentUser()?.name || "Unknown";
 
@@ -73,13 +76,15 @@ export default function Attendance() {
       const refreshed = await getAttendanceRecords();
       setRecords(refreshed);
     } catch (err) {
-      // The backend enforces the "no unreported orders/expenses since your
-      // last Shift Handover" rule server-side (money math, not a UX nicety —
-      // blocking outright, no "proceed anyway" option). It only returns a
-      // message, not counts, so the modal shows that message verbatim
-      // rather than fabricating a breakdown the backend doesn't provide.
+      // The backend enforces two independent server-side gates, checked in
+      // order: has a Shift Handover been submitted this shift at all, then
+      // whether unreported orders/expenses remain since the last one
+      // (money math, not a UX nicety — blocking outright, no "proceed
+      // anyway" option). Distinguished by message text, same as Sidebar.tsx.
       if (err instanceof ApiError && err.status === 409 && /unreported/i.test(err.message)) {
         setUnreportedModal(true);
+      } else if (err instanceof ApiError && err.status === 409) {
+        setShiftHandoverRequiredModal(true);
       } else if (err instanceof ApiError) {
         setActionError(err.message);
       } else {
@@ -204,6 +209,31 @@ export default function Attendance() {
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => setUnreportedModal(false)}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 border border-gray-300 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => router.push("/staff/shifthandover")}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+              >
+                Go to Shift Handover
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {shiftHandoverRequiredModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-lg max-w-sm w-full p-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Shift Handover Required</h3>
+            <p className="text-sm text-gray-600 mb-5">
+              Please complete and submit your Shift Handover before logging out.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShiftHandoverRequiredModal(false)}
                 className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 border border-gray-300 hover:bg-gray-50"
               >
                 Cancel

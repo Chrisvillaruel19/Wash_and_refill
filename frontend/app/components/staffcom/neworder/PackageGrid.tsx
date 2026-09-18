@@ -2,6 +2,7 @@
 
 import { Plus } from "lucide-react";
 import { Package } from "../../../staff/(dashboard)/neworder/types";
+import { packageColorProps } from "../../../lib/packageColor";
 
 interface PackageGridProps {
   packages: Package[];
@@ -17,12 +18,15 @@ export default function PackageGrid({ packages, onAdd }: PackageGridProps) {
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4">
-        {packages.map((pkg) => (
+        {packages.map((pkg) => {
+          const colorProps = packageColorProps(pkg.color);
+          return (
           <button
             key={pkg.id}
             type="button"
             onClick={() => onAdd(pkg)}
-            className={`${pkg.color} text-white rounded-xl p-4 sm:p-5 relative text-left w-full hover:brightness-110 transition-[filter] cursor-pointer`}
+            className={`${colorProps.className} text-white rounded-xl p-4 sm:p-5 relative text-left w-full hover:brightness-110 transition-[filter] cursor-pointer`}
+            style={colorProps.style}
           >
             <span className="absolute top-3 right-3 sm:top-4 sm:right-4 bg-white/20 rounded-full p-1">
               <Plus size={18} />
@@ -35,7 +39,8 @@ export default function PackageGrid({ packages, onAdd }: PackageGridProps) {
               </p>
             ))}
           </button>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

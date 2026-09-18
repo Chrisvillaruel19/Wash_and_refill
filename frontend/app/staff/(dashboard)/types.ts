@@ -98,6 +98,13 @@ export interface ExpenseRecord {
   imageDataUrl?: string;
 }
 
+export interface ShiftHandoverInventoryRow {
+  itemName: string;
+  unit: string;
+  beginningQty: number;
+  endingQty: number;
+}
+
 export interface ShiftHandoverRecord {
   id: string;
   timestamp: string;
@@ -105,6 +112,11 @@ export interface ShiftHandoverRecord {
   cashDrawer: number;
   laundrySales: number;
   supplySales: number;
+  // One row per active inventory item at the time this handover was
+  // submitted — immutable historical snapshot, never re-derived from the
+  // live Inventory table. Optional for records fetched before this field
+  // existed (should not occur post-migration, but keeps the type honest).
+  inventorySnapshot?: ShiftHandoverInventoryRow[];
   // Revenue from custom per-kg services (rugs, carpets, bulk items) — split
   // out from supplySales, which used to lump the two together as "Other
   // sales". Optional because records submitted before this field existed

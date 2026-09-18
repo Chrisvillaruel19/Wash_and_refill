@@ -1,4 +1,5 @@
 import { apiClient, setAccessToken, ApiError, CURRENT_USER_KEY } from "./apiClient";
+import { clockIn } from "./services/attendanceApi.service";
 
 export interface StaffUser {
   username: string;
@@ -36,6 +37,20 @@ export async function login(username: string, password: string): Promise<StaffUs
       localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
     }
 
+    // Auto Time In — Staff only, never Admin. Best-effort: clockIn() is
+    // already idempotent server-side (one Attendance row per business day,
+    // a duplicate attempt just 409s), so an existing Time In for today is
+    // never overwritten. Any failure (already clocked in, network error,
+    // etc.) is intentionally swallowed — a broken/duplicate attendance call
+    // must never block the Staff member from actually logging in.
+    if (user.role === "staff") {
+      try {
+        await clockIn();
+      } catch {
+        // Intentionally ignored — see comment above.
+      }
+    }
+
     return user;
   } catch (error) {
     if (error instanceof ApiError) return null;
@@ -56,13 +71,35 @@ export function getCurrentUser(): StaffUser | null {
   }
 }
 
+// Server-authoritative: LogoutService can block for two independent
+// reasons — SHIFT_HANDOVER_REQUIRED (no handover submitted yet this shift)
+// or UNREPORTED_FINANCIAL_ACTIVITY (money unclaimed since the last one) —
+// both arrive as 409s the caller distinguishes by message text (see
+// Sidebar.tsx). Neither writes anything server-side, so local state must
+// never be cleared for either.
+//
+// Any other failure (a genuine network error, or a non-401 server error)
+// also must NOT be treated as a successful logout — this session's status
+// couldn't be confirmed, so the safest assumption is "still logged in,"
+// not "logged out." The one exception is a 401 here specifically: it means
+// the refresh token was already invalid/expired/revoked server-side before
+// this call ever ran, so there is nothing left to preserve — clearing
+// local state in that one case matches what every other 401 in this app
+// already does (see apiClient.ts's clearStaleAuthState).
 export async function logout(): Promise<void> {
   try {
     await apiClient.post("/auth/logout");
-  } catch {
-    // Even if the server call fails (e.g. already-expired refresh token),
-    // still clear local state below so the user isn't stuck logged in on
-    // this device.
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      // Session was already dead server-side — nothing to preserve, fall
+      // through to clearing local state below.
+    } else {
+      // 409 (either business gate), any other server error, or a raw
+      // network failure (not even an ApiError) — logout could not be
+      // confirmed. Re-throw untouched so the caller can show the right
+      // message and the user stays authenticated.
+      throw error;
+    }
   }
   if (typeof window !== "undefined") {
     localStorage.removeItem(CURRENT_USER_KEY);

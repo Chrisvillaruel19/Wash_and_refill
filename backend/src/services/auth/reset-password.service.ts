@@ -27,9 +27,11 @@ export async function resetPasswordService(
 
         const hashedPassword = hashPassword(newPassword);
 
-        // Password update and token consumption must commit together — if
-        // either fails, the token must NOT be left in a used-but-unconsumed
-        // state (a replayable reset token) or vice versa.
+        // Password update, token consumption, and refresh-token revocation
+        // must all commit together — if any fails, the token must NOT be
+        // left in a used-but-unconsumed state (a replayable reset token),
+        // and a changed password must never leave a stale session still
+        // valid, or vice versa.
         await prisma.$transaction(async (tx) => {
             await userRepository.updatePassword(
                 resetToken.userId,
@@ -38,6 +40,16 @@ export async function resetPasswordService(
             );
 
             await tokenRepository.consumeToken(resetToken.id, tx);
+
+            // A password reset is exactly the scenario (a possibly-
+            // compromised account) where any already-issued session should
+            // not silently keep working — same revocation this repository
+            // already performs on refresh-token reuse detection (see
+            // refresh-token.service.ts).
+            await tokenRepository.revokeAllActiveRefreshTokensForUser(
+                resetToken.userId,
+                tx
+            );
         });
 
         return{

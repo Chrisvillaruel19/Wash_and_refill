@@ -7,6 +7,7 @@ import {
   cancelOrderService,
   markOrderPaidService,
   reverseOrderPaymentService,
+  getSalesBreakdownService,
 } from "../services/order/index.js";
 import { JwtPayload } from "../lib/jwt.js";
 
@@ -52,6 +53,25 @@ export class OrderController {
         code: 500,
         status: "error",
         message: "Unable to retrieve orders",
+      });
+    }
+  };
+
+  public getSalesBreakdown = async (req: Request, res: Response) => {
+    try {
+      const { shiftHandoverId, dateFrom, dateTo } = req.query as {
+        shiftHandoverId?: string;
+        dateFrom?: string;
+        dateTo?: string;
+      };
+      const result = await getSalesBreakdownService({ shiftHandoverId, dateFrom, dateTo });
+      return res.status(result.code).json(result);
+    } catch (error) {
+      console.error("OrderController.getSalesBreakdown error", error);
+      return res.status(500).json({
+        code: 500,
+        status: "error",
+        message: "Unable to retrieve sales breakdown",
       });
     }
   };

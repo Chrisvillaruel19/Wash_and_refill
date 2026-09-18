@@ -296,6 +296,7 @@ model Inventory {
   orderDetails OrderDetail[]
   packageDetails PackageDetail[]
   consumptions InventoryConsumption[]
+  handoverSnapshots ShiftHandoverInventory[]
 }
 
 enum StockStatus {
@@ -426,12 +427,54 @@ model ShiftHandover {
   // is held — the one serialization bottleneck in the app, so keeping this
   // query fast matters more than most.
   @@index([endTime])
+
+  inventorySnapshot ShiftHandoverInventory[]
 }
 
 enum CashStatus {
   BALANCED
   SHORTAGE
   EXCESS
+}
+
+// Immutable per-item beginning/ending inventory snapshot, one row per
+// (ShiftHandover, Inventory) pair. Mirrors the cash drawer's own
+// "previous ending becomes next beginning" pattern (see getDrawerStart in
+// reconciliation.util.ts) instead of inventing a new mechanism: beginning
+// is always the most recent prior snapshot's endingQty for that item
+// (global — one shared stockroom, not per-staff), or the item's live
+// quantity if no prior snapshot exists yet. itemName/unit are frozen at
+// write time (not read live through the inventoryId relation) so a later
+// rename/archive of the live Inventory row never changes how a historical
+// handover displays — same reasoning as OrderDetail's frozen subtotal.
+model ShiftHandoverInventory {
+  id              String @id @default(uuid())
+
+  shiftHandoverId String
+  shiftHandover   ShiftHandover @relation(fields: [shiftHandoverId], references: [id], onDelete: Cascade)
+
+  inventoryId     String
+  inventory       Inventory @relation(fields: [inventoryId], references: [id])
+
+  itemName        String
+  unit            String
+
+  beginningQty    Int
+  endingQty       Int
+
+  createdAt       DateTime @default(now())
+
+  // Every read is "give me this handover's snapshot rows" — unindexed FK,
+  // same "Postgres doesn't auto-index the referencing side" reasoning used
+  // throughout this schema.
+  @@index([shiftHandoverId])
+  // findLatestPerItem (the next handover's beginning-quantity lookup)
+  // filters by inventoryId, ordered by the parent handover's endTime —
+  // this index lets that lookup avoid a full scan.
+  @@index([inventoryId])
+  // One snapshot row per item per handover — guards against an accidental
+  // duplicate insert, costs nothing at this data volume.
+  @@unique([shiftHandoverId, inventoryId])
 }
 
 // Withdrawal
@@ -464,6 +507,17 @@ model Withdrawal {
 // Order/Expense creation never touches this lock.
 model DrawerState {
   id Int @id
+
+  // Admin-configurable starting float used ONLY when no previous
+  // ShiftHandover exists yet (see getDrawerStart in reconciliation.util.ts)
+  // — every subsequent shift's beginning cash is the prior shift's own
+  // frozen actualCashCount instead, exactly as before. Living on this
+  // singleton rather than a new generic settings table because this row
+  // already is the one place "current state of the shared drawer" lives;
+  // changing this value never rewrites any historical ShiftHandover row,
+  // since each one already freezes its own expectedBalance/actualCashCount
+  // at submission time, independent of this field.
+  defaultStartingCash Decimal @default(5000)
 }
 
 // Auditlog

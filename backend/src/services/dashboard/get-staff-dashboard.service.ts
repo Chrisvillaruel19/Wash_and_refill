@@ -8,12 +8,12 @@ const orderRepository = new OrderRepository();
 // OrdersTable already has its own source via the existing GET /orders
 // endpoint (Module 5); duplicating that data here would just be two
 // endpoints serving the same rows.
-export async function getStaffDashboardService() {
+export async function getStaffDashboardService(userId: string) {
   try {
     const todayRange = getBusinessDayRange();
     const [todaysSales, claimedToday, statusCounts, lowStockResult] = await Promise.all([
       orderRepository.sumPaidRevenue(todayRange),
-      orderRepository.countClaimedInRange(todayRange),
+      orderRepository.countClaimedForUserInRange(userId, todayRange),
       orderRepository.countByStatus(),
       lowStockInventoryService(),
     ]);

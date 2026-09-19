@@ -6,12 +6,14 @@ import StatCard from "../../components/staffcom/dashboard/StatCard";
 import LowStockCard from "../../components/staffcom/dashboard/LowStockCard";
 import RecentActivityCard from "../../components/staffcom/dashboard/RecentActivityCard";
 import OrdersTable from "../../components/staffcom/dashboard/OrdersTable";
-import { getOrdersPage } from "../../lib/services/ordersApi.service";
+import MyClaimedTodayCard from "../../components/staffcom/dashboard/MyClaimedTodayCard";
+import { getOrdersPage, getMyClaimedOrdersToday } from "../../lib/services/ordersApi.service";
 import { getStaffDashboard, getRecentActivity } from "../../lib/services/dashboard.service";
 import { Order, LowStockItem, ActivityLog } from "./types";
 
 export default function StaffDashboardPage() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [claimedToday, setClaimedToday] = useState<Order[]>([]);
   const [lowStock, setLowStock] = useState<LowStockItem[]>([]);
   const [activity, setActivity] = useState<ActivityLog[]>([]);
   const [stats, setStats] = useState({ todaysSales: 0, claimedToday: 0, ready: 0 });
@@ -21,11 +23,16 @@ export default function StaffDashboardPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [dashboard, orderPage] = await Promise.all([getStaffDashboard(), getOrdersPage(1, 20)]);
+        const [dashboard, orderPage, myClaimedToday] = await Promise.all([
+          getStaffDashboard(),
+          getOrdersPage(1, 20),
+          getMyClaimedOrdersToday(),
+        ]);
 
         setStats({ todaysSales: dashboard.todaysSales, claimedToday: dashboard.claimedToday, ready: dashboard.ready });
         setLowStock(dashboard.lowStock);
         setOrders(orderPage.items);
+        setClaimedToday(myClaimedToday);
       } catch {
         setError("Unable to load dashboard data. Please try again.");
         setLoading(false);
@@ -88,6 +95,8 @@ export default function StaffDashboardPage() {
         <LowStockCard items={lowStock} />
         <RecentActivityCard logs={activity} />
       </div>
+
+      <MyClaimedTodayCard orders={claimedToday} />
 
       <OrdersTable orders={orders} />
     </div>

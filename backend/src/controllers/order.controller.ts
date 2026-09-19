@@ -8,6 +8,7 @@ import {
   markOrderPaidService,
   reverseOrderPaymentService,
   getSalesBreakdownService,
+  getMyClaimedTodayService,
 } from "../services/order/index.js";
 import { JwtPayload } from "../lib/jwt.js";
 
@@ -53,6 +54,25 @@ export class OrderController {
         code: 500,
         status: "error",
         message: "Unable to retrieve orders",
+      });
+    }
+  };
+
+  // Server-side authoritative scope: userId comes only from the verified
+  // JWT, never from a client-supplied value — same pattern as every other
+  // "mine" lookup in this controller (create/status/cancel/mark-paid all
+  // read authReq.user?.sub, never trust the request body/query for it).
+  public getMyClaimedToday = async (req: Request, res: Response) => {
+    try {
+      const userId = (req as AuthenticatedRequest).user?.sub as string;
+      const result = await getMyClaimedTodayService(userId);
+      return res.status(result.code).json(result);
+    } catch (error) {
+      console.error("OrderController.getMyClaimedToday error", error);
+      return res.status(500).json({
+        code: 500,
+        status: "error",
+        message: "Unable to retrieve claimed orders",
       });
     }
   };

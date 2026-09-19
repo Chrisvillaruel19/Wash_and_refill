@@ -46,10 +46,12 @@ export default function ClaimMonitoringPage() {
   // source (server page or the lazily-loaded full set below) is active.
   const [reloadKey, setReloadKey] = useState(0);
 
-  // All-time Pending/In Progress/Claimed counts — sourced from the existing
-  // Admin Dashboard endpoint (orderStatusCounts) instead of computing them
-  // from a full order fetch. Backend-authoritative, and means the stat
-  // cards no longer require fetching every order just to count three numbers.
+  // Pending/In Progress counts are all-time (current backlog); Claimed is
+  // shop-wide but scoped to the current business day — all three sourced
+  // from the existing Admin Dashboard endpoint (orderStatusCounts) instead
+  // of computing them from a full order fetch. Backend-authoritative, and
+  // means the stat cards no longer require fetching every order just to
+  // count three numbers.
   const [statusCounts, setStatusCounts] = useState({ pending: 0, inProgress: 0, ready: 0, claimed: 0 });
 
   useEffect(() => {
@@ -189,7 +191,7 @@ export default function ClaimMonitoringPage() {
           iconColor="text-blue-600 bg-blue-100"
         />
         <AdminStatCard
-          label="Total claimed (all-time)"
+          label="Total claimed today"
           value={statusCounts.claimed}
           icon={CheckCircle2}
           iconColor="text-green-600 bg-green-100"

@@ -266,6 +266,37 @@ export class OrderRepository {
     });
   }
 
+  // Same as countClaimedInRange above, additionally scoped to the order's
+  // original creator (Order.userId — accountability/ownership, never
+  // reassigned by any update path in this codebase, per the shared-shop
+  // cross-staff rules). This is what "my claimed orders today" means for a
+  // Staff member: userId is the authorization key, never staffName (which
+  // is display-only and not guaranteed unique).
+  async countClaimedForUserInRange(
+    userId: string,
+    range: { start: Date; end: Date },
+    tx: PrismaClientOrTx = prisma
+  ): Promise<number> {
+    return tx.order.count({
+      where: { userId, status: OrderStatus.CLAIMED, claimedDate: { gte: range.start, lt: range.end } },
+    });
+  }
+
+  // Record list backing countClaimedForUserInRange above — same
+  // userId+range scope, same listInclude shape as findAll/findById's list
+  // variant, so the frontend can reuse its existing Order mapping unchanged.
+  async findClaimedForUserInRange(
+    userId: string,
+    range: { start: Date; end: Date },
+    tx: PrismaClientOrTx = prisma
+  ) {
+    return tx.order.findMany({
+      where: { userId, status: OrderStatus.CLAIMED, claimedDate: { gte: range.start, lt: range.end } },
+      include: listInclude,
+      orderBy: { claimedDate: "desc" },
+    });
+  }
+
   // Dashboard: total revenue from every paid, non-cancelled order — now
   // date-scoped via paymentDate when a range is passed (both dashboard
   // services pass getBusinessDayRange() for "today"). Range omitted =

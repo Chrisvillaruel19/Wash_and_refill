@@ -41,6 +41,15 @@ router.get(
   orderController.getSalesBreakdown
 );
 
+// "My claimed orders today" — Staff-facing, scoped server-side to the
+// authenticated caller (never a query param), same "/:id" ordering
+// reasoning as sales-breakdown above.
+router.get(
+  "/claimed-today",
+  authMiddleware.execute,
+  orderController.getMyClaimedToday
+);
+
 router.get(
   "/:id",
   authMiddleware.execute,

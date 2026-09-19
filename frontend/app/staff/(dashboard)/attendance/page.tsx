@@ -67,6 +67,11 @@ export default function Attendance() {
     isSubmittingRef.current = true;
     setSubmitting(true);
     setActionError("");
+    // Captured once, before either call — clockIn() and clockOut() can both
+    // return a 409, but only clockOut()'s can mean Shift-Handover-required/
+    // unreported-activity. clockIn()'s own 409 ("Already clocked in today")
+    // means something else entirely and must never be shown as either modal.
+    const isClockingOut = Boolean(activeRecord);
     try {
       if (activeRecord) {
         await clockOut(activeRecord.id);
@@ -76,14 +81,17 @@ export default function Attendance() {
       const refreshed = await getAttendanceRecords();
       setRecords(refreshed);
     } catch (err) {
-      // The backend enforces two independent server-side gates, checked in
-      // order: has a Shift Handover been submitted this shift at all, then
-      // whether unreported orders/expenses remain since the last one
-      // (money math, not a UX nicety — blocking outright, no "proceed
+      // The backend enforces two independent server-side gates on clock-out,
+      // checked in order: has a Shift Handover been submitted this shift at
+      // all, then whether unreported orders/expenses remain since the last
+      // one (money math, not a UX nicety — blocking outright, no "proceed
       // anyway" option). Distinguished by message text, same as Sidebar.tsx.
-      if (err instanceof ApiError && err.status === 409 && /unreported/i.test(err.message)) {
+      // clockIn() never triggers either gate — its only 409 is "Already
+      // clocked in today" (e.g. a same-day re-login after already logging
+      // out), which is just a plain error, not a Shift Handover requirement.
+      if (isClockingOut && err instanceof ApiError && err.status === 409 && /unreported/i.test(err.message)) {
         setUnreportedModal(true);
-      } else if (err instanceof ApiError && err.status === 409) {
+      } else if (isClockingOut && err instanceof ApiError && err.status === 409) {
         setShiftHandoverRequiredModal(true);
       } else if (err instanceof ApiError) {
         setActionError(err.message);

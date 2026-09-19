@@ -133,6 +133,16 @@ export async function getOrdersPage(page: number, pageSize: number): Promise<Ser
   return { items: result.orders.map(mapOrder), totalPages: result.pagination.totalPages };
 }
 
+// Backend-authoritative "my claimed orders today" — scoped server-side to
+// the authenticated caller's userId and the current business day (see
+// GET /orders/claimed-today). Never derive this client-side by filtering
+// getOrders() by staffName — that's display-only, not an authorization key,
+// and getOrders() returns every Staff's orders, not just the caller's.
+export async function getMyClaimedOrdersToday(): Promise<Order[]> {
+  const result = await apiClient.get<{ orders: BackendOrder[] }>("/orders/claimed-today");
+  return result.orders.map(mapOrder);
+}
+
 // GET /orders (list) deliberately omits orderDetails to stay lean — this
 // hits GET /orders/:id (already built for exactly this purpose) to get the
 // full line-item detail for one order. Callers needing items for a bounded

@@ -25,7 +25,8 @@ export class DashboardController {
 
   public staff = async (req: Request, res: Response) => {
     try {
-      const result = await getStaffDashboardService();
+      const userId = (req as AuthenticatedRequest).user?.sub as string;
+      const result = await getStaffDashboardService(userId);
       return res.status(result.code).json(result);
     } catch (error) {
       console.error("DashboardController.staff error", error);

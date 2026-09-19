@@ -14,9 +14,15 @@ const BEST_SELLING_LIMIT = 5;
 export async function getAdminDashboardService() {
   try {
     const todayRange = getBusinessDayRange();
-    const [totalSales, statusCounts, packageLines, lowStockResult, employeeCount, activePackages] =
+    const [totalSales, claimedToday, statusCounts, packageLines, lowStockResult, employeeCount, activePackages] =
       await Promise.all([
         orderRepository.sumPaidRevenue(todayRange),
+        // Shop-wide, today only — every Staff's claims combined, matching
+        // the same business-day boundary Staff's own "Claimed today" uses.
+        // Distinct from statusCounts.CLAIMED below (all-time, still used
+        // for Claim Monitoring's historical browsing), see
+        // countClaimedInRange's own comment in order.repository.ts.
+        orderRepository.countClaimedInRange(todayRange),
         orderRepository.countByStatus(),
         orderRepository.findPaidPackageLines(),
         lowStockInventoryService(),
@@ -60,7 +66,10 @@ export async function getAdminDashboardService() {
           pending: statusCounts.PENDING,
           inProgress: statusCounts.IN_PROGRESS,
           ready: statusCounts.READY,
-          claimed: statusCounts.CLAIMED,
+          // Today only, shop-wide — see claimedToday above. Pending/
+          // InProgress/Ready intentionally stay all-time (current backlog,
+          // not "today's activity") and are unchanged.
+          claimed: claimedToday,
         },
         bestSellingPackages,
         lowStockCount: lowStockResult.data?.items.length ?? 0,

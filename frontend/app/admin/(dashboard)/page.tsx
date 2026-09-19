@@ -103,7 +103,7 @@ export default function AdminDashboardPage() {
               <p className="text-2xl font-bold text-green-600 mt-1">{statusCounts.ready}</p>
             </div>
             <div>
-              <p className="text-gray-500 text-sm">Claimed</p>
+              <p className="text-gray-500 text-sm">Claimed Today</p>
               <p className="text-2xl font-bold text-gray-700 mt-1">{statusCounts.claimed}</p>
             </div>
           </div>

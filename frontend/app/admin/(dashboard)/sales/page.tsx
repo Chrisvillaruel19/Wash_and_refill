@@ -8,7 +8,7 @@ import AdminWithdrawalFormModal, {
 } from "../../../components/admincom/AdminWithdrawalFormModal";
 import ShiftInventoryModal from "../../../components/admincom/ShiftInventoryModal";
 import DefaultStartingCashModal from "../../../components/admincom/DefaultStartingCashModal";
-import { getOrders, getSalesBreakdown, SalesBreakdownRow } from "../../../lib/services/ordersApi.service";
+import { getSalesBreakdown, SalesBreakdownRow } from "../../../lib/services/ordersApi.service";
 import {
   getShiftHandoversPage,
   getDefaultStartingCash,
@@ -19,17 +19,39 @@ import {
   createWithdrawal,
   WithdrawalRecord,
 } from "../../../lib/services/withdrawalApi.service";
-import { getTotalCashToday, getAverageOrderValue } from "../../../lib/orderStats";
+import { getAdminDashboard } from "../../../lib/services/dashboard.service";
 import { ApiError } from "../../../lib/apiClient";
-import { Order } from "../../../staff/(dashboard)/types";
 import Pagination from "../../../components/staffcom/Pagination";
 import { useServerPage } from "../../../lib/useServerPage";
 
 const HANDOVERS_PAGE_SIZE = 6;
 
+// Local-time YYYY-MM-DD — same convention as Staff Sales' toDateInputValue,
+// used only to ask getSalesBreakdown for "today" (Manila business-day
+// resolution happens server-side in getBusinessDayRangeForDate).
+function todayDateInputValue(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 export default function AdminSalesPage() {
-  const [orders, setOrders] = useState<Order[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>([]);
+  // Backend-authoritative today's revenue (paymentStatus PAID, status not
+  // CANCELLED, paymentDate within the Manila business day) — the exact same
+  // sumPaidRevenue(getBusinessDayRange()) call the Admin Dashboard's
+  // "Today's Sales" already uses, via the same GET /dashboard/admin
+  // endpoint. Deliberately not derived from `orders` (all-time, all-status)
+  // the way this card used to be — that was the confirmed bug.
+  const [totalCashToday, setTotalCashToday] = useState(0);
+  // Sits directly beside Total Cash Today and reads as a "today" figure —
+  // sourced from the same authoritative PAID + non-CANCELLED + paymentDate
+  // dataset (via getSalesBreakdown, not the all-time `orders` array) so the
+  // two cards agree on the same definition instead of silently disagreeing
+  // on time scope.
+  const [todayAverageOrderValue, setTodayAverageOrderValue] = useState(0);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -69,9 +91,17 @@ export default function AdminSalesPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [ordersData, withdrawalsData] = await Promise.all([getOrders(), getWithdrawals()]);
-        setOrders(ordersData);
+        const today = todayDateInputValue();
+        const [withdrawalsData, dashboardData, todaySales] = await Promise.all([
+          getWithdrawals(),
+          getAdminDashboard(),
+          getSalesBreakdown({ dateFrom: today, dateTo: today }),
+        ]);
         setWithdrawals(withdrawalsData);
+        setTotalCashToday(dashboardData.totalCashToday);
+        setTodayAverageOrderValue(
+          todaySales.paidOrderCount > 0 ? todaySales.totalPaidAmount / todaySales.paidOrderCount : 0
+        );
       } catch {
         setLoadError("Unable to load sales data. Please try again.");
       } finally {
@@ -121,8 +151,6 @@ export default function AdminSalesPage() {
     };
   }, [selectedShiftId]);
 
-  const totalCashToday = getTotalCashToday(orders);
-  const averageOrderValue = getAverageOrderValue(orders);
   const selectedShift = selectedShiftId ? handovers.find((h) => h.id === selectedShiftId) : undefined;
   const inventoryModalShift = inventoryModalShiftId
     ? handovers.find((h) => h.id === inventoryModalShiftId)
@@ -165,7 +193,7 @@ export default function AdminSalesPage() {
           />
           <AdminStatCard
             label="Average Order Value"
-            value={`₱${averageOrderValue.toFixed(2)}`}
+            value={`₱${todayAverageOrderValue.toFixed(2)}`}
             icon={TrendingUp}
             iconColor="text-purple-600 bg-purple-100"
           />

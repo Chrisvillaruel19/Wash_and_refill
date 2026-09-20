@@ -4,9 +4,10 @@ import { CustomerRepository } from "../../repositories/customer.repository.js";
 import { PackageRepository } from "../../repositories/package.repository.js";
 import { LaundryServiceRepository } from "../../repositories/laundry-service.repository.js";
 import { InventoryRepository } from "../../repositories/inventory.repository.js";
+import { AttendanceRepository } from "../../repositories/attendance.repository.js";
 import { refreshStockStatus } from "../inventory/stock-status.util.js";
-import { OrderValidationError, InsufficientStockError } from "./order-errors.js";
-import { OrderStatus, PaymentMethod, PaymentStatus, ServiceType, AuditAction, Prisma } from "../../../generated/prisma/client.js";
+import { OrderValidationError, InsufficientStockError, NoActiveShiftError } from "./order-errors.js";
+import { OrderStatus, PaymentMethod, PaymentStatus, ServiceType, AuditAction, Role, Prisma } from "../../../generated/prisma/client.js";
 import type { OrderItemInput } from "../../schema/order/order-item.schema.js";
 import { writeAuditLog } from "../../lib/audit-log.js";
 
@@ -15,6 +16,7 @@ const customerRepository = new CustomerRepository();
 const packageRepository = new PackageRepository();
 const laundryServiceRepository = new LaundryServiceRepository();
 const inventoryRepository = new InventoryRepository();
+const attendanceRepository = new AttendanceRepository();
 
 // Real cash transactions legitimately overpay (customer hands over a bigger
 // bill, expects change) — this is a sanity ceiling against data-entry
@@ -36,9 +38,23 @@ export async function createOrderService(input: {
   items: OrderItemInput[];
   userId: string;
   idempotencyKey: string;
+  role?: Role;
 }) {
   try {
     const order = await prisma.$transaction(async (tx) => {
+      // 0. Authentication (a valid JWT) is not the same thing as active work
+      // authorization (a currently open Attendance session) — Staff must be
+      // clocked in to create an order. Admin is exempt: Admin order creation
+      // was never gated on Attendance and this fix doesn't introduce one.
+      if (input.role !== Role.ADMIN) {
+        const activeAttendance = await attendanceRepository.findActiveForUser(input.userId, tx);
+        if (!activeAttendance) {
+          throw new NoActiveShiftError(
+            "You must have an active shift (clock in) before creating an order."
+          );
+        }
+      }
+
       // 1. Find-or-create the customer inside the same transaction — if
       // anything below fails, a brand-new customer row never gets left
       // behind for nothing. Uses upsert (not create-then-catch-P2002, the
@@ -220,7 +236,7 @@ export async function createOrderService(input: {
     if (error instanceof OrderValidationError) {
       return { code: 400, status: "error", message: error.message };
     }
-    if (error instanceof InsufficientStockError) {
+    if (error instanceof InsufficientStockError || error instanceof NoActiveShiftError) {
       return { code: 409, status: "error", message: error.message };
     }
 

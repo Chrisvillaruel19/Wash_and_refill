@@ -193,6 +193,13 @@ export interface SalesBreakdownRow {
 export interface SalesBreakdown {
   packageBreakdown: SalesBreakdownRow[];
   supplyBreakdown: SalesBreakdownRow[];
+  // Same PAID + non-CANCELLED + paymentDate-range order set the breakdown
+  // rows above are built from — the authoritative "Sales" total/count for
+  // whatever range (or shift) was requested. Use these for a total/average
+  // revenue figure instead of filtering a locally-fetched, all-time,
+  // createdAt-dated order array (see orderStats.ts).
+  totalPaidAmount: number;
+  paidOrderCount: number;
 }
 
 // Real per-order-detail breakdown from the backend (GET /orders/sales-
@@ -210,9 +217,7 @@ export async function getSalesBreakdown(params: {
   if (params.dateFrom) query.set("dateFrom", params.dateFrom);
   if (params.dateTo) query.set("dateTo", params.dateTo);
   const qs = query.toString();
-  const result = await apiClient.get<{ packageBreakdown: SalesBreakdownRow[]; supplyBreakdown: SalesBreakdownRow[] }>(
-    `/orders/sales-breakdown${qs ? `?${qs}` : ""}`
-  );
+  const result = await apiClient.get<SalesBreakdown>(`/orders/sales-breakdown${qs ? `?${qs}` : ""}`);
   return result;
 }
 

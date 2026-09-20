@@ -8,7 +8,6 @@ import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
 import { useServerPage } from "../../../lib/useServerPage";
 import { getOrders, getOrdersPage, getOrderDetail, getSalesBreakdown, SalesBreakdownRow } from "../../../lib/services/ordersApi.service";
-import { getAverageOrderValue } from "../../../lib/orderStats";
 import { Order } from "../types";
 
 const PAGE_SIZE = 8;
@@ -25,8 +24,13 @@ function toDateInputValue(date: Date): string {
 export default function SalesPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [activeFilter, setActiveFilter] = useState<SalesFilter>("All");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  // Default view is today's relevant sales, not the entire all-time,
+  // all-staff order history — same local-calendar-date convention as
+  // toDateInputValue below, just applied as the initial value instead of
+  // only on user input. Clearing either field (existing control, unchanged)
+  // still reaches the full history exactly as before.
+  const [dateFrom, setDateFrom] = useState(() => toDateInputValue(new Date()));
+  const [dateTo, setDateTo] = useState(() => toDateInputValue(new Date()));
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   // GET /orders (list) omits line items to stay lean — populated per-order,
@@ -39,6 +43,12 @@ export default function SalesPage() {
   // computed from `orders` above, which never carries line items.
   const [packageBreakdown, setPackageBreakdown] = useState<SalesBreakdownRow[]>([]);
   const [breakdownError, setBreakdownError] = useState("");
+  // Authoritative PAID + non-CANCELLED + paymentDate totals for whatever
+  // dateFrom/dateTo is currently selected — same backend call as the
+  // package breakdown above, just reading its two extra fields. Never
+  // derived from `filteredOrders` (createdAt-scoped, order-record browsing)
+  // — those are two different questions (see comment on the effect below).
+  const [salesTotals, setSalesTotals] = useState({ totalPaidAmount: 0, paidOrderCount: 0 });
 
   useEffect(() => {
     async function load() {
@@ -58,7 +68,9 @@ export default function SalesPage() {
     let cancelled = false;
     getSalesBreakdown({ dateFrom: dateFrom || undefined, dateTo: dateTo || undefined })
       .then((data) => {
-        if (!cancelled) setPackageBreakdown(data.packageBreakdown);
+        if (cancelled) return;
+        setPackageBreakdown(data.packageBreakdown);
+        setSalesTotals({ totalPaidAmount: data.totalPaidAmount, paidOrderCount: data.paidOrderCount });
       })
       .catch(() => {
         if (!cancelled) setBreakdownError("Unable to load package sales breakdown.");
@@ -112,7 +124,13 @@ export default function SalesPage() {
     return matchesFilter && matchesDateRange;
   });
 
-  const averageOrderValue = getAverageOrderValue(filteredOrders);
+  // Deliberately NOT getAverageOrderValue(filteredOrders): filteredOrders is
+  // scoped by createdAt (order-record browsing, preserved as-is above), but
+  // "Sales" is defined by paymentDate — an order created yesterday and paid
+  // today is today's sale but wouldn't be in a createdAt-"today" filter, and
+  // vice versa. salesTotals (from the same date range) is the correct source.
+  const averageOrderValue =
+    salesTotals.paidOrderCount > 0 ? salesTotals.totalPaidAmount / salesTotals.paidOrderCount : 0;
 
   const {
     page: clientPage,

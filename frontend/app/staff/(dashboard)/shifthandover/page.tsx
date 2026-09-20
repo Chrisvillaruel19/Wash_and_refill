@@ -62,6 +62,11 @@ export default function ShiftHandover() {
   const [loadError, setLoadError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  // The backend is the authoritative duplicate-prevention check (a second
+  // real submission attempt is rejected regardless of this flag) — this is
+  // only a same-session UI nicety so the form doesn't silently invite a
+  // second click right after a successful submission.
+  const [handoverSubmittedThisShift, setHandoverSubmittedThisShift] = useState(false);
   const isSubmittingRef = useRef(false);
   // Bumped after a successful submit to force the history table and the
   // most-recent-handover lookup to refetch, since a new handover changes
@@ -222,10 +227,17 @@ export default function ShiftHandover() {
       setReloadKey((k) => k + 1);
       setActualCashCounted(0);
       setNotes("");
+      setHandoverSubmittedThisShift(true);
     } catch (err) {
       setSubmitError(
         err instanceof ApiError ? err.message : "Unable to submit shift handover. Please try again."
       );
+      // Backend is authoritative: if it rejected this as a duplicate (e.g.
+      // this tab's local flag was reset by a reload but the shift itself
+      // hasn't changed), reflect that truth in the UI too.
+      if (err instanceof ApiError && err.message.includes("already been submitted for your current shift")) {
+        setHandoverSubmittedThisShift(true);
+      }
     } finally {
       isSubmittingRef.current = false;
       setIsSubmitting(false);
@@ -404,12 +416,23 @@ export default function ShiftHandover() {
           </p>
         )}
 
+        {handoverSubmittedThisShift && (
+          <p className="text-green-700 text-sm mb-4 bg-green-50 border border-green-200 rounded-lg py-2 px-3">
+            Shift handover already submitted for your current shift. Clock out to end this shift, or
+            clock in again to start a new one before submitting another.
+          </p>
+        )}
+
         <button
           onClick={handleSubmit}
-          disabled={isSubmitting}
+          disabled={isSubmitting || handoverSubmittedThisShift}
           className="w-full sm:w-auto bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
         >
-          {isSubmitting ? "Submitting..." : "Submit records"}
+          {isSubmitting
+            ? "Submitting..."
+            : handoverSubmittedThisShift
+            ? "Already submitted"
+            : "Submit records"}
         </button>
       </div>
 

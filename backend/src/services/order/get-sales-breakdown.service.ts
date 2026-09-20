@@ -25,6 +25,14 @@ export async function getSalesBreakdownService(params: {
       paymentDateLt: params.dateTo ? getBusinessDayRangeForDate(params.dateTo).end : undefined,
     });
 
+    // Same PAID + non-CANCELLED + paymentDate-range order set the breakdown
+    // below is already built from — reused as-is (no second query) so a
+    // caller needing "total sales" / "average order value" for this exact
+    // range gets it from the same authoritative dataset, instead of
+    // re-deriving it client-side from a differently-scoped order array.
+    const totalPaidAmount = orders.reduce((sum, order) => sum + Number(order.totalAmount), 0);
+    const paidOrderCount = orders.length;
+
     const packageTotals = new Map<string, BreakdownRow>();
     const supplyTotals = new Map<string, BreakdownRow>();
 
@@ -66,6 +74,8 @@ export async function getSalesBreakdownService(params: {
       data: {
         packageBreakdown: Array.from(packageTotals.values()),
         supplyBreakdown: Array.from(supplyTotals.values()),
+        totalPaidAmount,
+        paidOrderCount,
       },
     };
   } catch (error) {

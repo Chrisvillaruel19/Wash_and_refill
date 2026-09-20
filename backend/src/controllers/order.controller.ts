@@ -29,6 +29,7 @@ export class OrderController {
         items,
         userId,
         idempotencyKey,
+        role: authReq.user?.role,
       });
 
       return res.status(result.code).json(result);

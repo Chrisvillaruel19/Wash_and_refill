@@ -10,7 +10,7 @@ import { WithdrawalRepository } from "../../repositories/withdrawal.repository.j
 import { AttendanceRepository } from "../../repositories/attendance.repository.js";
 import { InventoryRepository } from "../../repositories/inventory.repository.js";
 import { getDrawerStart, summarizeOrders } from "./reconciliation.util.js";
-import { NoActiveAttendanceError } from "./shift-handover-errors.js";
+import { NoActiveAttendanceError, DuplicateShiftHandoverError } from "./shift-handover-errors.js";
 
 const shiftHandoverRepository = new ShiftHandoverRepository();
 const shiftHandoverInventoryRepository = new ShiftHandoverInventoryRepository();
@@ -44,6 +44,21 @@ export async function createShiftHandoverService(
       if (!activeAttendance || !activeAttendance.timeIn) {
         throw new NoActiveAttendanceError(
           "No active attendance record found. Clock in before submitting a Shift Handover."
+        );
+      }
+
+      // One handover per open shift: a handover already submitted at or
+      // after this shift's own clock-in means this is a duplicate, not a
+      // new shift's first submission — same scoping existsForUserSince
+      // already uses for the logout/clock-out gate, just checked here too.
+      const alreadySubmitted = await shiftHandoverRepository.existsForUserSince(
+        userId,
+        activeAttendance.timeIn,
+        tx
+      );
+      if (alreadySubmitted) {
+        throw new DuplicateShiftHandoverError(
+          "A shift handover has already been submitted for your current shift."
         );
       }
 
@@ -163,7 +178,7 @@ export async function createShiftHandoverService(
       data: { shiftHandover: created },
     };
   } catch (error) {
-    if (error instanceof NoActiveAttendanceError) {
+    if (error instanceof NoActiveAttendanceError || error instanceof DuplicateShiftHandoverError) {
       return { code: 409, status: "error", message: error.message };
     }
 

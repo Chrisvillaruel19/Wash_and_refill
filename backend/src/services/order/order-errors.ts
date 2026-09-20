@@ -5,3 +5,9 @@
 // after rolling back, so these surface cleanly to the caller.
 export class OrderValidationError extends Error {}
 export class InsufficientStockError extends Error {}
+
+// Authentication (a valid JWT) and active work authorization (a currently
+// open Attendance session) are different things — thrown when a Staff user
+// has no active shift, so they can't create orders while off the clock.
+// Never applies to Admin (see createOrderService).
+export class NoActiveShiftError extends Error {}

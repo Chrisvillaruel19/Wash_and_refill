@@ -76,11 +76,18 @@ interface BackendActivityLog {
 // Only two things the display components actually use: log.type === "add"
 // (picks an icon) and log.message (the rendered text) — verified directly
 // against RecentActivityCard/AdminRecentActivityCard before writing this.
+// performedBy is always prefixed on — the backend already resolves it from
+// AuditLog's real userId->User relation (never staffName-based, never
+// invented), so every entry identifies who actually did it, not just what
+// happened. Falls back to the generic action/module phrasing only in the
+// rare case description itself is genuinely absent.
 function mapActivityLog(log: BackendActivityLog): ActivityLog {
   return {
     id: log.id,
     type: log.action === "CREATE" ? "add" : "update",
-    message: log.description ?? `${log.performedBy} performed ${log.action} on ${log.module}`,
+    message: log.description
+      ? `${log.performedBy}: ${log.description}`
+      : `${log.performedBy} performed ${log.action} on ${log.module}`,
     timestamp: log.createdAt,
   };
 }

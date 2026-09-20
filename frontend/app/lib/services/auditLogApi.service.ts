@@ -21,11 +21,14 @@ type BackendAuditLogPage = {
 // first handful.
 const MAX_PAGE_SIZE = 100;
 
+// performedBy is prefixed on — see dashboard.service.ts's mapActivityLog
+// for the identical reasoning (backend-resolved from AuditLog's real
+// userId->User relation, not staffName-based).
 function mapLog(log: BackendAuditLog, type: ActivityLog["type"]): ActivityLog {
   return {
     id: log.id,
     type,
-    message: log.description,
+    message: `${log.performedBy}: ${log.description}`,
     timestamp: log.createdAt,
   };
 }

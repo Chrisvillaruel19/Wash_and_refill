@@ -15,16 +15,17 @@ interface RestockModalProps {
 
 export default function RestockModal({ item, onConfirm, onCancel, submitting, error }: RestockModalProps) {
   useEscapeKey(onCancel);
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState("");
   const [localError, setLocalError] = useState("");
 
   function handleConfirm() {
-    if (quantity <= 0 || !Number.isInteger(quantity)) {
+    const parsedQuantity = Number(quantity);
+    if (!quantity.trim() || parsedQuantity <= 0 || !Number.isInteger(parsedQuantity)) {
       setLocalError("Quantity must be a whole number greater than zero.");
       return;
     }
     setLocalError("");
-    onConfirm(quantity);
+    onConfirm(parsedQuantity);
   }
 
   return (
@@ -44,8 +45,9 @@ export default function RestockModal({ item, onConfirm, onCancel, submitting, er
           id="restock-quantity"
           type="number"
           min={1}
+          placeholder="0"
           value={quantity}
-          onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+          onChange={(e) => setQuantity(e.target.value)}
           className="w-full border border-gray-300 rounded-lg p-2 mb-6 text-gray-900"
         />
 

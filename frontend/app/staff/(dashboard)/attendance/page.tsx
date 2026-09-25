@@ -47,13 +47,13 @@ export default function Attendance() {
     return () => clearInterval(interval);
   }, []);
 
-  const activeRecord = records.find((r) => r.staffName === staffName && !r.timeOut) || null;
+  const activeRecord = records.find((r) => r.staffName === staffName && r.timeIn && !r.timeOut) || null;
 
   const totalHours = records
     .filter((r) => r.staffName === staffName && r.totalHours !== null)
     .reduce((sum, r) => sum + (r.totalHours || 0), 0);
 
-  const todayShiftHours = activeRecord
+  const todayShiftHours = activeRecord && activeRecord.timeIn
     ? Math.max(0, (now.getTime() - new Date(activeRecord.timeIn).getTime()) / (1000 * 60 * 60))
     : null;
 

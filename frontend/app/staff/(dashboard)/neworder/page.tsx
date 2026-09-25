@@ -6,6 +6,7 @@ import CustomerInfoForm from "../../../components/staffcom/neworder/CustomerInfo
 import PackageGrid from "../../../components/staffcom/neworder/PackageGrid";
 import OrderSummary from "../../../components/staffcom/neworder/OrderSummary";
 import NewOrderModals from "../../../components/staffcom/neworder/NewOrderModals";
+import ReceiptModal, { OrderReceipt } from "../../../components/staffcom/neworder/ReceiptModal";
 import { ServiceCategory, CartItem, PaymentMethod, Package, ServiceItem, SupplyItem, ServiceType } from "./types";
 import { InventoryItem } from "../types";
 import { serviceCategories } from "./data";
@@ -14,8 +15,11 @@ import { getServices } from "../../../lib/services/laundryServiceApi.service";
 import { getInventory } from "../../../lib/services/inventoryApi.service";
 import { createOrder, NewOrderItemInput } from "../../../lib/services/ordersApi.service";
 import { ApiError } from "../../../lib/apiClient";
-import { alertSuccess } from "../../../lib/alerts";
 import { isValidPhone, PHONE_ERROR_MESSAGE, isValidName, NAME_ERROR_MESSAGE } from "../../../lib/validation";
+
+function calculateCartTotal(items: CartItem[]) {
+  return items.reduce((sum, item) => sum + Math.round(item.price * 100) * item.quantity, 0) / 100;
+}
 
 // Two inventory rows can share a display name (e.g. "Liquid Detergent" in
 // Sachet vs Liters) — suffix with unit only when a name collides, same
@@ -40,6 +44,7 @@ export default function NewOrderPage() {
   const [packages, setPackages] = useState<Package[]>([]);
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [latestReceipt, setLatestReceipt] = useState<OrderReceipt | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -81,6 +86,8 @@ export default function NewOrderPage() {
   }, []);
 
   const supplies = useMemo(() => buildSupplyMenu(inventory), [inventory]);
+  const cartTotal = useMemo(() => calculateCartTotal(cartItems), [cartItems]);
+  const change = amountPaid > 0 ? amountPaid - cartTotal : 0;
 
   function addToCart(newItem: CartItem) {
     setCartItems((prev) => {
@@ -124,6 +131,16 @@ export default function NewOrderPage() {
 
   function removeFromCart(id: string) {
     setCartItems((prev) => prev.filter((item) => item.id !== id));
+  }
+
+  function adjustQuantity(id: string, delta: number) {
+    setCartItems((prev) =>
+      prev
+        .map((item) =>
+          item.id === id ? { ...item, quantity: Math.max(0, item.quantity + delta) } : item
+        )
+        .filter((item) => item.quantity > 0)
+    );
   }
 
   function handleCategorySelect(category: ServiceCategory) {
@@ -171,7 +188,10 @@ export default function NewOrderPage() {
       setSubmitError(PHONE_ERROR_MESSAGE);
       return;
     }
-
+    if (!Number.isFinite(amountPaid) || amountPaid < 0) {
+      setSubmitError("Enter a valid amount paid.");
+      return;
+    }
     isSubmittingRef.current = true;
     setIsSubmitting(true);
     setSubmitError("");
@@ -193,7 +213,7 @@ export default function NewOrderPage() {
     });
 
     try {
-      await createOrder({
+      const createdOrder = await createOrder({
         customerName: trimmedName,
         phoneNumber: trimmedPhone,
         paymentMethod,
@@ -202,19 +222,14 @@ export default function NewOrderPage() {
         idempotencyKey: idempotencyKeyRef.current!,
       });
 
-      alertSuccess("Transaction completed!", "Check your dashboard for the updated summary.");
-      // Fresh key for the next, distinct transaction — a retry of THIS
-      // transaction is now impossible since the cart/form are about to
-      // reset anyway.
+      setLatestReceipt(createdOrder);
       idempotencyKeyRef.current = crypto.randomUUID();
       setCartItems([]);
       setCustomerName("");
       setPhoneNumber("");
       setAmountPaid(0);
+      setPaymentMethod("Cash");
 
-      // Stock was just consumed by the backend as part of order creation —
-      // refresh so the Supplies menu reflects current quantities for the
-      // next transaction instead of the numbers fetched on page load.
       try {
         setInventory(await getInventory());
       } catch {
@@ -273,7 +288,10 @@ export default function NewOrderPage() {
         <div>
           <OrderSummary
             cartItems={cartItems}
+            total={cartTotal}
+            change={change}
             onRemoveItem={removeFromCart}
+            onQuantityChange={adjustQuantity}
             paymentMethod={paymentMethod}
             onPaymentMethodChange={setPaymentMethod}
             amountPaid={amountPaid}
@@ -301,6 +319,8 @@ export default function NewOrderPage() {
         onSupplyAdd={handleSupplyAdd}
         onCloseSuppliesModal={() => setShowSuppliesModal(false)}
       />
+
+      <ReceiptModal order={latestReceipt} onClose={() => setLatestReceipt(null)} />
     </div>
   );
 }

@@ -17,9 +17,9 @@ import {
 import {
   getWithdrawals,
   createWithdrawal,
+  getCurrentDrawerBalance,
   WithdrawalRecord,
 } from "../../../lib/services/withdrawalApi.service";
-import { getAdminDashboard } from "../../../lib/services/dashboard.service";
 import { ApiError } from "../../../lib/apiClient";
 import Pagination from "../../../components/staffcom/Pagination";
 import { useServerPage } from "../../../lib/useServerPage";
@@ -92,13 +92,13 @@ export default function AdminSalesPage() {
     async function load() {
       try {
         const today = todayDateInputValue();
-        const [withdrawalsData, dashboardData, todaySales] = await Promise.all([
+        const [withdrawalsData, currentBalance, todaySales] = await Promise.all([
           getWithdrawals(),
-          getAdminDashboard(),
+          getCurrentDrawerBalance(),
           getSalesBreakdown({ dateFrom: today, dateTo: today }),
         ]);
         setWithdrawals(withdrawalsData);
-        setTotalCashToday(dashboardData.totalCashToday);
+        setTotalCashToday(currentBalance);
         setTodayAverageOrderValue(
           todaySales.paidOrderCount > 0 ? todaySales.totalPaidAmount / todaySales.paidOrderCount : 0
         );
@@ -121,7 +121,9 @@ export default function AdminSalesPage() {
     setStartingCashSuccess("");
     try {
       await updateDefaultStartingCash(value);
+      const refreshedBalance = await getCurrentDrawerBalance();
       setDefaultStartingCash(value);
+      setTotalCashToday(refreshedBalance);
       setStartingCashSuccess("Default starting cash updated.");
     } catch (err) {
       setStartingCashError(
@@ -161,8 +163,12 @@ export default function AdminSalesPage() {
     setWithdrawError("");
     try {
       await createWithdrawal({ amount: data.amount, reason: data.reason });
-      const refreshed = await getWithdrawals();
+      const [refreshed, currentBalance] = await Promise.all([
+        getWithdrawals(),
+        getCurrentDrawerBalance(),
+      ]);
       setWithdrawals(refreshed);
+      setTotalCashToday(currentBalance);
       setShowWithdrawModal(false);
     } catch (err) {
       setWithdrawError(
@@ -314,101 +320,62 @@ export default function AdminSalesPage() {
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 mb-6">
         <h2 className="text-lg font-bold text-gray-900 mb-4">Cashier Shift Summary</h2>
         {handovers.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {handovers.map((h) => (
-              // A plain div (not a nested <button>) so the "View Inventory"
-              // trigger inside can be a real, independently-clickable button
-              // — nesting interactive elements is invalid HTML and would
-              // make its click also toggle card selection.
-              <div
-                key={h.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => setSelectedShiftId(h.id === selectedShiftId ? null : h.id)}
-                onKeyDown={(e) => {
-                  if (e.target !== e.currentTarget) return;
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    setSelectedShiftId(h.id === selectedShiftId ? null : h.id);
-                  }
-                }}
-                className={`text-left border rounded-xl p-4 text-sm transition-colors cursor-pointer ${
-                  h.id === selectedShiftId
-                    ? "border-blue-600 ring-2 ring-blue-200 bg-blue-50/40"
-                    : "border-gray-200 hover:border-gray-300"
-                }`}
-              >
-                <p className="text-gray-500">
-                  Date:{" "}
-                  <span className="text-gray-900 font-medium">
-                    {new Date(h.timestamp).toLocaleDateString()}
-                  </span>
-                </p>
-                <p className="text-gray-500">
-                  Staff: <span className="text-gray-900 font-medium">{h.staffName}</span>
-                </p>
-                <p className="text-gray-500">
-                  Laundry sales:{" "}
-                  <span className="text-gray-900 font-medium">₱{h.laundrySales.toFixed(2)}</span>
-                </p>
-                <p className="text-gray-500">
-                  Supply Sales:{" "}
-                  <span className="text-gray-900 font-medium">₱{h.supplySales.toFixed(2)}</span>
-                </p>
-                <p className="text-gray-500">
-                  Custom Service Sales:{" "}
-                  <span className="text-gray-900 font-medium">
-                    ₱{(h.customServiceSales ?? 0).toFixed(2)}
-                  </span>
-                </p>
-                <p className="text-gray-500">
-                  GCash / Digital:{" "}
-                  <span className="text-gray-900 font-medium">₱{(h.digitalSales ?? 0).toFixed(2)}</span>
-                </p>
-                <p className="text-gray-500">
-                  Expense: <span className="text-gray-900 font-medium">₱{h.expense.toFixed(2)}</span>
-                </p>
-                <p className="text-gray-500">
-                  Cash drawer:{" "}
-                  <span className="text-gray-900 font-medium">₱{h.cashDrawer.toFixed(2)}</span>
-                </p>
-                <p className="text-gray-500">
-                  Withdrawal:{" "}
-                  <span className="text-gray-900 font-medium">₱{h.withdrawals.toFixed(2)}</span>
-                </p>
-                <p className="text-gray-500">
-                  Expected Balance:{" "}
-                  <span className="text-gray-900 font-medium">₱{h.expectedCash.toFixed(2)}</span>
-                </p>
-                <p className="text-gray-500">
-                  Actual Cash Count:{" "}
-                  <span className="text-gray-900 font-medium">₱{h.actualCashCounted.toFixed(2)}</span>
-                </p>
-                <p className="text-gray-500">
-                  Shortage:{" "}
-                  <span
-                    className={`font-medium ${h.shortage < 0 ? "text-red-600" : "text-green-600"}`}
-                  >
-                    ₱{h.shortage.toFixed(2)}
-                  </span>
-                </p>
-                {h.notes && (
-                  <p className="text-gray-500">
-                    Notes: <span className="text-gray-900 font-medium">{h.notes}</span>
-                  </p>
-                )}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setInventoryModalShiftId(h.id);
-                  }}
-                  className="mt-2 text-blue-600 font-medium hover:text-blue-800 text-sm"
-                >
-                  View Inventory
-                </button>
-              </div>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] text-sm text-left">
+              <thead>
+                <tr className="text-gray-700 border-b bg-gray-50">
+                  <th className="p-3 whitespace-nowrap">Date</th>
+                  <th className="p-3 whitespace-nowrap">Staff</th>
+                  <th className="p-3 whitespace-nowrap">Sales</th>
+                  <th className="p-3 whitespace-nowrap">Expense</th>
+                  <th className="p-3 whitespace-nowrap">Withdrawal</th>
+                  <th className="p-3 whitespace-nowrap">Expected</th>
+                  <th className="p-3 whitespace-nowrap">Actual</th>
+                  <th className="p-3 whitespace-nowrap">Shortage</th>
+                  <th className="p-3 whitespace-nowrap">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {handovers.map((h) => {
+                  const isSelected = h.id === selectedShiftId;
+                  const totalSales = h.laundrySales + h.supplySales + (h.customServiceSales ?? 0);
+                  return (
+                    <tr
+                      key={h.id}
+                      onClick={() => setSelectedShiftId(isSelected ? null : h.id)}
+                      className={`border-b last:border-0 cursor-pointer transition-colors ${
+                        isSelected ? "bg-blue-50" : "hover:bg-gray-50"
+                      }`}
+                    >
+                      <td className="p-3 whitespace-nowrap text-gray-900">
+                        {new Date(h.timestamp).toLocaleDateString()}
+                      </td>
+                      <td className="p-3 whitespace-nowrap font-medium text-gray-900">{h.staffName}</td>
+                      <td className="p-3 whitespace-nowrap text-gray-900">₱{totalSales.toFixed(2)}</td>
+                      <td className="p-3 whitespace-nowrap text-gray-900">₱{h.expense.toFixed(2)}</td>
+                      <td className="p-3 whitespace-nowrap text-gray-900">₱{h.withdrawals.toFixed(2)}</td>
+                      <td className="p-3 whitespace-nowrap text-gray-900">₱{h.expectedCash.toFixed(2)}</td>
+                      <td className="p-3 whitespace-nowrap text-gray-900">₱{h.actualCashCounted.toFixed(2)}</td>
+                      <td className={`p-3 whitespace-nowrap font-medium ${h.shortage < 0 ? "text-red-600" : "text-green-600"}`}>
+                        ₱{h.shortage.toFixed(2)}
+                      </td>
+                      <td className="p-3 whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setInventoryModalShiftId(h.id);
+                          }}
+                          className="text-blue-600 font-medium hover:text-blue-800"
+                        >
+                          Inventory
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         ) : (
           <p className="text-gray-400 text-center py-4">No shift handovers submitted yet.</p>
@@ -478,6 +445,11 @@ export default function AdminSalesPage() {
           staffName={inventoryModalShift.staffName}
           timestamp={inventoryModalShift.timestamp}
           rows={inventoryModalShift.inventorySnapshot ?? []}
+          totalSales={
+            inventoryModalShift.laundrySales +
+            inventoryModalShift.supplySales +
+            (inventoryModalShift.customServiceSales ?? 0)
+          }
           onClose={() => setInventoryModalShiftId(null)}
         />
       )}

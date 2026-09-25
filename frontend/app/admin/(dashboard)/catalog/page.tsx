@@ -1,16 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search, Pencil, Trash2, KeyRound } from "lucide-react";
+import { PackagePlus, Search, Pencil, Trash2, KeyRound } from "lucide-react";
 import {
   getInventory,
   createInventoryItem,
   updateInventoryItem,
   deleteInventoryItem,
+  restockInventoryItem,
 } from "../../../lib/services/inventoryApi.service";
 import { setRestockPin } from "../../../lib/auth";
 import { ApiError } from "../../../lib/apiClient";
-import { packageColorProps } from "../../../lib/packageColor";
+import { packageColorProps, packageTextClass } from "../../../lib/packageColor";
 import { InventoryItem } from "../../../staff/(dashboard)/types";
 import {
   getPackages,
@@ -37,6 +38,7 @@ import AdminServiceFormModal, {
 } from "../../../components/admincom/AdminServiceFormModal";
 import ConfirmDeleteModal from "../../../components/admincom/ConfirmDeleteModal";
 import SetRestockPinModal from "../../../components/admincom/SetRestockPinModal";
+import RestockModal from "../../../components/staffcom/inventory/RestockModal";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
 
@@ -68,6 +70,9 @@ export default function AdminCatalogPage() {
   const [pinModalLoading, setPinModalLoading] = useState(false);
   const [pinModalError, setPinModalError] = useState("");
   const [pinModalSuccess, setPinModalSuccess] = useState("");
+  const [restockTarget, setRestockTarget] = useState<InventoryItem | null>(null);
+  const [restocking, setRestocking] = useState(false);
+  const [restockError, setRestockError] = useState("");
 
   // Drop off (Packages) state
   const [packages, setPackages] = useState<Package[]>([]);
@@ -120,6 +125,12 @@ export default function AdminCatalogPage() {
   const filteredPackages = packages.filter((pkg) =>
     pkg.name.toLowerCase().includes(packageSearch.toLowerCase())
   );
+  const packageGridColumns =
+    filteredPackages.length >= 4
+      ? "lg:grid-cols-4"
+      : filteredPackages.length === 3
+        ? "lg:grid-cols-3"
+        : "lg:grid-cols-2";
 
   const filteredServices = services.filter((svc) => {
     const matchesFilter = serviceFilter === "All" || svc.categoryId === serviceFilter;
@@ -153,7 +164,12 @@ export default function AdminCatalogPage() {
     setActionSubmitting(true);
     setActionError("");
     try {
-      const updated = await updateInventoryItem(editTarget.id, data);
+      const updated = await updateInventoryItem(editTarget.id, {
+        name: data.name,
+        lowStockAlert: data.lowStockAlert,
+        unit: data.unit,
+        price: data.price,
+      });
       setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
       setEditTarget(null);
     } catch {
@@ -175,6 +191,33 @@ export default function AdminCatalogPage() {
       setActionError("Unable to delete item. Please try again.");
     } finally {
       setActionSubmitting(false);
+    }
+  }
+
+  function requestRestock(item: InventoryItem) {
+    setRestockError("");
+    setRestockTarget(item);
+  }
+
+  function handleRestockCancel() {
+    setRestockTarget(null);
+    setRestockError("");
+  }
+
+  async function handleRestockConfirm(quantity: number) {
+    if (!restockTarget) return;
+    setRestocking(true);
+    setRestockError("");
+    try {
+      const updated = await restockInventoryItem(restockTarget.id, quantity);
+      setItems((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      handleRestockCancel();
+    } catch (err) {
+      setRestockError(
+        err instanceof ApiError ? err.message : "Unable to restock item. Please try again."
+      );
+    } finally {
+      setRestocking(false);
     }
   }
 
@@ -551,9 +594,16 @@ export default function AdminCatalogPage() {
                                   setEditTarget(item);
                                 }}
                                 className="text-gray-500 hover:text-blue-600"
-                                title="Edit"
+                                title="Edit item details"
                               >
                                 <Pencil size={16} />
+                              </button>
+                              <button
+                                onClick={() => requestRestock(item)}
+                                className="text-gray-500 hover:text-green-600"
+                                title="Restock item"
+                              >
+                                <PackagePlus size={17} />
                               </button>
                               <button
                                 onClick={() => {
@@ -613,13 +663,13 @@ export default function AdminCatalogPage() {
 
           <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
             {filteredPackages.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className={`grid grid-cols-1 sm:grid-cols-2 ${packageGridColumns} gap-4`}>
                 {filteredPackages.map((pkg) => {
                   const colorProps = packageColorProps(pkg.color);
                   return (
                   <div
                     key={pkg.id}
-                    className={`${colorProps.className} text-white rounded-xl p-4 sm:p-5 relative`}
+                    className={`${colorProps.className} ${packageTextClass(pkg.color)} border border-gray-300 shadow-sm rounded-xl p-4 sm:p-5 relative min-h-[128px] h-full w-full`}
                     style={colorProps.style}
                   >
                     <div className="absolute top-3 right-3 sm:top-4 sm:right-4 flex gap-1">
@@ -644,7 +694,7 @@ export default function AdminCatalogPage() {
                         <Trash2 size={16} />
                       </button>
                     </div>
-                    <h4 className="text-base sm:text-lg font-bold mb-2">{pkg.name}</h4>
+                    <h4 className="text-base sm:text-lg font-bold mb-2 pr-16 break-words">{pkg.name}</h4>
                     <p className="text-xl sm:text-2xl font-bold mb-2">₱ {pkg.price.toFixed(2)}</p>
                     {pkg.details.map((d) => (
                       <p key={d.inventoryId} className="text-xs opacity-90">
@@ -674,10 +724,21 @@ export default function AdminCatalogPage() {
       {editTarget && (
         <AdminInventoryFormModal
           initialItem={editTarget}
+          allowStockEdit={false}
           onSave={handleEditSave}
           onCancel={() => setEditTarget(null)}
           submitting={actionSubmitting}
           submitError={actionError}
+        />
+      )}
+
+      {restockTarget && (
+        <RestockModal
+          item={restockTarget}
+          onConfirm={handleRestockConfirm}
+          onCancel={handleRestockCancel}
+          submitting={restocking}
+          error={restockError}
         />
       )}
 

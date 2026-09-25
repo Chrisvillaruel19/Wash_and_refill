@@ -9,6 +9,7 @@ import AuthModal from "../../../components/staffcom/inventory/AuthModal";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
 import { getInventory, restockInventoryItem } from "../../../lib/services/inventoryApi.service";
+import { getMostRecentShiftHandover } from "../../../lib/services/shiftHandoverApi.service";
 import { ApiError } from "../../../lib/apiClient";
 import { InventoryItem } from "../types";
 
@@ -19,6 +20,7 @@ function InventoryPageContent() {
   const lowStockOnly = searchParams.get("filter") === "lowStock";
 
   const [items, setItems] = useState<InventoryItem[]>([]);
+  const [beginningStockById, setBeginningStockById] = useState<Record<string, number>>({});
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -39,9 +41,19 @@ function InventoryPageContent() {
   useEffect(() => {
     async function load() {
       try {
-        const data = await getInventory();
-         
+        const [data, recentHandover] = await Promise.all([
+          getInventory(),
+          getMostRecentShiftHandover(),
+        ]);
         setItems(data);
+        const snapshotBeginning = Object.fromEntries(
+          (recentHandover.record?.inventorySnapshot ?? []).map((row) => [row.inventoryId, row.endingQty])
+        );
+        setBeginningStockById(
+          Object.keys(snapshotBeginning).length > 0
+            ? snapshotBeginning
+            : Object.fromEntries(data.map((item) => [item.id, item.currentStock]))
+        );
       } catch {
         setError("Unable to load inventory. Please try again.");
       } finally {
@@ -49,6 +61,43 @@ function InventoryPageContent() {
       }
     }
     load();
+  }, []);
+
+  useEffect(() => {
+    const refreshInventory = () => {
+      void Promise.all([getInventory(), getMostRecentShiftHandover()])
+        .then(([data, recentHandover]) => {
+          setItems(data);
+          const snapshotBeginning = Object.fromEntries(
+            (recentHandover.record?.inventorySnapshot ?? []).map((row) => [row.inventoryId, row.endingQty])
+          );
+          if (Object.keys(snapshotBeginning).length > 0) {
+            setBeginningStockById(snapshotBeginning);
+          } else {
+            setBeginningStockById((previous) => {
+              const next = { ...previous };
+              for (const item of data) {
+                if (!(item.id in next)) next[item.id] = item.currentStock;
+              }
+              return next;
+            });
+          }
+        })
+        .catch(() => {});
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") refreshInventory();
+    };
+
+    window.addEventListener("focus", refreshInventory);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    const interval = window.setInterval(refreshInventory, 15000);
+
+    return () => {
+      window.removeEventListener("focus", refreshInventory);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.clearInterval(interval);
+    };
   }, []);
 
   function requestRestock(item: InventoryItem) {
@@ -138,6 +187,7 @@ function InventoryPageContent() {
 
       <InventoryTable
         items={paginatedItems}
+        beginningStockById={beginningStockById}
         search={search}
         onSearchChange={setSearch}
         onRestockClick={requestRestock}

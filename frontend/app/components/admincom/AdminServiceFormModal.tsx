@@ -32,7 +32,9 @@ export default function AdminServiceFormModal({
 
   const [categoryId, setCategoryId] = useState(initialService?.categoryId ?? categories[0]?.id ?? "");
   const [name, setName] = useState(initialService?.name ?? "");
-  const [pricePerKg, setPricePerKg] = useState(initialService?.pricePerKg ?? 0);
+  const [pricePerKg, setPricePerKg] = useState(
+    initialService ? String(initialService.pricePerKg) : ""
+  );
   const [error, setError] = useState("");
 
   function handleSubmit(e: React.FormEvent) {
@@ -48,12 +50,13 @@ export default function AdminServiceFormModal({
       setError("Service name must be at most 100 characters.");
       return;
     }
-    if (pricePerKg <= 0) {
+    const parsedPricePerKg = Number(pricePerKg);
+    if (!pricePerKg.trim() || parsedPricePerKg <= 0) {
       setError("Price must be greater than zero.");
       return;
     }
 
-    onSave({ categoryId, name: trimmedName, pricePerKg });
+    onSave({ categoryId, name: trimmedName, pricePerKg: parsedPricePerKg });
   }
 
   return (
@@ -114,8 +117,9 @@ export default function AdminServiceFormModal({
               type="number"
               min={0.01}
               step={0.01}
+              placeholder="0"
               value={pricePerKg}
-              onChange={(e) => setPricePerKg(parseFloat(e.target.value) || 0)}
+              onChange={(e) => setPricePerKg(e.target.value)}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             />
           </div>

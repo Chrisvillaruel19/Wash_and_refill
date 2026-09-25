@@ -1,11 +1,23 @@
 "use client";
 
-import { ShoppingCart, X } from "lucide-react";
+import { Minus, Plus, ShoppingCart, X } from "lucide-react";
 import { CartItem, PaymentMethod } from "../../../staff/(dashboard)/neworder/types";
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
 
 interface OrderSummaryProps {
   cartItems: CartItem[];
+  total: number;
+  change: number;
   onRemoveItem: (id: string) => void;
+  onQuantityChange: (id: string, delta: number) => void;
   paymentMethod: PaymentMethod;
   onPaymentMethodChange: (method: PaymentMethod) => void;
   amountPaid: number;
@@ -17,7 +29,10 @@ interface OrderSummaryProps {
 
 export default function OrderSummary({
   cartItems,
+  total,
+  change,
   onRemoveItem,
+  onQuantityChange,
   paymentMethod,
   onPaymentMethodChange,
   amountPaid,
@@ -26,51 +41,83 @@ export default function OrderSummary({
   isSubmitting,
   submitError,
 }: OrderSummaryProps) {
-  const total = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const change = amountPaid - total;
-
   return (
-    <div className="bg-white rounded-xl shadow-md overflow-hidden flex flex-col h-full">
+    <div className="bg-white rounded-xl shadow-md overflow-hidden flex flex-col h-fit lg:sticky lg:top-4">
       <div className="bg-blue-600 text-white flex items-center gap-2 px-4 sm:px-5 py-3">
         <ShoppingCart size={18} />
         <span className="font-semibold">Order Summary</span>
       </div>
 
-      <div className="flex-1 p-4 sm:p-5 space-y-3 overflow-y-auto min-h-[150px] sm:min-h-[200px]">
+      <div className="p-4 sm:p-5 space-y-3 overflow-y-auto max-h-[360px] min-h-[120px]">
         {cartItems.length > 0 ? (
-          cartItems.map((item) => (
-            <div
-              key={item.id}
-              className="flex items-center justify-between border-b border-gray-100 pb-2 gap-2"
-            >
-              <div className="min-w-0">
-                <p className="font-medium text-gray-800 truncate">{item.name}</p>
-                <p className="text-xs text-gray-500">
-                  {item.quantity} × ₱{item.price.toFixed(2)}
-                </p>
+          cartItems.map((item) => {
+            const itemSubtotal = item.price * item.quantity;
+            return (
+              <div
+                key={item.id}
+                className="border border-gray-200 rounded-lg bg-gray-50 p-3 space-y-2"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-medium text-gray-800 break-words leading-5 pr-2 min-w-0 flex-1">
+                    {item.name}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => onRemoveItem(item.id)}
+                    className="text-gray-400 hover:text-red-500 shrink-0"
+                    aria-label={`Remove ${item.name}`}
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <span>Qty:</span>
+                    <div className="flex items-center border border-gray-300 rounded-md overflow-hidden bg-white">
+                      <button
+                        type="button"
+                        onClick={() => onQuantityChange(item.id, -1)}
+                        className="p-1.5 text-gray-700 hover:bg-gray-100"
+                        aria-label={`Decrease quantity for ${item.name}`}
+                      >
+                        <Minus size={14} />
+                      </button>
+                      <span className="min-w-8 text-center font-medium text-gray-800">{item.quantity}</span>
+                      <button
+                        type="button"
+                        onClick={() => onQuantityChange(item.id, 1)}
+                        className="p-1.5 text-gray-700 hover:bg-gray-100"
+                        aria-label={`Increase quantity for ${item.name}`}
+                      >
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <span className="font-semibold text-gray-900">{formatCurrency(itemSubtotal)}</span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs text-gray-500">
+                  <span>Unit Price</span>
+                  <span>{formatCurrency(item.price)}</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                <span className="font-semibold text-sm sm:text-base text-gray-900">
-                  ₱{(item.price * item.quantity).toFixed(2)}
-                </span>
-                <button
-                  onClick={() => onRemoveItem(item.id)}
-                  className="text-gray-400 hover:text-red-500"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            </div>
-          ))
+            );
+          })
         ) : (
-          <p className="text-gray-400 text-sm text-center mt-8">Cart is empty.</p>
+          <div className="flex items-center justify-center h-full min-h-[120px] text-center text-gray-400 text-sm">
+            Cart is empty.
+          </div>
         )}
       </div>
 
       <div className="p-4 sm:p-5 border-t border-gray-100">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <div className="grid grid-cols-2 gap-3 mb-4">
           <div>
-            <label htmlFor="order-payment-method" className="block text-sm text-gray-600 mb-1">Payment method:</label>
+            <label htmlFor="order-payment-method" className="flex items-center min-h-5 text-xs sm:text-sm text-gray-600 mb-1 whitespace-nowrap">
+              Payment Method
+            </label>
             <select
               id="order-payment-method"
               value={paymentMethod}
@@ -82,13 +129,17 @@ export default function OrderSummary({
             </select>
           </div>
           <div>
-            <label htmlFor="order-amount-paid" className="block text-sm text-gray-600 mb-1">Amount:</label>
+            <label htmlFor="order-amount-paid" className="flex items-center min-h-5 text-xs sm:text-sm text-gray-600 mb-1 whitespace-nowrap">
+              Amount Paid
+            </label>
             <input
               id="order-amount-paid"
               type="number"
-              placeholder="Input amount"
+              min="0"
+              step="0.01"
+              placeholder="0"
               value={amountPaid || ""}
-              onChange={(e) => onAmountPaidChange(parseFloat(e.target.value) || 0)}
+              onChange={(e) => onAmountPaidChange(Number(e.target.value) || 0)}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             />
           </div>
@@ -96,11 +147,13 @@ export default function OrderSummary({
 
         <div className="flex justify-between text-sm mb-1">
           <span className="text-gray-600">Total</span>
-          <span className="font-semibold text-gray-900">₱{total.toFixed(2)}</span>
+          <span className="font-semibold text-gray-900">{formatCurrency(total)}</span>
         </div>
         <div className="flex justify-between text-sm mb-4">
           <span className="text-gray-600">Change</span>
-          <span className="font-semibold text-gray-900">₱{change > 0 ? change.toFixed(2) : "0.00"}</span>
+          <span className={`font-semibold ${change < 0 ? "text-red-600" : "text-gray-900"}`}>
+            {formatCurrency(change)}
+          </span>
         </div>
 
         {submitError && (
@@ -113,6 +166,7 @@ export default function OrderSummary({
         )}
 
         <button
+          type="button"
           onClick={onFinishTransaction}
           disabled={cartItems.length === 0 || isSubmitting}
           className="w-full bg-blue-600 text-white rounded-lg py-3 font-semibold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"

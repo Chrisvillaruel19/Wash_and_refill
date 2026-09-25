@@ -37,8 +37,9 @@ export default function AdminAttendancePage() {
   }, []);
 
   const today = new Date().toLocaleDateString();
-  const presentToday = records.filter((r) => r.date === today).length;
-  const currentlyClockedIn = records.filter((r) => !r.timeOut).length;
+  const todayRecords = records.filter((r) => r.date === today);
+  const presentToday = todayRecords.filter((r) => r.status === "Present").length;
+  const currentlyClockedIn = todayRecords.filter((r) => r.timeIn && !r.timeOut).length;
 
   const filteredRecords = records.filter(
     (r) =>
@@ -127,7 +128,15 @@ export default function AdminAttendancePage() {
                       {r.totalHours !== null ? r.totalHours.toFixed(1) : "-"}
                     </td>
                     <td className="p-3 whitespace-nowrap">
-                      <span className="px-3 py-1 rounded-full text-xs font-medium border text-green-600 border-green-300 bg-green-50">
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-medium border ${
+                          r.status === "Late"
+                            ? "text-amber-600 border-amber-300 bg-amber-50"
+                            : r.status === "Absent"
+                              ? "text-red-600 border-red-300 bg-red-50"
+                              : "text-green-600 border-green-300 bg-green-50"
+                        }`}
+                      >
                         {r.status}
                       </span>
                       {r.autoClosed && (

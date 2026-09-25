@@ -228,6 +228,64 @@ export type NewOrderItemInput =
   | { type: "SERVICE"; serviceId: string; weight: number; quantity: number; serviceType?: ServiceType }
   | { type: "INVENTORY"; inventoryId: string; quantity: number };
 
+export interface ReceiptLineItem {
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+  type: "PACKAGE" | "SERVICE" | "INVENTORY";
+  serviceType?: ServiceType;
+}
+
+export interface CreatedOrderReceipt extends Order {
+  customerName: string;
+  phoneNumber: string;
+  userName?: string;
+  paymentStatus: PayStatus;
+  paymentMethod?: PaymentMethod;
+  amountPaid: number;
+  totalAmount: number;
+  orderDetails: ReceiptLineItem[];
+}
+
+function mapReceiptOrder(order: BackendOrder): CreatedOrderReceipt {
+  const mappedOrder = mapOrder(order);
+  const orderDetails: ReceiptLineItem[] = (order.orderDetails ?? []).map((detail) => {
+    const name =
+      detail.package?.packageName ?? detail.service?.serviceName ?? detail.inventory?.itemName ?? "Item";
+    const quantity = Number(detail.quantity) || 0;
+    const subtotal = Number(detail.subtotal) || 0;
+    const unitPrice = quantity > 0 ? subtotal / quantity : 0;
+    const type: ReceiptLineItem["type"] = detail.package
+      ? "PACKAGE"
+      : detail.service
+        ? "SERVICE"
+        : "INVENTORY";
+    const serviceType = detail.serviceType ? SERVICE_TYPE_FROM_BACKEND[detail.serviceType] : undefined;
+
+    return {
+      name,
+      quantity,
+      unitPrice,
+      subtotal,
+      type,
+      ...(serviceType ? { serviceType } : {}),
+    };
+  });
+
+  return {
+    ...mappedOrder,
+    customerName: order.customer.customerName,
+    phoneNumber: order.customer.phoneNumber,
+    userName: order.user?.name,
+    paymentStatus: mappedOrder.payStatus,
+    paymentMethod: order.paymentMethod ? PAYMENT_METHOD_MAP[order.paymentMethod] : undefined,
+    amountPaid: Number(order.amountPaid),
+    totalAmount: Number(order.totalAmount),
+    orderDetails,
+  };
+}
+
 export async function createOrder(data: {
   customerName: string;
   phoneNumber: string;
@@ -235,7 +293,7 @@ export async function createOrder(data: {
   amountPaid: number;
   items: NewOrderItemInput[];
   idempotencyKey: string;
-}): Promise<Order> {
+}): Promise<CreatedOrderReceipt> {
   const items = data.items.map((item) =>
     item.type === "SERVICE" && item.serviceType
       ? { ...item, serviceType: SERVICE_TYPE_TO_BACKEND[item.serviceType] }
@@ -249,7 +307,7 @@ export async function createOrder(data: {
     items,
     idempotencyKey: data.idempotencyKey,
   });
-  return mapOrder(order);
+  return mapReceiptOrder(order);
 }
 
 const PAYMENT_METHOD_MAP_TO_BACKEND: Record<PaymentMethod, string> = {

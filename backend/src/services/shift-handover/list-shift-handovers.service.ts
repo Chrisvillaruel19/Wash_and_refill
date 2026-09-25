@@ -17,7 +17,8 @@ export async function listShiftHandoversService(params: { page: number; pageSize
     const shiftHandovers = records.map(({ user, inventorySnapshot, ...record }) => ({
       ...record,
       staffName: user.name,
-      inventorySnapshot: inventorySnapshot.map(({ itemName, unit, beginningQty, endingQty }) => ({
+      inventorySnapshot: inventorySnapshot.map(({ inventoryId, itemName, unit, beginningQty, endingQty }) => ({
+        inventoryId,
         itemName,
         unit,
         beginningQty,

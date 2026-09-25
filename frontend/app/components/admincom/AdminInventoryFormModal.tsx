@@ -14,6 +14,7 @@ export interface InventoryFormData {
 
 interface AdminInventoryFormModalProps {
   initialItem?: InventoryItem; // undefined = Add mode
+  allowStockEdit?: boolean;
   onSave: (data: InventoryFormData) => void;
   onCancel: () => void;
   submitting?: boolean;
@@ -22,6 +23,7 @@ interface AdminInventoryFormModalProps {
 
 export default function AdminInventoryFormModal({
   initialItem,
+  allowStockEdit = true,
   onSave,
   onCancel,
   submitting,
@@ -29,12 +31,17 @@ export default function AdminInventoryFormModal({
 }: AdminInventoryFormModalProps) {
   useEscapeKey(onCancel);
   const isEdit = !!initialItem;
+  const canEditStock = !isEdit || allowStockEdit;
 
   const [name, setName] = useState(initialItem?.name ?? "");
-  const [currentStock, setCurrentStock] = useState(initialItem?.currentStock ?? 0);
-  const [lowStockAlert, setLowStockAlert] = useState(initialItem?.lowStockAlert ?? 0);
+  const [currentStock, setCurrentStock] = useState(
+    initialItem ? String(initialItem.currentStock) : ""
+  );
+  const [lowStockAlert, setLowStockAlert] = useState(
+    initialItem ? String(initialItem.lowStockAlert) : ""
+  );
   const [unit, setUnit] = useState(initialItem?.unit ?? "");
-  const [price, setPrice] = useState(initialItem?.price ?? 0);
+  const [price, setPrice] = useState(initialItem ? String(initialItem.price) : "");
   const [error, setError] = useState("");
 
   function handleSubmit(e: React.FormEvent) {
@@ -55,20 +62,30 @@ export default function AdminInventoryFormModal({
       setError("Unit must be at most 20 characters.");
       return;
     }
-    if (currentStock < 0 || !Number.isInteger(currentStock)) {
+    const parsedCurrentStock = Number(currentStock);
+    const parsedLowStockAlert = Number(lowStockAlert);
+    const parsedPrice = Number(price);
+
+    if (!currentStock.trim() || parsedCurrentStock < 0 || !Number.isInteger(parsedCurrentStock)) {
       setError("Current stock must be a whole number, zero or greater.");
       return;
     }
-    if (lowStockAlert < 0 || !Number.isInteger(lowStockAlert)) {
+    if (!lowStockAlert.trim() || parsedLowStockAlert < 0 || !Number.isInteger(parsedLowStockAlert)) {
       setError("Low stock alert must be a whole number, zero or greater.");
       return;
     }
-    if (price <= 0) {
+    if (!price.trim() || parsedPrice <= 0) {
       setError("Price must be greater than zero.");
       return;
     }
 
-    onSave({ name: trimmedName, currentStock, lowStockAlert, unit: trimmedUnit, price });
+    onSave({
+      name: trimmedName,
+      currentStock: parsedCurrentStock,
+      lowStockAlert: parsedLowStockAlert,
+      unit: trimmedUnit,
+      price: parsedPrice,
+    });
   }
 
   return (
@@ -99,17 +116,20 @@ export default function AdminInventoryFormModal({
             />
           </div>
 
-          <div>
-            <label htmlFor="inventory-current-stock" className="block text-sm text-gray-500 mb-1">Current Stock</label>
-            <input
-              id="inventory-current-stock"
-              type="number"
-              min={0}
-              value={currentStock}
-              onChange={(e) => setCurrentStock(parseInt(e.target.value) || 0)}
-              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
-            />
-          </div>
+          {canEditStock && (
+            <div>
+              <label htmlFor="inventory-current-stock" className="block text-sm text-gray-500 mb-1">Current Stock</label>
+              <input
+                id="inventory-current-stock"
+                type="number"
+                min={0}
+                placeholder="0"
+                value={currentStock}
+                onChange={(e) => setCurrentStock(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
+              />
+            </div>
+          )}
 
           <div>
             <label htmlFor="inventory-low-stock-alert" className="block text-sm text-gray-500 mb-1">Low Stock Alert</label>
@@ -117,8 +137,9 @@ export default function AdminInventoryFormModal({
               id="inventory-low-stock-alert"
               type="number"
               min={0}
+              placeholder="0"
               value={lowStockAlert}
-              onChange={(e) => setLowStockAlert(parseInt(e.target.value) || 0)}
+              onChange={(e) => setLowStockAlert(e.target.value)}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             />
           </div>
@@ -144,8 +165,9 @@ export default function AdminInventoryFormModal({
               type="number"
               min={0.01}
               step={0.01}
+              placeholder="0"
               value={price}
-              onChange={(e) => setPrice(parseFloat(e.target.value) || 0)}
+              onChange={(e) => setPrice(e.target.value)}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             />
           </div>

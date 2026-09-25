@@ -5,6 +5,7 @@ import { InventoryItem } from "../../../staff/(dashboard)/types";
 
 interface InventoryTableProps {
   items: InventoryItem[];
+  beginningStockById: Record<string, number>;
   search: string;
   onSearchChange: (value: string) => void;
   onRestockClick: (item: InventoryItem) => void;
@@ -12,6 +13,7 @@ interface InventoryTableProps {
 
 export default function InventoryTable({
   items,
+  beginningStockById,
   search,
   onSearchChange,
   onRestockClick,
@@ -37,6 +39,7 @@ export default function InventoryTable({
             <thead>
               <tr className="text-gray-700 border-b bg-gray-50">
                 <th className="p-3 sm:p-4 whitespace-nowrap">Item Name</th>
+                <th className="p-3 sm:p-4 whitespace-nowrap">Beginning</th>
                 <th className="p-3 sm:p-4 whitespace-nowrap">Current Stock</th>
                 <th className="p-3 sm:p-4 whitespace-nowrap">Low Stock Alert</th>
                 <th className="p-3 sm:p-4 whitespace-nowrap">Unit</th>
@@ -52,6 +55,9 @@ export default function InventoryTable({
                   return (
                     <tr key={item.id} className="border-b last:border-0">
                       <td className="p-3 sm:p-4 font-medium whitespace-nowrap text-gray-900">{item.name}</td>
+                      <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">
+                        {beginningStockById[item.id] ?? item.currentStock}
+                      </td>
                       <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">{item.currentStock}</td>
                       <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">{item.lowStockAlert}</td>
                       <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">{item.unit}</td>
@@ -82,7 +88,7 @@ export default function InventoryTable({
                 })
               ) : (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-gray-400">
+                  <td colSpan={8} className="p-8 text-center text-gray-400">
                     No items found.
                   </td>
                 </tr>

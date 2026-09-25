@@ -68,10 +68,10 @@ export interface AttendanceRecord {
   id: string;
   staffName: string;
   date: string;
-  timeIn: string;
+  timeIn: string | null;
   timeOut: string | null;
   totalHours: number | null;
-  status: "Present";
+  status: "Present" | "Late" | "Absent";
   // True when the system closed this record automatically because it sat
   // clocked-in past MAX_SESSION_HOURS (a forgotten clock-out), rather than
   // the staff member actually clocking out. Kept visible, never hidden, so
@@ -99,6 +99,7 @@ export interface ExpenseRecord {
 }
 
 export interface ShiftHandoverInventoryRow {
+  inventoryId: string;
   itemName: string;
   unit: string;
   beginningQty: number;

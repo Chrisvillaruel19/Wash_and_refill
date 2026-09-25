@@ -7,6 +7,7 @@ interface ShiftInventoryModalProps {
   staffName: string;
   timestamp: string;
   rows: ShiftHandoverInventoryRow[];
+  totalSales: number;
   onClose: () => void;
 }
 
@@ -20,6 +21,7 @@ export default function ShiftInventoryModal({
   staffName,
   timestamp,
   rows,
+  totalSales,
   onClose,
 }: ShiftInventoryModalProps) {
   useEscapeKey(onClose);
@@ -62,6 +64,11 @@ export default function ShiftInventoryModal({
               )}
             </tbody>
           </table>
+        </div>
+
+        <div className="border-t border-gray-200 mt-4 pt-3 flex items-center justify-between">
+          <span className="text-sm font-medium text-gray-500">Total Sales</span>
+          <span className="text-lg font-bold text-gray-900">₱{totalSales.toFixed(2)}</span>
         </div>
 
         <div className="flex justify-end pt-4">

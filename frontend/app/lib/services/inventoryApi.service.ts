@@ -32,12 +32,12 @@ export async function getInventory(): Promise<InventoryItem[]> {
 export async function restockInventoryItem(
   id: string,
   quantity: number,
-  pin: string
+  pin?: string
 ): Promise<InventoryItem> {
-  const { item } = await apiClient.post<{ item: BackendInventoryItem }>(`/inventory/${id}/restock`, {
-    quantity,
-    pin,
-  });
+  const { item } = await apiClient.post<{ item: BackendInventoryItem }>(
+    `/inventory/${id}/restock`,
+    pin ? { quantity, pin } : { quantity }
+  );
   return mapItem(item);
 }
 
@@ -60,11 +60,12 @@ export async function createInventoryItem(data: {
 
 export async function updateInventoryItem(
   id: string,
-  data: { name: string; currentStock: number; lowStockAlert: number; unit: string; price: number }
+  data: { name: string; currentStock?: number; lowStockAlert: number; unit: string; price: number }
 ): Promise<InventoryItem> {
+  const quantity = data.currentStock === undefined ? {} : { quantity: data.currentStock };
   const { item } = await apiClient.patch<{ item: BackendInventoryItem }>(`/inventory/${id}`, {
     itemName: data.name,
-    quantity: data.currentStock,
+    ...quantity,
     unit: data.unit,
     unitPrice: data.price,
     lowStockThreshold: data.lowStockAlert,

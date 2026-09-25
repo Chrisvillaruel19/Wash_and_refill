@@ -1,10 +1,28 @@
 import { Request, Response } from "express";
-import { createWithdrawalService, listWithdrawalsService } from "../services/withdrawal/index.js";
+import {
+  createWithdrawalService,
+  listWithdrawalsService,
+  getCurrentBalanceService,
+} from "../services/withdrawal/index.js";
 import { JwtPayload } from "../lib/jwt.js";
 
 type AuthenticatedRequest = Request & { user?: JwtPayload };
 
 export class WithdrawalController {
+  public balance = async (req: Request, res: Response) => {
+    try {
+      const result = await getCurrentBalanceService();
+      return res.status(result.code).json(result);
+    } catch (error) {
+      console.error("WithdrawalController.balance error", error);
+      return res.status(500).json({
+        code: 500,
+        status: "error",
+        message: "Unable to retrieve current drawer balance",
+      });
+    }
+  };
+
   public create = async (req: Request, res: Response) => {
     try {
       const authReq = req as AuthenticatedRequest;

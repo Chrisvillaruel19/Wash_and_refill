@@ -2,7 +2,7 @@
 
 import { Plus } from "lucide-react";
 import { Package } from "../../../staff/(dashboard)/neworder/types";
-import { packageColorProps } from "../../../lib/packageColor";
+import { packageColorProps, packageTextClass } from "../../../lib/packageColor";
 
 interface PackageGridProps {
   packages: Package[];
@@ -25,7 +25,7 @@ export default function PackageGrid({ packages, onAdd }: PackageGridProps) {
             key={pkg.id}
             type="button"
             onClick={() => onAdd(pkg)}
-            className={`${colorProps.className} text-white rounded-xl p-4 sm:p-5 relative text-left w-full hover:brightness-110 transition-[filter] cursor-pointer`}
+            className={`${colorProps.className} ${packageTextClass(pkg.color)} border border-gray-300 shadow-sm rounded-xl p-4 sm:p-5 relative text-left w-full hover:brightness-110 transition-[filter] cursor-pointer`}
             style={colorProps.style}
           >
             <span className="absolute top-3 right-3 sm:top-4 sm:right-4 bg-white/20 rounded-full p-1">

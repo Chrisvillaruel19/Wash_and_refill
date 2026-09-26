@@ -1,6 +1,6 @@
 "use client";
 
-import { Minus, Plus, ShoppingCart, X } from "lucide-react";
+import { ShoppingCart, X } from "lucide-react";
 import { CartItem, PaymentMethod } from "../../../staff/(dashboard)/neworder/types";
 
 function formatCurrency(value: number) {
@@ -17,7 +17,6 @@ interface OrderSummaryProps {
   total: number;
   change: number;
   onRemoveItem: (id: string) => void;
-  onQuantityChange: (id: string, delta: number) => void;
   paymentMethod: PaymentMethod;
   onPaymentMethodChange: (method: PaymentMethod) => void;
   amountPaid: number;
@@ -32,7 +31,6 @@ export default function OrderSummary({
   total,
   change,
   onRemoveItem,
-  onQuantityChange,
   paymentMethod,
   onPaymentMethodChange,
   amountPaid,
@@ -55,52 +53,25 @@ export default function OrderSummary({
             return (
               <div
                 key={item.id}
-                className="border border-gray-200 rounded-lg bg-gray-50 p-3 space-y-2"
+                className="flex items-start gap-2 border-b border-gray-100 pb-3 last:border-0 last:pb-0"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <p className="font-medium text-gray-800 break-words leading-5 pr-2 min-w-0 flex-1">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-gray-800 break-words leading-5">
                     {item.name}
                   </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="text-sm font-semibold text-gray-900">
+                    {formatCurrency(itemSubtotal)}
+                  </span>
                   <button
                     type="button"
                     onClick={() => onRemoveItem(item.id)}
-                    className="text-gray-400 hover:text-red-500 shrink-0"
+                    className="text-gray-400 hover:text-red-500"
                     aria-label={`Remove ${item.name}`}
                   >
                     <X size={16} />
                   </button>
-                </div>
-
-                <div className="flex items-center justify-between gap-3 text-sm">
-                  <div className="flex items-center gap-2 text-gray-600">
-                    <span>Qty:</span>
-                    <div className="flex items-center border border-gray-300 rounded-md overflow-hidden bg-white">
-                      <button
-                        type="button"
-                        onClick={() => onQuantityChange(item.id, -1)}
-                        className="p-1.5 text-gray-700 hover:bg-gray-100"
-                        aria-label={`Decrease quantity for ${item.name}`}
-                      >
-                        <Minus size={14} />
-                      </button>
-                      <span className="min-w-8 text-center font-medium text-gray-800">{item.quantity}</span>
-                      <button
-                        type="button"
-                        onClick={() => onQuantityChange(item.id, 1)}
-                        className="p-1.5 text-gray-700 hover:bg-gray-100"
-                        aria-label={`Increase quantity for ${item.name}`}
-                      >
-                        <Plus size={14} />
-                      </button>
-                    </div>
-                  </div>
-
-                  <span className="font-semibold text-gray-900">{formatCurrency(itemSubtotal)}</span>
-                </div>
-
-                <div className="flex items-center justify-between text-xs text-gray-500">
-                  <span>Unit Price</span>
-                  <span>{formatCurrency(item.price)}</span>
                 </div>
               </div>
             );

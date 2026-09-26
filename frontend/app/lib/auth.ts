@@ -53,7 +53,7 @@ export async function login(username: string, password: string): Promise<StaffUs
 
     return user;
   } catch (error) {
-    if (error instanceof ApiError) return null;
+    if (error instanceof ApiError && error.status === 401) return null;
     throw error;
   }
 }

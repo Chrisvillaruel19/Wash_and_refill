@@ -46,7 +46,12 @@ export default function ShiftInventoryModal({
             <tbody>
               {rows.length > 0 ? (
                 rows.map((row) => (
-                  <tr key={row.itemName} className="border-b last:border-0">
+                  // Keyed by the snapshot row's inventoryId (always present,
+                  // unique per item) — never by itemName: two active items may
+                  // now legitimately share a display name with different units
+                  // (e.g. "Liquid Detergent" Sachet vs bottle), and a name key
+                  // would collide, making React misbehave on list updates.
+                  <tr key={row.inventoryId} className="border-b last:border-0">
                     <td className="p-2 whitespace-nowrap text-gray-900">
                       {row.itemName}
                       <span className="text-gray-400"> ({row.unit})</span>

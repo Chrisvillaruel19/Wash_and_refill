@@ -58,7 +58,7 @@ export default function AdminDashboardPage() {
     <div className="p-4 sm:p-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
         <AdminStatCard
-          label="Total Cash Today"
+          label="Paid Sales Today"
           value={`₱${totalCashToday.toFixed(2)}`}
           icon={Wallet}
           iconColor="text-green-600 bg-green-100"

@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma.js";
-import { Prisma } from "../../generated/prisma/client.js";
+import { PaymentMethod, Prisma } from "../../generated/prisma/client.js";
 
 type PrismaClientOrTx = typeof prisma | Prisma.TransactionClient;
 
@@ -22,6 +22,10 @@ export class WithdrawalRepository {
     return tx.withdrawal.findMany({ where: { shiftHandoverId: null } });
   }
 
+  async findUnclaimedByPaymentMethod(paymentMethod: PaymentMethod, tx: PrismaClientOrTx = prisma) {
+    return tx.withdrawal.findMany({ where: { shiftHandoverId: null, paymentMethod } });
+  }
+
   // The actual claim step for Shift Handover creation — see
   // OrderRepository.lockUnclaimedPaidIds for the full rationale.
   async lockUnclaimedIds(tx: Prisma.TransactionClient): Promise<string[]> {
@@ -42,7 +46,14 @@ export class WithdrawalRepository {
   }
 
   async create(
-    data: { userId: string; amount: number; reason: string; remainingCash: number; withdrawalDate: Date },
+    data: {
+      userId: string;
+      amount: number;
+      reason: string;
+      remainingCash: number;
+      paymentMethod: PaymentMethod;
+      withdrawalDate: Date;
+    },
     tx: PrismaClientOrTx = prisma
   ) {
     return tx.withdrawal.create({ data });

@@ -29,8 +29,26 @@ export class OrderRepository {
     });
   }
 
+  async findAllForUser(
+    userId: string,
+    params: { page: number; pageSize: number },
+    tx: PrismaClientOrTx = prisma
+  ) {
+    return tx.order.findMany({
+      where: { userId },
+      include: listInclude,
+      orderBy: { createdAt: "desc" },
+      skip: (params.page - 1) * params.pageSize,
+      take: params.pageSize,
+    });
+  }
+
   async count(tx: PrismaClientOrTx = prisma) {
     return tx.order.count();
+  }
+
+  async countForUser(userId: string, tx: PrismaClientOrTx = prisma) {
+    return tx.order.count({ where: { userId } });
   }
 
   async findById(id: string, tx: PrismaClientOrTx = prisma) {
@@ -200,7 +218,7 @@ export class OrderRepository {
   // paymentDateGte/paymentDateLt are already-resolved UTC instants (Manila
   // business-day bounds) — this method does no date math of its own.
   async findPaidWithDetails(
-    params: { shiftHandoverId?: string; paymentDateGte?: Date; paymentDateLt?: Date },
+    params: { shiftHandoverId?: string; userId?: string; paymentDateGte?: Date; paymentDateLt?: Date },
     tx: PrismaClientOrTx = prisma
   ) {
     return tx.order.findMany({
@@ -208,6 +226,7 @@ export class OrderRepository {
         paymentStatus: PaymentStatus.PAID,
         status: { not: OrderStatus.CANCELLED },
         ...(params.shiftHandoverId ? { shiftHandoverId: params.shiftHandoverId } : {}),
+        ...(params.userId ? { userId: params.userId } : {}),
         ...(params.paymentDateGte || params.paymentDateLt
           ? {
               paymentDate: {

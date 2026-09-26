@@ -26,7 +26,7 @@ import {
   deleteService,
 } from "../../../lib/services/laundryServiceApi.service";
 import { Package, ServiceItem } from "../../../staff/(dashboard)/neworder/types";
-import { serviceCategories } from "../../../staff/(dashboard)/neworder/data";
+import { legacyServiceCategoryNames, serviceCategories } from "../../../staff/(dashboard)/neworder/data";
 import AdminInventoryFormModal, {
   InventoryFormData,
 } from "../../../components/admincom/AdminInventoryFormModal";
@@ -152,8 +152,8 @@ export default function AdminCatalogPage() {
       const created = await createInventoryItem(data);
       setItems((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
       setShowAddModal(false);
-    } catch {
-      setActionError("Unable to add item. Please try again.");
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "Unable to add item. Please try again.");
     } finally {
       setActionSubmitting(false);
     }
@@ -172,8 +172,8 @@ export default function AdminCatalogPage() {
       });
       setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
       setEditTarget(null);
-    } catch {
-      setActionError("Unable to update item. Please try again.");
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "Unable to update item. Please try again.");
     } finally {
       setActionSubmitting(false);
     }
@@ -458,7 +458,9 @@ export default function AdminCatalogPage() {
                   {paginatedServices.length > 0 ? (
                     paginatedServices.map((svc) => {
                       const categoryName =
-                        serviceCategories.find((c) => c.id === svc.categoryId)?.name ?? svc.categoryId;
+                        serviceCategories.find((c) => c.id === svc.categoryId)?.name ??
+                        legacyServiceCategoryNames[svc.categoryId] ??
+                        svc.categoryId;
                       return (
                         <tr key={svc.id} className="border-b last:border-0">
                           <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">{categoryName}</td>

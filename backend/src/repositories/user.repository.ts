@@ -68,6 +68,39 @@ export class UserRepository {
     });
   }
 
+  // Case-insensitive email lookup, used ONLY by the login flow. Login is
+  // the one place a user-typed email must be matched the way email clients
+  // treat addresses (the domain half is case-insensitive per RFC 5321, and
+  // users type "Name@Gmail.com" vs "name@gmail.com" interchangeably) —
+  // while findByEmail's other callers (employee create/update's duplicate
+  // guard, forgot-password's lookup) deliberately keep EXACT matching: a
+  // strict duplicate check must treat "A@x.com" and "a@x.com" as distinct
+  // to avoid false conflicts against rows created before this was a rule,
+  // and silently matching a different-case stored address for password
+  // reset could surprise an admin auditing who requested the reset. Kept
+  // as a separate method so neither behavior silently changes under the
+  // other. Postgres is case-sensitive by default, so "mode: insensitive"
+  // here is a real behavior change for login, not a no-op.
+  async findActiveCredentialByEmailForLogin(
+    email: string,
+    tx: PrismaClientOrTx = prisma
+  ) {
+    return await tx.user.findFirst({
+      where: {
+        email: { equals: email, mode: "insensitive" },
+      },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        password: true,
+        name: true,
+        role: true,
+        accountStatus: true,
+      },
+    });
+  }
+
   async create(
     data: {
       username: string;

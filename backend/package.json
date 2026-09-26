@@ -9,6 +9,7 @@
     "build": "tsc && tsc-alias",
     "start": "node ./dist/server.js",
     "cleanup:test-employees": "tsx src/scripts/delete-archived-test-employees.ts",
+    "create-admin": "tsx src/scripts/create-admin.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy"

@@ -7,7 +7,7 @@ import SalesTable from "../../../components/staffcom/sales/SalesTable";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
 import { useServerPage } from "../../../lib/useServerPage";
-import { getOrders, getOrdersPage, getOrderDetail, getSalesBreakdown, SalesBreakdownRow } from "../../../lib/services/ordersApi.service";
+import { getMyOrders, getMyOrdersPage, getOrderDetail, getSalesBreakdown, SalesBreakdownRow } from "../../../lib/services/ordersApi.service";
 import { Order } from "../types";
 
 const PAGE_SIZE = 8;
@@ -53,7 +53,7 @@ export default function SalesPage() {
   useEffect(() => {
     async function load() {
       try {
-        const ordersData = await getOrders();
+        const ordersData = await getMyOrders();
         setOrders(ordersData);
       } catch {
         setLoadError("Unable to load sales data. Please try again.");
@@ -98,7 +98,7 @@ export default function SalesPage() {
     totalPages: serverTotalPages,
     items: serverItems,
     loading: serverLoading,
-  } = useServerPage(getOrdersPage, PAGE_SIZE, !isFiltering);
+  } = useServerPage(getMyOrdersPage, PAGE_SIZE, !isFiltering);
 
   const filteredOrders = orders.filter((order) => {
     const matchesFilter =

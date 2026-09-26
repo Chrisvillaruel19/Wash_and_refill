@@ -17,7 +17,6 @@ import {
 import {
   getWithdrawals,
   createWithdrawal,
-  getCurrentDrawerBalance,
   WithdrawalRecord,
 } from "../../../lib/services/withdrawalApi.service";
 import { ApiError } from "../../../lib/apiClient";
@@ -39,18 +38,8 @@ function todayDateInputValue(): string {
 
 export default function AdminSalesPage() {
   const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>([]);
-  // Backend-authoritative today's revenue (paymentStatus PAID, status not
-  // CANCELLED, paymentDate within the Manila business day) — the exact same
-  // sumPaidRevenue(getBusinessDayRange()) call the Admin Dashboard's
-  // "Today's Sales" already uses, via the same GET /dashboard/admin
-  // endpoint. Deliberately not derived from `orders` (all-time, all-status)
-  // the way this card used to be — that was the confirmed bug.
-  const [totalCashToday, setTotalCashToday] = useState(0);
-  // Sits directly beside Total Cash Today and reads as a "today" figure —
-  // sourced from the same authoritative PAID + non-CANCELLED + paymentDate
-  // dataset (via getSalesBreakdown, not the all-time `orders` array) so the
-  // two cards agree on the same definition instead of silently disagreeing
-  // on time scope.
+  const [paidSalesToday, setPaidSalesToday] = useState(0);
+  // Paid, non-cancelled sales for the current Manila business day.
   const [todayAverageOrderValue, setTodayAverageOrderValue] = useState(0);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -62,6 +51,7 @@ export default function AdminSalesPage() {
   // GET /shift-handover response the Staff page and history grid already
   // use, not a dedicated read endpoint.
   const [defaultStartingCash, setDefaultStartingCash] = useState(0);
+  const totalCashToday = defaultStartingCash + paidSalesToday;
   const [showStartingCashModal, setShowStartingCashModal] = useState(false);
   const [startingCashLoading, setStartingCashLoading] = useState(false);
   const [startingCashError, setStartingCashError] = useState("");
@@ -92,13 +82,12 @@ export default function AdminSalesPage() {
     async function load() {
       try {
         const today = todayDateInputValue();
-        const [withdrawalsData, currentBalance, todaySales] = await Promise.all([
+        const [withdrawalsData, todaySales] = await Promise.all([
           getWithdrawals(),
-          getCurrentDrawerBalance(),
           getSalesBreakdown({ dateFrom: today, dateTo: today }),
         ]);
         setWithdrawals(withdrawalsData);
-        setTotalCashToday(currentBalance);
+        setPaidSalesToday(todaySales.totalPaidAmount);
         setTodayAverageOrderValue(
           todaySales.paidOrderCount > 0 ? todaySales.totalPaidAmount / todaySales.paidOrderCount : 0
         );
@@ -121,9 +110,7 @@ export default function AdminSalesPage() {
     setStartingCashSuccess("");
     try {
       await updateDefaultStartingCash(value);
-      const refreshedBalance = await getCurrentDrawerBalance();
       setDefaultStartingCash(value);
-      setTotalCashToday(refreshedBalance);
       setStartingCashSuccess("Default starting cash updated.");
     } catch (err) {
       setStartingCashError(
@@ -163,12 +150,8 @@ export default function AdminSalesPage() {
     setWithdrawError("");
     try {
       await createWithdrawal({ amount: data.amount, reason: data.reason });
-      const [refreshed, currentBalance] = await Promise.all([
-        getWithdrawals(),
-        getCurrentDrawerBalance(),
-      ]);
+      const refreshed = await getWithdrawals();
       setWithdrawals(refreshed);
-      setTotalCashToday(currentBalance);
       setShowWithdrawModal(false);
     } catch (err) {
       setWithdrawError(

@@ -121,6 +121,11 @@ export async function getOrders(): Promise<Order[]> {
   return orders.map(mapOrder);
 }
 
+export async function getMyOrders(): Promise<Order[]> {
+  const orders = await fetchAllPages<BackendOrder>("/orders/mine", "orders");
+  return orders.map(mapOrder);
+}
+
 // Genuine single-page fetch — for browsable list views (Claim Monitoring,
 // Sales) driven by useServerPage.ts, as opposed to getOrders() above, which
 // walks every page for callers that need the complete set (dashboards,
@@ -130,6 +135,14 @@ export async function getOrdersPage(page: number, pageSize: number): Promise<Ser
     orders: BackendOrder[];
     pagination: { totalPages: number };
   }>(`/orders?page=${page}&pageSize=${pageSize}`);
+  return { items: result.orders.map(mapOrder), totalPages: result.pagination.totalPages };
+}
+
+export async function getMyOrdersPage(page: number, pageSize: number): Promise<ServerPageResult<Order>> {
+  const result = await apiClient.get<{
+    orders: BackendOrder[];
+    pagination: { totalPages: number };
+  }>(`/orders/mine?page=${page}&pageSize=${pageSize}`);
   return { items: result.orders.map(mapOrder), totalPages: result.pagination.totalPages };
 }
 

@@ -133,16 +133,6 @@ export default function NewOrderPage() {
     setCartItems((prev) => prev.filter((item) => item.id !== id));
   }
 
-  function adjustQuantity(id: string, delta: number) {
-    setCartItems((prev) =>
-      prev
-        .map((item) =>
-          item.id === id ? { ...item, quantity: Math.max(0, item.quantity + delta) } : item
-        )
-        .filter((item) => item.quantity > 0)
-    );
-  }
-
   function handleCategorySelect(category: ServiceCategory) {
     setSelectedCategory(category);
     setShowCategoryModal(false);
@@ -291,7 +281,6 @@ export default function NewOrderPage() {
             total={cartTotal}
             change={change}
             onRemoveItem={removeFromCart}
-            onQuantityChange={adjustQuantity}
             paymentMethod={paymentMethod}
             onPaymentMethodChange={setPaymentMethod}
             amountPaid={amountPaid}

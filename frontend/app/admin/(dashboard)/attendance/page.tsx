@@ -38,7 +38,9 @@ export default function AdminAttendancePage() {
 
   const today = new Date().toLocaleDateString();
   const todayRecords = records.filter((r) => r.date === today);
-  const presentToday = todayRecords.filter((r) => r.status === "Present").length;
+  const presentToday = todayRecords.filter(
+    (r) => r.status === "Present" || r.status === "Late"
+  ).length;
   const currentlyClockedIn = todayRecords.filter((r) => r.timeIn && !r.timeOut).length;
 
   const filteredRecords = records.filter(

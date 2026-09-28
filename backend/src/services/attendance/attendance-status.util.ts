@@ -1,15 +1,21 @@
 import { AttendanceStatus } from "../../../generated/prisma/client.js";
 
-const LATE_HOUR = 9;
+const SHIFT_START_SECONDS = 8 * 60 * 60;
 
 export function getAttendanceStatus(timeIn: Date): AttendanceStatus {
-  const hour = Number(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone: "Asia/Manila",
-      hour: "2-digit",
-      hourCycle: "h23",
-    }).format(timeIn)
-  );
+  const timeParts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Manila",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(timeIn);
+  const hour = Number(timeParts.find((part) => part.type === "hour")?.value);
+  const minute = Number(timeParts.find((part) => part.type === "minute")?.value);
+  const second = Number(timeParts.find((part) => part.type === "second")?.value);
+  const secondsAfterMidnight = hour * 60 * 60 + minute * 60 + second;
 
-  return hour >= LATE_HOUR ? AttendanceStatus.LATE : AttendanceStatus.PRESENT;
+  return secondsAfterMidnight > SHIFT_START_SECONDS
+    ? AttendanceStatus.LATE
+    : AttendanceStatus.PRESENT;
 }

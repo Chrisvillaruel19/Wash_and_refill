@@ -83,10 +83,19 @@ export async function getCurrentDrawerBalance(tx: PrismaClientOrTx = prisma): Pr
   const expenses = await expenseRepository.findUnclaimed(tx);
   const expenseTotal = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
 
-  const withdrawals = await withdrawalRepository.findUnclaimed(tx);
+  const withdrawals = await withdrawalRepository.findUnclaimedByPaymentMethod(PaymentMethod.CASH, tx);
   const withdrawalTotal = withdrawals.reduce((sum, w) => sum + Number(w.amount), 0);
 
   return drawerStart + cashSalesTotal - expenseTotal - withdrawalTotal;
+}
+
+export async function getCurrentDigitalBalance(tx: PrismaClientOrTx = prisma): Promise<number> {
+  const orders = await orderRepository.findUnclaimedPaid(tx);
+  const { digitalSalesTotal } = summarizeOrders(orders);
+  const withdrawals = await withdrawalRepository.findUnclaimedByPaymentMethod(PaymentMethod.GCASH, tx);
+  const withdrawalTotal = withdrawals.reduce((sum, withdrawal) => sum + Number(withdrawal.amount), 0);
+
+  return digitalSalesTotal - withdrawalTotal;
 }
 
 // Unreported-activity check for Attendance's clock-out gate: does this

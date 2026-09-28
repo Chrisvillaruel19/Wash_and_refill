@@ -37,7 +37,7 @@ interface SupplyRow {
   // Local-only key for React list identity — never sent to the backend.
   rowId: number;
   inventoryId: string;
-  quantity: number;
+  quantity: string;
 }
 
 // Two inventory rows can share a display name (e.g. "Liquid Detergent" in
@@ -66,7 +66,7 @@ export default function AdminPackageFormModal({
       initialPackage?.details.map((d) => ({
         rowId: nextRowId++,
         inventoryId: d.inventoryId,
-        quantity: d.quantity,
+        quantity: String(d.quantity),
       })) ?? []
   );
   const [error, setError] = useState("");
@@ -91,7 +91,7 @@ export default function AdminPackageFormModal({
   function addRow() {
     setRows((prev) => [
       ...prev,
-      { rowId: nextRowId++, inventoryId: "", quantity: 1 },
+      { rowId: nextRowId++, inventoryId: "", quantity: "" },
     ]);
   }
 
@@ -103,7 +103,7 @@ export default function AdminPackageFormModal({
     setRows((prev) => prev.map((r) => (r.rowId === rowId ? { ...r, inventoryId } : r)));
   }
 
-  function updateRowQuantity(rowId: number, quantity: number) {
+  function updateRowQuantity(rowId: number, quantity: string) {
     setRows((prev) => prev.map((r) => (r.rowId === rowId ? { ...r, quantity } : r)));
   }
 
@@ -137,7 +137,8 @@ export default function AdminPackageFormModal({
         );
         return;
       }
-      if (!Number.isInteger(row.quantity) || row.quantity <= 0) {
+      const quantity = Number(row.quantity);
+      if (!row.quantity.trim() || !Number.isInteger(quantity) || quantity <= 0) {
         setError("Every supply quantity must be a whole number greater than zero.");
         return;
       }
@@ -156,7 +157,7 @@ export default function AdminPackageFormModal({
       name: trimmedName,
       price: parsedPrice,
       color,
-      details: rows.map((r) => ({ inventoryId: r.inventoryId, quantity: r.quantity })),
+      details: rows.map((r) => ({ inventoryId: r.inventoryId, quantity: Number(r.quantity) })),
     });
   }
 
@@ -252,8 +253,9 @@ export default function AdminPackageFormModal({
                   <input
                     type="number"
                     min={1}
+                    placeholder="0"
                     value={row.quantity}
-                    onChange={(e) => updateRowQuantity(row.rowId, parseInt(e.target.value) || 0)}
+                    onChange={(e) => updateRowQuantity(row.rowId, e.target.value)}
                     className="w-20 shrink-0 border border-gray-300 rounded-lg p-2 text-gray-900 text-sm"
                   />
                   <button

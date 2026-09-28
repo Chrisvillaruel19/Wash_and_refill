@@ -7,6 +7,7 @@ interface ShiftInventoryModalProps {
   staffName: string;
   timestamp: string;
   rows: ShiftHandoverInventoryRow[];
+  totalSales: number;
   onClose: () => void;
 }
 
@@ -20,6 +21,7 @@ export default function ShiftInventoryModal({
   staffName,
   timestamp,
   rows,
+  totalSales,
   onClose,
 }: ShiftInventoryModalProps) {
   useEscapeKey(onClose);
@@ -44,7 +46,12 @@ export default function ShiftInventoryModal({
             <tbody>
               {rows.length > 0 ? (
                 rows.map((row) => (
-                  <tr key={row.itemName} className="border-b last:border-0">
+                  // Keyed by the snapshot row's inventoryId (always present,
+                  // unique per item) — never by itemName: two active items may
+                  // now legitimately share a display name with different units
+                  // (e.g. "Liquid Detergent" Sachet vs bottle), and a name key
+                  // would collide, making React misbehave on list updates.
+                  <tr key={row.inventoryId} className="border-b last:border-0">
                     <td className="p-2 whitespace-nowrap text-gray-900">
                       {row.itemName}
                       <span className="text-gray-400"> ({row.unit})</span>
@@ -62,6 +69,11 @@ export default function ShiftInventoryModal({
               )}
             </tbody>
           </table>
+        </div>
+
+        <div className="border-t border-gray-200 mt-4 pt-3 flex items-center justify-between">
+          <span className="text-sm font-medium text-gray-500">Total Sales</span>
+          <span className="text-lg font-bold text-gray-900">₱{totalSales.toFixed(2)}</span>
         </div>
 
         <div className="flex justify-end pt-4">

@@ -9,7 +9,7 @@ interface DefaultStartingCashModalProps {
   loading: boolean;
   error: string;
   success: string;
-  onSave: (value: number) => void;
+  onSave: (value: number) => Promise<void> | void;
   onClose: () => void;
 }
 
@@ -29,7 +29,7 @@ export default function DefaultStartingCashModal({
   const [value, setValue] = useState(String(currentValue));
   const [localError, setLocalError] = useState("");
 
-  function handleSave() {
+  async function handleSave() {
     const parsed = Number(value);
     if (!Number.isFinite(parsed) || value.trim() === "") {
       setLocalError("Enter a valid amount.");
@@ -44,7 +44,12 @@ export default function DefaultStartingCashModal({
       return;
     }
     setLocalError("");
-    onSave(parsed);
+    try {
+      await onSave(parsed);
+      setValue("");
+    } catch {
+      // Keep the value available for retry if the save request fails.
+    }
   }
 
   const displayedError = localError || error;
@@ -73,7 +78,7 @@ export default function DefaultStartingCashModal({
             type="number"
             min={0}
             step="0.01"
-            placeholder="5000"
+            placeholder="0"
             value={value}
             onChange={(e) => {
               setValue(e.target.value);

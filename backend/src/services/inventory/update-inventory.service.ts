@@ -2,7 +2,7 @@ import { prisma } from "../../lib/prisma.js";
 import { InventoryRepository } from "../../repositories/inventory.repository.js";
 import { computeStockStatus } from "./stock-status.util.js";
 import { writeAuditLog } from "../../lib/audit-log.js";
-import { AuditAction } from "../../../generated/prisma/client.js";
+import { AuditAction, Prisma } from "../../../generated/prisma/client.js";
 
 const inventoryRepository = new InventoryRepository();
 
@@ -22,10 +22,24 @@ export async function updateInventoryService(
       const existing = await inventoryRepository.findById(id, tx);
       if (!existing || !existing.isActive) return null;
 
-      // Only checked when the name is actually changing — renaming to the
-      // item's own current name isn't a duplicate.
-      if (updates.itemName !== undefined && updates.itemName !== existing.itemName) {
-        const duplicate = await inventoryRepository.findActiveByName(updates.itemName, tx);
+      // Duplicate guard only when identity (name OR unit) is actually
+      // changing — saving an item with its own current name+unit isn't a
+      // duplicate (excludeId handles the rename case; the identity-unchanged
+      // early-skip keeps a pure price/stock edit from even querying). Same
+      // (name + unit) rule as create — see inventory.repository.ts's
+      // findActiveByNameAndUnit for why unit is compared case-insensitively.
+      const identityChanging =
+        (updates.itemName !== undefined && updates.itemName !== existing.itemName) ||
+        (updates.unit !== undefined && updates.unit.toLowerCase() !== existing.unit.toLowerCase());
+      if (identityChanging) {
+        const nextName = updates.itemName ?? existing.itemName;
+        const nextUnit = updates.unit ?? existing.unit;
+        const duplicate = await inventoryRepository.findActiveByNameAndUnit(
+          nextName,
+          nextUnit,
+          { excludeId: id },
+          tx
+        );
         if (duplicate) return { duplicate: true as const };
       }
 
@@ -74,7 +88,7 @@ export async function updateInventoryService(
       return {
         code: 409,
         status: "error",
-        message: "An active inventory item with this name already exists",
+        message: "An active inventory item with this name and unit already exists",
       };
     }
 
@@ -85,6 +99,19 @@ export async function updateInventoryService(
       data: { item: result },
     };
   } catch (error) {
+    // Same concurrency backstop as create — the UPDATE can race a concurrent
+    // create/rename past the find-then-check guard, and the partial unique
+    // index rejects it as P2002. Surfaced as the same user-facing 409.
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      return {
+        code: 409,
+        status: "error",
+        message: "An active inventory item with this name and unit already exists",
+      };
+    }
     console.error("updateInventoryService error", error);
     return {
       code: 500,

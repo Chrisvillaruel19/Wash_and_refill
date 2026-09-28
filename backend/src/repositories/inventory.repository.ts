@@ -20,13 +20,32 @@ export class InventoryRepository {
     return tx.inventory.findUnique({ where: { id } });
   }
 
-  // Duplicate-name guard for create/rename — scoped to isActive only, not a
-  // DB-level @@unique, because a soft-deleted item's name must remain
-  // reusable by a genuinely new item (the same reasoning that made
-  // isActive a soft-delete flag in the first place: historical references
-  // stay valid, but the name itself isn't permanently reserved).
-  async findActiveByName(itemName: string, tx: PrismaClientOrTx = prisma) {
-    return tx.inventory.findFirst({ where: { itemName, isActive: true } });
+  // Duplicate guard for create/rename — matches on (itemName + unit), not
+  // name alone: "Liquid Detergent" sold in Sachets and in Bottles are two
+  // genuinely different catalog products with different prices/stock, and
+  // blocking the second one was a real checkout bug. Unit is normalized
+  // case-insensitively ("Bottle" vs "bottle" is the same unit to a human)
+  // — matching the DB's citext-free partial unique index, which uses
+  // lower(unit) for exactly the same reason. Scoped to isActive only (plus
+  // the id exclusion used by rename), not a blanket query, because a
+  // soft-deleted item's name+unit must remain reusable by a genuinely new
+  // item (the same reasoning that made isActive a soft-delete flag in the
+  // first place: historical references stay valid, but the name isn't
+  // permanently reserved).
+  async findActiveByNameAndUnit(
+    itemName: string,
+    unit: string,
+    opts: { excludeId?: string } = {},
+    tx: PrismaClientOrTx = prisma
+  ) {
+    return tx.inventory.findFirst({
+      where: {
+        itemName,
+        unit: { equals: unit, mode: "insensitive" },
+        isActive: true,
+        ...(opts.excludeId ? { id: { not: opts.excludeId } } : {}),
+      },
+    });
   }
 
   async create(

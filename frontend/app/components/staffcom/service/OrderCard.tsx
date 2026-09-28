@@ -37,8 +37,8 @@ export default function OrderCard({
   const canMarkAsPaid = order.payStatus === "UnPaid" && order.status !== "Cancelled";
 
   return (
-    <div className="bg-white rounded-xl shadow-md p-5 flex flex-wrap items-center justify-between gap-4">
-      <div className="min-w-[160px] max-w-[220px]">
+    <div className="bg-white rounded-xl shadow-md p-4 sm:p-5 grid grid-cols-1 lg:grid-cols-[minmax(160px,1fr)_minmax(220px,1.4fr)_minmax(170px,0.9fr)_auto] items-center gap-4">
+      <div className="min-w-0">
         <p className="font-bold text-gray-800 truncate" title={order.customer}>
           {order.customer}
         </p>
@@ -52,7 +52,7 @@ export default function OrderCard({
         )}
       </div>
 
-      <div className="flex-1 min-w-[200px] max-w-full">
+      <div className="min-w-0">
         <p className="text-xs text-gray-400 mb-1">Service</p>
         <GroupedItemsList
           items={order.items || []}
@@ -60,24 +60,31 @@ export default function OrderCard({
         />
       </div>
 
-      <div className="text-right">
-        <p className="font-bold text-gray-800">
-          Amount: ₱{order.amount.toFixed(2)}{" "}
-          <span className={order.payStatus === "Paid" ? "text-blue-600" : "text-red-500"}>
+      <div className="min-w-0 lg:border-l lg:border-gray-100 lg:pl-4">
+        <p className="text-xs text-gray-400 mb-1">Payment</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-bold text-gray-800">₱{order.amount.toFixed(2)}</span>
+          <span
+            className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+              order.payStatus === "Paid"
+                ? "border-blue-200 bg-blue-50 text-blue-600"
+                : "border-red-200 bg-red-50 text-red-500"
+            }`}
+          >
             {order.payStatus.toUpperCase()}
           </span>
-        </p>
+        </div>
         {canMarkAsPaid && (
           <button
             onClick={onMarkAsPaid}
-            className="mt-1 text-xs font-medium text-green-600 border border-green-500 rounded-lg px-3 py-1 hover:bg-green-50"
+            className="mt-2 w-full sm:w-auto text-xs font-medium text-green-600 border border-green-500 rounded-lg px-3 py-1.5 hover:bg-green-50"
           >
             Mark as Paid
           </button>
         )}
       </div>
 
-      <div className="text-center">
+      <div className="text-left lg:text-center lg:justify-self-end">
         <p className="text-sm text-gray-500 mb-1">Status</p>
         <div className="flex items-center gap-2">
           <button

@@ -8,7 +8,7 @@ interface SetRestockPinModalProps {
   loading: boolean;
   error: string;
   success: string;
-  onSave: (pin: string, confirmPin: string) => void;
+  onSave: (pin: string, confirmPin: string) => Promise<void> | void;
   onClose: () => void;
 }
 
@@ -28,7 +28,7 @@ export default function SetRestockPinModal({
   const [confirmPin, setConfirmPin] = useState("");
   const [localError, setLocalError] = useState("");
 
-  function handleSave() {
+  async function handleSave() {
     if (!/^\d{4,6}$/.test(pin)) {
       setLocalError("PIN must be 4-6 digits.");
       return;
@@ -38,7 +38,15 @@ export default function SetRestockPinModal({
       return;
     }
     setLocalError("");
-    onSave(pin, confirmPin);
+
+    try {
+      await onSave(pin, confirmPin);
+      setPin("");
+      setConfirmPin("");
+    } catch {
+      // Keep the entered values in place if the save request fails so the
+      // admin can retry without retyping the full PIN.
+    }
   }
 
   const displayedError = localError || error;
@@ -62,7 +70,7 @@ export default function SetRestockPinModal({
         <label htmlFor="new-restock-pin" className="sr-only">New PIN</label>
         <input
           id="new-restock-pin"
-          type="text"
+          type="password"
           inputMode="numeric"
           placeholder="New 4-6 digit PIN"
           value={pin}
@@ -78,7 +86,7 @@ export default function SetRestockPinModal({
         <label htmlFor="confirm-restock-pin" className="sr-only">Confirm PIN</label>
         <input
           id="confirm-restock-pin"
-          type="text"
+          type="password"
           inputMode="numeric"
           placeholder="Confirm PIN"
           value={confirmPin}

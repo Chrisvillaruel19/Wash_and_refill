@@ -3,6 +3,7 @@ import { AttendanceRepository } from "../../repositories/attendance.repository.j
 import { Prisma, AttendanceStatus, AuditAction } from "../../../generated/prisma/client.js";
 import { writeAuditLog } from "../../lib/audit-log.js";
 import { getBusinessDateOnly } from "../../lib/business-timezone.js";
+import { getAttendanceStatus } from "./attendance-status.util.js";
 
 const attendanceRepository = new AttendanceRepository();
 
@@ -17,7 +18,7 @@ export async function clockInService(userId: string) {
       const today = getBusinessDateOnly(now);
 
       const record = await attendanceRepository.create(
-        { userId, date: today, timeIn: now, status: AttendanceStatus.PRESENT },
+        { userId, date: today, timeIn: now, status: getAttendanceStatus(now) },
         tx
       );
 

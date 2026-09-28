@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ServiceItem, ServiceCategory } from "../../staff/(dashboard)/neworder/types";
+import { legacyServiceCategoryNames } from "../../staff/(dashboard)/neworder/data";
 import { useEscapeKey } from "../../lib/useEscapeKey";
 
 export interface ServiceFormData {
@@ -32,7 +33,9 @@ export default function AdminServiceFormModal({
 
   const [categoryId, setCategoryId] = useState(initialService?.categoryId ?? categories[0]?.id ?? "");
   const [name, setName] = useState(initialService?.name ?? "");
-  const [pricePerKg, setPricePerKg] = useState(initialService?.pricePerKg ?? 0);
+  const [pricePerKg, setPricePerKg] = useState(
+    initialService ? String(initialService.pricePerKg) : ""
+  );
   const [error, setError] = useState("");
 
   function handleSubmit(e: React.FormEvent) {
@@ -48,12 +51,13 @@ export default function AdminServiceFormModal({
       setError("Service name must be at most 100 characters.");
       return;
     }
-    if (pricePerKg <= 0) {
+    const parsedPricePerKg = Number(pricePerKg);
+    if (!pricePerKg.trim() || parsedPricePerKg <= 0) {
       setError("Price must be greater than zero.");
       return;
     }
 
-    onSave({ categoryId, name: trimmedName, pricePerKg });
+    onSave({ categoryId, name: trimmedName, pricePerKg: parsedPricePerKg });
   }
 
   return (
@@ -85,6 +89,11 @@ export default function AdminServiceFormModal({
               onChange={(e) => setCategoryId(e.target.value)}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             >
+              {initialService && !categories.some((category) => category.id === initialService.categoryId) && (
+                <option value={initialService.categoryId}>
+                  {legacyServiceCategoryNames[initialService.categoryId] ?? "Existing category (legacy)"}
+                </option>
+              )}
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -114,8 +123,9 @@ export default function AdminServiceFormModal({
               type="number"
               min={0.01}
               step={0.01}
+              placeholder="0"
               value={pricePerKg}
-              onChange={(e) => setPricePerKg(parseFloat(e.target.value) || 0)}
+              onChange={(e) => setPricePerKg(e.target.value)}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             />
           </div>

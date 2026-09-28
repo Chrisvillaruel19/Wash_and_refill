@@ -34,3 +34,10 @@ export async function getWithdrawals(): Promise<WithdrawalRecord[]> {
 export async function createWithdrawal(data: { amount: number; reason: string }): Promise<void> {
   await apiClient.post("/withdrawals", data);
 }
+
+export async function getCurrentDrawerBalance(): Promise<number> {
+  const { currentBalance } = await apiClient.get<{ currentBalance: number | string }>(
+    "/withdrawals/balance"
+  );
+  return Number(currentBalance);
+}

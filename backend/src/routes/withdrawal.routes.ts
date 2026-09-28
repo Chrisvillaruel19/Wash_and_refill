@@ -14,6 +14,13 @@ const authMiddleware = new AuthMiddleware();
 // Admin-only for both create and list — no Staff-side consumer of
 // Withdrawal exists in the frontend at all (unlike ShiftHandover/Expense).
 
+router.get(
+  "/balance",
+  authMiddleware.execute,
+  requireRole(Role.ADMIN),
+  withdrawalController.balance
+);
+
 router.post(
   "/",
   authMiddleware.execute,

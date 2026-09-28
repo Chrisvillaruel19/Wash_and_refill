@@ -108,6 +108,25 @@ export default function ShiftHandover() {
     load();
   }, []);
 
+  useEffect(() => {
+    const refreshInventory = () => {
+      void getInventory().then(setInventory).catch(() => {});
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") refreshInventory();
+    };
+
+    window.addEventListener("focus", refreshInventory);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    const interval = window.setInterval(refreshInventory, 15000);
+
+    return () => {
+      window.removeEventListener("focus", refreshInventory);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.clearInterval(interval);
+    };
+  }, []);
+
   // `orders` (and `expenses` below) are deliberately kept as a full fetch —
   // DO NOT convert this to server-side pagination (see Item 6 follow-up).
   // Cash reconciliation math must see every unclaimed record, not just
@@ -182,8 +201,8 @@ export default function ShiftHandover() {
   // (no previous handover yet, or the item was added after it) fall back to
   // the item's current live stock, same as the backend's own fallback —
   // never a fabricated number, never Staff-entered.
-  const beginningQtyByItemName = new Map(
-    (mostRecentHandover?.inventorySnapshot ?? []).map((row) => [row.itemName, row.endingQty])
+  const beginningQtyByInventoryId = new Map(
+    (mostRecentHandover?.inventorySnapshot ?? []).map((row) => [row.inventoryId, row.endingQty])
   );
 
   // Withdrawals aren't visible to Staff (GET /withdrawals is Admin-only) —
@@ -309,7 +328,7 @@ export default function ShiftHandover() {
                       <td className="p-2 whitespace-nowrap text-gray-900">{item.name}</td>
                       <td className="p-2 whitespace-nowrap text-gray-900">{item.unit}</td>
                       <td className="p-2 whitespace-nowrap text-gray-900">
-                        {beginningQtyByItemName.get(item.name) ?? item.currentStock}
+                        {beginningQtyByInventoryId.get(item.id) ?? item.currentStock}
                       </td>
                       <td className="p-2 whitespace-nowrap text-gray-900">{item.currentStock}</td>
                       <td className="p-2 whitespace-nowrap text-gray-900">₱{item.price}</td>

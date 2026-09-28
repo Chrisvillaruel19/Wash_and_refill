@@ -15,7 +15,7 @@ const CONFIRMATION_DISPLAY_MS = 900;
 
 export default function SuppliesModal({ supplies, onAdd, onClose }: SuppliesModalProps) {
   useEscapeKey(onClose);
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [quantities, setQuantities] = useState<Record<string, string>>({});
   // Which supply's Add button is currently showing "Added" — the quantity
   // resets to 1 the instant Add is clicked (see handleAdd below), which
   // previously looked exactly like the typed amount had been silently
@@ -33,14 +33,15 @@ export default function SuppliesModal({ supplies, onAdd, onClose }: SuppliesModa
     };
   }, []);
 
-  function handleQuantityChange(id: string, value: number) {
+  function handleQuantityChange(id: string, value: string) {
     setQuantities((prev) => ({ ...prev, [id]: value }));
   }
 
   function handleAdd(supply: SupplyItem) {
-    const qty = quantities[supply.id] || 1;
+    const qty = Number(quantities[supply.id]);
+    if (!quantities[supply.id]?.trim() || !Number.isInteger(qty) || qty <= 0) return;
     onAdd(supply, qty);
-    setQuantities((prev) => ({ ...prev, [supply.id]: 1 }));
+    setQuantities((prev) => ({ ...prev, [supply.id]: "" }));
 
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     setJustAdded(supply.id);
@@ -75,14 +76,16 @@ export default function SuppliesModal({ supplies, onAdd, onClose }: SuppliesModa
                 <input
                   type="number"
                   min={1}
-                  value={quantities[supply.id] ?? 1}
+                  placeholder="0"
+                  value={quantities[supply.id] ?? ""}
                   onChange={(e) =>
-                    handleQuantityChange(supply.id, parseInt(e.target.value) || 1)
+                    handleQuantityChange(supply.id, e.target.value)
                   }
                   className="w-16 border border-gray-300 rounded-lg p-1 text-center text-gray-900"
                 />
                 <button
                   onClick={() => handleAdd(supply)}
+                  disabled={!quantities[supply.id]?.trim() || Number(quantities[supply.id]) <= 0}
                   className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap flex items-center gap-1 transition-colors ${
                     justAdded === supply.id
                       ? "bg-green-600 text-white"

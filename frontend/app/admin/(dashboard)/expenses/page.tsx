@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search, Receipt, Wallet } from "lucide-react";
+import { Search, Receipt, Wallet, X } from "lucide-react";
 import AdminStatCard from "../../../components/admincom/AdminStatCard";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
 import { useServerPage } from "../../../lib/useServerPage";
 import { getExpenses, getExpensesPage } from "../../../lib/services/expensesApi.service";
 import { ExpenseRecord, ExpenseCategory } from "../../../staff/(dashboard)/types";
+import { useEscapeKey } from "../../../lib/useEscapeKey";
 
 const PAGE_SIZE = 8;
 
@@ -28,6 +29,9 @@ export default function AdminExpensesPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+
+  useEscapeKey(() => setReceiptPreview(null));
 
   useEffect(() => {
     async function load() {
@@ -173,12 +177,20 @@ export default function AdminExpensesPage() {
                     </td>
                     <td className="p-3 sm:p-4 whitespace-nowrap">
                       {e.imageDataUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={e.imageDataUrl}
-                          alt="Receipt"
-                          className="w-10 h-10 rounded-lg object-cover"
-                        />
+                        <button
+                          type="button"
+                          onClick={() => setReceiptPreview(e.imageDataUrl ?? null)}
+                          aria-label={`View receipt for ${e.submittedBy}'s expense`}
+                          title="View receipt"
+                          className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={e.imageDataUrl}
+                            alt="Receipt thumbnail"
+                            className="w-10 h-10 rounded-lg object-cover"
+                          />
+                        </button>
                       ) : (
                         <span className="text-gray-400">—</span>
                       )}
@@ -197,6 +209,37 @@ export default function AdminExpensesPage() {
         </div>
       </div>
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+
+      {receiptPreview && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4"
+          onClick={() => setReceiptPreview(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Expense receipt preview"
+            className="relative max-h-[90vh] max-w-[90vw] rounded-lg bg-white p-2 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setReceiptPreview(null)}
+              aria-label="Close receipt preview"
+              title="Close"
+              className="absolute right-3 top-3 z-10 rounded-full bg-white/90 p-2 text-gray-700 shadow hover:bg-white"
+            >
+              <X size={20} />
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={receiptPreview}
+              alt="Full-size expense receipt"
+              className="max-h-[86vh] max-w-[88vw] rounded object-contain"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

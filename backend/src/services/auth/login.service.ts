@@ -20,16 +20,33 @@ const DUMMY_PASSWORD_HASH =
   "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
 
 export async function LoginService(
-  username: string,
+  usernameOrEmail: string,
   password: string
 ) {
 
   try {
 
-    const user = await userRepository.findByUsername(username);
+    // The login form's placeholder promises "Enter your username or email"
+    // (frontend/app/(login)/page.tsx), so the backend has to honor both.
+    // Usernames can never contain "@" (enforced by the shared usernameRule,
+    // letters/numbers/underscore only) and emails must contain "@" to pass
+    // validation, so the branch on "@" is unambiguous — no identifier can
+    // ever be valid as both. Leading/trailing whitespace is trimmed from
+    // the credential, matching every other user-typed identifier in this
+    // codebase (all of which .trim() before matching). The trim happens
+    // BEFORE the "@" branch so " anzano@x.com "-style paste artifacts can
+    // never route a real email into the username lookup.
+    const identifier = usernameOrEmail.trim();
+    const user = identifier.includes("@")
+      ? await userRepository.findActiveCredentialByEmailForLogin(identifier)
+      : await userRepository.findByUsername(identifier);
 
     if (!user) {
-      // Still pay the pbkdf2 cost — see DUMMY_PASSWORD_HASH above.
+      // Still pay the pbkdf2 cost — see DUMMY_PASSWORD_HASH above. Preserved
+      // on the email path too: an unknown email must look identical (same
+      // latency, same generic message) to a known email with a wrong
+      // password, or the timing difference would let an attacker enumerate
+      // registered email addresses.
       verifyPassword(password, DUMMY_PASSWORD_HASH);
       return {
         code: 401,
@@ -55,6 +72,11 @@ export async function LoginService(
         message: "Account is not active"
       };
     }
+
+    // Post-password, pre-token status check left exactly as it was above —
+    // an INACTIVE/ARCHIVED account fails here regardless of whether login
+    // was attempted by username or by email, so account status gating can't
+    // be bypassed by choosing the email path.
 
 
     const accessToken = signAccessToken(

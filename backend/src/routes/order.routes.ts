@@ -32,6 +32,14 @@ router.post(
 
 router.get("/", authMiddleware.execute, validateSchema(listOrdersSchema), orderController.list);
 
+router.get(
+  "/mine",
+  authMiddleware.execute,
+  requireRole(Role.STAFF),
+  validateSchema(listOrdersSchema),
+  orderController.listMine
+);
+
 // Registered before "/:id" — Express matches routes in order, and "/:id"
 // would otherwise greedily capture "sales-breakdown" as an id.
 router.get(

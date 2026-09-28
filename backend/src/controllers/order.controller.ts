@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import {
   createOrderService,
   listOrdersService,
+  listMyOrdersService,
   getOrderService,
   updateOrderStatusService,
   cancelOrderService,
@@ -11,6 +12,7 @@ import {
   getMyClaimedTodayService,
 } from "../services/order/index.js";
 import { JwtPayload } from "../lib/jwt.js";
+import { Role } from "../../generated/prisma/client.js";
 
 type AuthenticatedRequest = Request & { user?: JwtPayload };
 
@@ -59,6 +61,23 @@ export class OrderController {
     }
   };
 
+  public listMine = async (req: Request, res: Response) => {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      const page = Number(req.query.page) || 1;
+      const pageSize = Math.min(Number(req.query.pageSize) || 20, 100);
+      const result = await listMyOrdersService(authReq.user?.sub as string, { page, pageSize });
+      return res.status(result.code).json(result);
+    } catch (error) {
+      console.error("OrderController.listMine error", error);
+      return res.status(500).json({
+        code: 500,
+        status: "error",
+        message: "Unable to retrieve orders",
+      });
+    }
+  };
+
   // Server-side authoritative scope: userId comes only from the verified
   // JWT, never from a client-supplied value — same pattern as every other
   // "mine" lookup in this controller (create/status/cancel/mark-paid all
@@ -85,7 +104,13 @@ export class OrderController {
         dateFrom?: string;
         dateTo?: string;
       };
-      const result = await getSalesBreakdownService({ shiftHandoverId, dateFrom, dateTo });
+      const authReq = req as AuthenticatedRequest;
+      const result = await getSalesBreakdownService({
+        shiftHandoverId,
+        dateFrom,
+        dateTo,
+        ...(authReq.user?.role === Role.STAFF ? { userId: authReq.user.sub } : {}),
+      });
       return res.status(result.code).json(result);
     } catch (error) {
       console.error("OrderController.getSalesBreakdown error", error);

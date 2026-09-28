@@ -15,14 +15,16 @@ interface BackendAttendanceRecord {
 }
 
 function mapAttendanceRecord(record: BackendAttendanceRecord): AttendanceRecord {
+  const status = record.status === "LATE" ? "Late" : record.status === "ABSENT" ? "Absent" : "Present";
+
   return {
     id: record.id,
     staffName: record.user.name,
     date: new Date(record.date).toLocaleDateString(),
-    timeIn: record.timeIn ?? "",
+    timeIn: record.timeIn,
     timeOut: record.timeOut,
     totalHours: record.totalHours !== null ? Number(record.totalHours) : null,
-    status: "Present",
+    status,
     autoClosed: record.autoClosed,
   };
 }

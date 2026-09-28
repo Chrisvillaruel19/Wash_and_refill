@@ -407,6 +407,7 @@ model ShiftHandover {
   digitalSales    Decimal @default(0)
   expense         Decimal
   withdrawal      Decimal
+  digitalWithdrawal Decimal @default(0)
 
   expectedBalance Decimal
   actualCashCount Decimal?
@@ -487,6 +488,7 @@ model Withdrawal {
   amount          Decimal
   reason          String
   remainingCash   Decimal
+  paymentMethod   PaymentMethod @default(CASH)
   // Full timestamp, not date-only: cash-reconciliation ordering (Shift
   // Handover/Withdrawal math) needs to compare this against other
   // timestamps precisely, including same-day cases.

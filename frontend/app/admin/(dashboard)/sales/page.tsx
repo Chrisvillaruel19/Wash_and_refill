@@ -18,9 +18,9 @@ import {
   getWithdrawals,
   getAvailableToWithdraw,
   createWithdrawal,
-  getCurrentDrawerBalance,
   WithdrawalRecord,
 } from "../../../lib/services/withdrawalApi.service";
+import { getAdminDashboard } from "../../../lib/services/dashboard.service";
 import { ApiError } from "../../../lib/apiClient";
 import Pagination from "../../../components/staffcom/Pagination";
 import { useServerPage } from "../../../lib/useServerPage";
@@ -102,13 +102,13 @@ export default function AdminSalesPage() {
     async function load() {
       try {
         const today = todayDateInputValue();
-        const [withdrawalsData, currentBalance, todaySales] = await Promise.all([
+        const [withdrawalsData, dashboardData, todaySales] = await Promise.all([
           getWithdrawals(),
-          getCurrentDrawerBalance(),
+          getAdminDashboard(),
           getSalesBreakdown({ dateFrom: today, dateTo: today }),
         ]);
         setWithdrawals(withdrawalsData);
-        setTotalCashToday(currentBalance);
+        setTotalCashToday(dashboardData.totalCashToday);
         setTodayAverageOrderValue(
           todaySales.paidOrderCount > 0 ? todaySales.totalPaidAmount / todaySales.paidOrderCount : 0
         );
@@ -142,9 +142,7 @@ export default function AdminSalesPage() {
     setStartingCashSuccess("");
     try {
       await updateDefaultStartingCash(value);
-      const refreshedBalance = await getCurrentDrawerBalance();
       setDefaultStartingCash(value);
-      setTotalCashToday(refreshedBalance);
       setStartingCashSuccess("Default starting cash updated.");
     } catch (err) {
       setStartingCashError(

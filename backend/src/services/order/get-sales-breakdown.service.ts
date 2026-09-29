@@ -14,10 +14,13 @@ export async function getSalesBreakdownService(params: {
   shiftHandoverId?: string;
   dateFrom?: string;
   dateTo?: string;
+  // Set for Staff callers — they only ever see their own sales.
+  userId?: string;
 }) {
   try {
     const orders = await orderRepository.findPaidWithDetails({
       shiftHandoverId: params.shiftHandoverId,
+      userId: params.userId,
       // dateFrom/dateTo are Manila calendar dates ("YYYY-MM-DD"), not UTC
       // instants — resolved against the actual Manila business day, same
       // rule as Attendance/Dashboard's "today" (see business-timezone.ts).

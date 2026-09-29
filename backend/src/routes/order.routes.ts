@@ -8,6 +8,7 @@ import {
   idParamSchema,
   createOrderSchema,
   updateOrderStatusSchema,
+  markOrderPaidSchema,
   listOrdersSchema,
   getSalesBreakdownSchema,
 } from "../schema/order/index.js";
@@ -76,10 +77,11 @@ router.patch(
 );
 
 // Mark as Paid: Staff or Admin, same as every other Order mutation above.
+// Body must carry the paymentMethod (CASH/GCASH) actually used.
 router.patch(
   "/:id/mark-paid",
   authMiddleware.execute,
-  validateSchema(idParamSchema),
+  validateSchema(markOrderPaidSchema),
   orderController.markAsPaid
 );
 

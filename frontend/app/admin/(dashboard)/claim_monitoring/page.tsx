@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Clock, RefreshCw, CheckCircle2, Search } from "lucide-react";
+import { Clock, RefreshCw, CheckCircle2, Search, Download } from "lucide-react";
 import AdminStatCard from "../../../components/admincom/AdminStatCard";
 import ConfirmReversePaymentModal from "../../../components/admincom/ConfirmReversePaymentModal";
 import Pagination from "../../../components/staffcom/Pagination";
@@ -15,6 +15,7 @@ import {
 } from "../../../lib/services/ordersApi.service";
 import { getAdminDashboard } from "../../../lib/services/dashboard.service";
 import { formatGroupedItems } from "../../../lib/groupItems";
+import { exportOrdersToExcel } from "../../../lib/exportOrdersToExcel";
 import { Order, OrderStatus } from "../../../staff/(dashboard)/types";
 
 const PAGE_SIZE = 8;
@@ -22,6 +23,15 @@ const PAGE_SIZE = 8;
 type MonitoringFilter = "All" | "Claimed" | "Unclaimed";
 
 const filters: MonitoringFilter[] = ["All", "Claimed", "Unclaimed"];
+
+function matchesMonitoringFilter(order: Order, filter: MonitoringFilter, searchDate: string) {
+  const matchesFilter =
+    filter === "All" ||
+    (filter === "Claimed" && order.status === "Claimed") ||
+    (filter === "Unclaimed" && order.status !== "Claimed" && order.status !== "Cancelled");
+
+  return matchesFilter && order.date.includes(searchDate);
+}
 
 const statusStyles: Record<OrderStatus, string> = {
   Pending: "text-orange-500",
@@ -102,18 +112,30 @@ export default function ClaimMonitoringPage() {
     };
   }, [isFiltering, reloadKey]);
 
-  const filteredOrders = (fullOrders ?? []).filter((order) => {
-    const matchesFilter =
-      activeFilter === "All" ||
-      (activeFilter === "Claimed" && order.status === "Claimed") ||
-      (activeFilter === "Unclaimed" &&
-        order.status !== "Claimed" &&
-        order.status !== "Cancelled");
+  const filteredOrders = (fullOrders ?? []).filter((order) =>
+    matchesMonitoringFilter(order, activeFilter, searchDate)
+  );
 
-    const matchesDate = order.date.includes(searchDate);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
 
-    return matchesFilter && matchesDate;
-  });
+  // Exports whatever the active tab + date search currently match ("All"
+  // with no search = every order). Always a fresh fetch with line items
+  // included, independent of the table's paging/cache.
+  async function handleExport() {
+    setExporting(true);
+    setExportError("");
+    try {
+      const orders = await getOrders({ includeItems: true });
+      const matching = orders.filter((order) => matchesMonitoringFilter(order, activeFilter, searchDate));
+      const today = new Date().toISOString().slice(0, 10);
+      await exportOrdersToExcel(matching, `customer-records-${activeFilter.toLowerCase()}-${today}.xlsx`);
+    } catch {
+      setExportError("Unable to export orders. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   const {
     page: clientPage,
@@ -227,7 +249,18 @@ export default function ClaimMonitoringPage() {
             className="w-full pl-9 pr-4 py-1.5 border border-gray-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
           />
         </div>
+
+        <button
+          onClick={handleExport}
+          disabled={exporting}
+          className="sm:ml-auto inline-flex items-center justify-center gap-2 shrink-0 whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium bg-green-600 text-white hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          <Download size={16} />
+          {exporting ? "Exporting..." : "Export to Excel"}
+        </button>
       </div>
+
+      {exportError && <p className="text-red-500 text-sm -mt-4 mb-4">{exportError}</p>}
 
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
         <div className="overflow-x-auto">

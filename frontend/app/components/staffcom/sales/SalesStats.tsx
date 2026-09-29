@@ -17,25 +17,25 @@ export default function SalesStats({
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
       <StatCard
-        label="Total pending"
+        label="Pending"
         value={totalPending}
         icon={Clock}
         iconColor="text-orange-500 bg-orange-100"
       />
       <StatCard
-        label="Total In Progress"
+        label="In progress"
         value={totalInProgress}
         icon={RefreshCw}
         iconColor="text-blue-600 bg-blue-100"
       />
       <StatCard
-        label="Total claimed (all-time)"
+        label="Claimed"
         value={totalClaimed}
         icon={CheckCircle2}
         iconColor="text-green-600 bg-green-100"
       />
       <StatCard
-        label="Average order value"
+        label="Average order"
         value={`₱${averageOrderValue.toFixed(2)}`}
         icon={Wallet}
         iconColor="text-purple-600 bg-purple-100"

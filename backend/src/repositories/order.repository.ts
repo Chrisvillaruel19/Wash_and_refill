@@ -22,17 +22,25 @@ const detailInclude = {
 
 export class OrderRepository {
   // Paginated, newest first — matches AuditLogRepository.findAll's shape.
-  async findAll(params: { page: number; pageSize: number }, tx: PrismaClientOrTx = prisma) {
+  // userId (optional) narrows to one staff member's own orders — the Staff
+  // Sales page; omitted = every order (Services, Claim Monitoring, etc.).
+  // includeItems opts into line items for bulk export (still paginated,
+  // and without the consumptions tree getById carries).
+  async findAll(
+    params: { page: number; pageSize: number; userId?: string; includeItems?: boolean },
+    tx: PrismaClientOrTx = prisma
+  ) {
     return tx.order.findMany({
-      include: listInclude,
+      where: params.userId ? { userId: params.userId } : undefined,
+      include: params.includeItems ? { ...listInclude, orderDetails: detailInclude.orderDetails } : listInclude,
       orderBy: { createdAt: "desc" },
       skip: (params.page - 1) * params.pageSize,
       take: params.pageSize,
     });
   }
 
-  async count(tx: PrismaClientOrTx = prisma) {
-    return tx.order.count();
+  async count(userId?: string, tx: PrismaClientOrTx = prisma) {
+    return tx.order.count({ where: userId ? { userId } : undefined });
   }
 
   async findById(id: string, tx: PrismaClientOrTx = prisma) {
@@ -133,7 +141,12 @@ export class OrderRepository {
   async updatePaymentStatusIfCurrentlyIs(
     id: string,
     expectedStatus: PaymentStatus,
-    data: { paymentStatus: PaymentStatus; paymentDate: Date | null; amountPaid?: number },
+    data: {
+      paymentStatus: PaymentStatus;
+      paymentDate: Date | null;
+      amountPaid?: number;
+      paymentMethod?: PaymentMethod;
+    },
     tx: PrismaClientOrTx = prisma
   ) {
     return tx.order.updateMany({
@@ -142,6 +155,7 @@ export class OrderRepository {
         paymentStatus: data.paymentStatus,
         paymentDate: data.paymentDate,
         ...(data.amountPaid !== undefined ? { amountPaid: data.amountPaid } : {}),
+        ...(data.paymentMethod !== undefined ? { paymentMethod: data.paymentMethod } : {}),
       },
     });
   }
@@ -202,13 +216,14 @@ export class OrderRepository {
   // paymentDateGte/paymentDateLt are already-resolved UTC instants (Manila
   // business-day bounds) — this method does no date math of its own.
   async findPaidWithDetails(
-    params: { shiftHandoverId?: string; paymentDateGte?: Date; paymentDateLt?: Date },
+    params: { shiftHandoverId?: string; paymentDateGte?: Date; paymentDateLt?: Date; userId?: string },
     tx: PrismaClientOrTx = prisma
   ) {
     return tx.order.findMany({
       where: {
         paymentStatus: PaymentStatus.PAID,
         status: { not: OrderStatus.CANCELLED },
+        ...(params.userId ? { userId: params.userId } : {}),
         ...(params.shiftHandoverId ? { shiftHandoverId: params.shiftHandoverId } : {}),
         ...(params.paymentDateGte || params.paymentDateLt
           ? {
@@ -304,15 +319,18 @@ export class OrderRepository {
   // services pass getBusinessDayRange() for "today"). Range omitted =
   // all-time, kept for any future caller that genuinely wants that.
   // Independent of Shift Handover's claim status — a sale is revenue
-  // whether or not it's been reconciled into a handover yet.
+  // whether or not it's been reconciled into a handover yet. userId scopes
+  // it to one staff member's own orders (Staff dashboard); omitted = shop-wide.
   async sumPaidRevenue(
     range?: { start: Date; end: Date },
-    tx: PrismaClientOrTx = prisma
+    tx: PrismaClientOrTx = prisma,
+    userId?: string
   ): Promise<number> {
     const result = await tx.order.aggregate({
       where: {
         paymentStatus: PaymentStatus.PAID,
         status: { not: OrderStatus.CANCELLED },
+        ...(userId ? { userId } : {}),
         ...(range ? { paymentDate: { gte: range.start, lt: range.end } } : {}),
       },
       _sum: { totalAmount: true },

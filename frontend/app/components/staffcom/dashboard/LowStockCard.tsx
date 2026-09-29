@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { CheckCircle2 } from "lucide-react";
+import CardHeader from "../../admincom/dashboard/CardHeader";
 import { LowStockItem } from "../../../staff/(dashboard)/types";
 
 const PREVIEW_LIMIT = 5;
@@ -9,39 +10,43 @@ interface LowStockCardProps {
 
 export default function LowStockCard({ items }: LowStockCardProps) {
   const visibleItems = items.slice(0, PREVIEW_LIMIT);
-  const hasMore = items.length > PREVIEW_LIMIT;
+  const hiddenCount = items.length - visibleItems.length;
 
   return (
-    <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-bold text-gray-800">Low Stock Items</h2>
-        {hasMore && (
-          <Link
-            href="/staff/inventory?filter=lowStock"
-            className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-          >
-            View all in Inventory →
-          </Link>
-        )}
-      </div>
+    <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 h-full">
+      <CardHeader
+        title="Low stock items"
+        linkHref={items.length > 0 ? "/staff/inventory?filter=lowStock" : undefined}
+        linkLabel="View inventory"
+      />
 
       {visibleItems.length > 0 ? (
-        <div className="space-y-3">
-          {visibleItems.map((item) => (
-            <div
-              key={item.id}
-              className="flex items-center justify-between border border-gray-200 rounded-lg px-4 py-3"
-            >
-              <span className="text-gray-700">{item.name}</span>
-              <span className="text-gray-800 font-medium">
-                {item.quantityRemaining}x remaining
-              </span>
-              <span className="text-gray-500 text-sm">{item.unit}</span>
-            </div>
-          ))}
-        </div>
+        <>
+          <p className="text-sm text-gray-500 mb-4">
+            <span className="font-semibold text-red-600">{items.length}</span> item
+            {items.length === 1 ? "" : "s"} need{items.length === 1 ? "s" : ""} restocking
+          </p>
+          <ul className="divide-y divide-gray-100">
+            {visibleItems.map((item) => (
+              <li key={item.id} className="flex items-center justify-between gap-3 py-2.5">
+                <span className="flex items-center gap-2 min-w-0 text-sm text-gray-800">
+                  <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+                  <span className="truncate">{item.name}</span>
+                </span>
+                <span className="shrink-0 text-sm tabular-nums">
+                  <span className="font-semibold text-red-600">{item.quantityRemaining}</span>
+                  <span className="text-gray-500"> {item.unit} left</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+          {hiddenCount > 0 && <p className="text-xs text-gray-400 mt-3">+{hiddenCount} more in Inventory</p>}
+        </>
       ) : (
-        <p className="text-gray-400 text-sm">No low stock items.</p>
+        <div className="flex flex-col items-center justify-center text-center py-8 text-gray-400">
+          <CheckCircle2 size={28} className="text-green-500 mb-2" />
+          <p className="text-sm">All supplies are stocked.</p>
+        </div>
       )}
     </div>
   );

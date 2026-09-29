@@ -13,25 +13,36 @@ function mapLowStockItem(item: BackendLowStockItem): LowStockItem {
 }
 
 export interface StaffDashboardData {
-  todaysSales: number;
+  // This staff member's own paid sales since clock-in (0 when off shift).
+  myShiftSales: number;
+  onShift: boolean;
   claimedToday: number;
+  pending: number;
+  inProgress: number;
   ready: number;
   lowStock: LowStockItem[];
 }
 
 export async function getStaffDashboard(): Promise<StaffDashboardData> {
   const result = await apiClient.get<{
-    todaysSales: number;
+    myShiftSales: number;
+    onShift: boolean;
     claimedToday: number;
+    pending: number;
+    inProgress: number;
     ready: number;
     lowStockItems: BackendLowStockItem[];
   }>("/dashboard/staff");
 
   return {
-    todaysSales: Number(result.todaysSales),
-    claimedToday: result.claimedToday,
-    ready: result.ready,
-    lowStock: result.lowStockItems.map(mapLowStockItem),
+    myShiftSales: Number(result.myShiftSales) || 0,
+    onShift: Boolean(result.onShift),
+    // Every number falls back to 0 so a missing field never renders as NaN.
+    claimedToday: Number(result.claimedToday) || 0,
+    pending: Number(result.pending) || 0,
+    inProgress: Number(result.inProgress) || 0,
+    ready: Number(result.ready) || 0,
+    lowStock: (result.lowStockItems ?? []).map(mapLowStockItem),
   };
 }
 

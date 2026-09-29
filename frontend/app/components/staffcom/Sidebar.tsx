@@ -42,6 +42,9 @@ export default function Sidebar() {
   // checked first server-side (see LogoutService), so it needs its own
   // modal with its own required wording.
   const [shiftHandoverRequiredModal, setShiftHandoverRequiredModal] = useState(false);
+  // Handover is done but the shift is still open — Logout never clocks out
+  // on the staff member's behalf (see LogoutService).
+  const [clockOutRequiredModal, setClockOutRequiredModal] = useState(false);
   // A genuine network/server failure — logout could not be confirmed, so
   // the user is still authenticated; shown as an inline error rather than
   // a modal, matching the pattern used elsewhere in this app for action
@@ -55,9 +58,9 @@ export default function Sidebar() {
     setIsOpen(false);
   }, [pathname]);
 
-  // Server-authoritative: logout() itself enforces the unreported-activity
-  // rule (mirrors Clock Out's own gate — see LogoutService) and throws
-  // specifically for that case rather than clearing local state, so this is
+  // Server-authoritative: logout() is refused while the shift is still open
+  // (handover missing, unreported activity, or not clocked out — see
+  // LogoutService) and throws rather than clearing local state, so this is
   // not just a frontend confirmation the backend could be bypassed on.
   async function handleLogout() {
     if (isLoggingOutRef.current) return;
@@ -69,11 +72,11 @@ export default function Sidebar() {
       router.push("/");
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
-        // Two distinct 409 causes, distinguished by message text (see
-        // LogoutService) — "unreported" only ever appears in the existing
-        // financial-reconciliation message, never in the Shift Handover
-        // Required one.
-        if (/unreported/i.test(err.message)) {
+        // Three distinct 409 causes, distinguished by message text (see
+        // LogoutService) — each keyword appears in exactly one message.
+        if (/clock out/i.test(err.message)) {
+          setClockOutRequiredModal(true);
+        } else if (/unreported/i.test(err.message)) {
           setUnreportedModal(true);
         } else {
           setShiftHandoverRequiredModal(true);
@@ -191,6 +194,34 @@ export default function Sidebar() {
                 className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
               >
                 Go to Shift Handover
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {clockOutRequiredModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-lg max-w-sm w-full p-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Clock Out Required</h3>
+            <p className="text-sm text-gray-600 mb-5">
+              Your shift is still open. Please clock out on the Attendance page before logging out.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setClockOutRequiredModal(false)}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 border border-gray-300 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setClockOutRequiredModal(false);
+                  router.push("/staff/attendance");
+                }}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+              >
+                Go to Attendance
               </button>
             </div>
           </div>

@@ -1,12 +1,17 @@
 import { prisma } from "../../lib/prisma.js";
 import { OrderRepository } from "../../repositories/order.repository.js";
 import { canModifyOrder } from "./order-status-flow.util.js";
-import { OrderStatus, PaymentStatus, AuditAction, Role } from "../../../generated/prisma/client.js";
+import { OrderStatus, PaymentStatus, PaymentMethod, AuditAction, Role } from "../../../generated/prisma/client.js";
 import { writeAuditLog } from "../../lib/audit-log.js";
 
 const orderRepository = new OrderRepository();
 
-export async function markOrderPaidService(userId: string, id: string, actorRole?: Role) {
+export async function markOrderPaidService(
+  userId: string,
+  id: string,
+  paymentMethod: PaymentMethod,
+  actorRole?: Role
+) {
   try {
     const result = await prisma.$transaction(async (tx) => {
       const existing = await orderRepository.findById(id, tx);
@@ -43,7 +48,7 @@ export async function markOrderPaidService(userId: string, id: string, actorRole
       const updateResult = await orderRepository.updatePaymentStatusIfCurrentlyIs(
         id,
         PaymentStatus.UNPAID,
-        { paymentStatus: PaymentStatus.PAID, paymentDate, amountPaid: totalAmount },
+        { paymentStatus: PaymentStatus.PAID, paymentDate, amountPaid: totalAmount, paymentMethod },
         tx
       );
       if (updateResult.count === 0) {
@@ -55,13 +60,14 @@ export async function markOrderPaidService(userId: string, id: string, actorRole
         userId,
         action: AuditAction.PAYMENT,
         module: "Order",
-        description: `Order marked as paid (was ${existing.paymentStatus})`,
+        description: `Order marked as paid via ${paymentMethod} (was ${existing.paymentStatus})`,
         oldValue: {
           paymentStatus: existing.paymentStatus,
           paymentDate: existing.paymentDate,
           amountPaid: Number(existing.amountPaid),
+          paymentMethod: existing.paymentMethod,
         },
-        newValue: { paymentStatus: PaymentStatus.PAID, paymentDate, amountPaid: totalAmount },
+        newValue: { paymentStatus: PaymentStatus.PAID, paymentDate, amountPaid: totalAmount, paymentMethod },
       });
 
       return { order } as const;

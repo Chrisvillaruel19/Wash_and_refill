@@ -6,6 +6,8 @@ interface OrderPipelineCardProps {
   inProgress: number;
   ready: number;
   claimedToday: number;
+  href?: string;
+  claimedLabel?: string;
 }
 
 // Same status colours as the Services/Laundry pages. Each stage is also
@@ -16,13 +18,20 @@ const STAGES = [
   { key: "ready", label: "Ready", bar: "bg-green-600", dot: "bg-green-600" },
 ] as const;
 
-export default function OrderPipelineCard({ pending, inProgress, ready, claimedToday }: OrderPipelineCardProps) {
+export default function OrderPipelineCard({
+  pending,
+  inProgress,
+  ready,
+  claimedToday,
+  href = "/admin/claim_monitoring",
+  claimedLabel = "Claimed today",
+}: OrderPipelineCardProps) {
   const counts = { pending, inProgress, ready };
   const active = pending + inProgress + ready;
 
   return (
     <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 h-full">
-      <CardHeader title="Order pipeline" linkHref="/admin/claim_monitoring" linkLabel="View orders" />
+      <CardHeader title="Order pipeline" linkHref={href} linkLabel="View orders" />
       <p className="text-sm text-gray-500 mb-4">
         <span className="font-semibold text-gray-900">{active}</span> active order{active === 1 ? "" : "s"}
       </p>
@@ -46,7 +55,7 @@ export default function OrderPipelineCard({ pending, inProgress, ready, claimedT
         {STAGES.map((s) => (
           <Link
             key={s.key}
-            href="/admin/claim_monitoring"
+            href={href}
             className="rounded-lg border border-gray-100 p-2 sm:p-3 hover:bg-gray-50 min-h-[44px]"
           >
             <span className="flex items-center gap-1.5 text-xs text-gray-500">
@@ -59,7 +68,7 @@ export default function OrderPipelineCard({ pending, inProgress, ready, claimedT
       </div>
 
       <p className="text-sm text-gray-500 mt-4 pt-3 border-t border-gray-100">
-        Claimed today: <span className="font-semibold text-gray-900">{claimedToday}</span>
+        {claimedLabel}: <span className="font-semibold text-gray-900">{claimedToday}</span>
       </p>
     </div>
   );

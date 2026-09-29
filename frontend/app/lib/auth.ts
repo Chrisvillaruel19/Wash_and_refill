@@ -71,12 +71,12 @@ export function getCurrentUser(): StaffUser | null {
   }
 }
 
-// Server-authoritative: LogoutService can block for two independent
-// reasons — SHIFT_HANDOVER_REQUIRED (no handover submitted yet this shift)
-// or UNREPORTED_FINANCIAL_ACTIVITY (money unclaimed since the last one) —
-// both arrive as 409s the caller distinguishes by message text (see
-// Sidebar.tsx). Neither writes anything server-side, so local state must
-// never be cleared for either.
+// Server-authoritative: LogoutService blocks a Staff member whose shift is
+// still open, for one of three reasons — no handover submitted yet this
+// shift, money unreported since the last one, or not clocked out yet —
+// all arrive as 409s the caller distinguishes by message text (see
+// Sidebar.tsx). None writes anything server-side, so local state must
+// never be cleared for any of them.
 //
 // Any other failure (a genuine network error, or a non-401 server error)
 // also must NOT be treated as a successful logout — this session's status
@@ -94,7 +94,7 @@ export async function logout(): Promise<void> {
       // Session was already dead server-side — nothing to preserve, fall
       // through to clearing local state below.
     } else {
-      // 409 (either business gate), any other server error, or a raw
+      // 409 (any business gate), any other server error, or a raw
       // network failure (not even an ApiError) — logout could not be
       // confirmed. Re-throw untouched so the caller can show the right
       // message and the user stays authenticated.

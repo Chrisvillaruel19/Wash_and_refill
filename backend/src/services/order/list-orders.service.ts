@@ -2,11 +2,11 @@ import { OrderRepository } from "../../repositories/order.repository.js";
 
 const orderRepository = new OrderRepository();
 
-export async function listOrdersService(params: { page: number; pageSize: number }) {
+export async function listOrdersService(params: { page: number; pageSize: number; userId?: string; includeItems?: boolean }) {
   try {
     const [orders, total] = await Promise.all([
       orderRepository.findAll(params),
-      orderRepository.count(),
+      orderRepository.count(params.userId),
     ]);
 
     return {

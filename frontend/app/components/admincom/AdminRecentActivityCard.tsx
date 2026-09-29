@@ -15,6 +15,8 @@ import { ActivityLog } from "../../staff/(dashboard)/types";
 
 interface AdminRecentActivityCardProps {
   logs: ActivityLog[];
+  // null hides the link (Staff has no Logs page).
+  logsHref?: string | null;
 }
 
 const MODULE_ICONS: Record<string, { icon: LucideIcon; color: string }> = {
@@ -64,7 +66,7 @@ function dayHeading(iso: string) {
 // Latest entries only (the backend returns the 10 most recent), grouped by
 // day with times — no inner scroll box, which is awkward on phones; the full
 // history lives on the Logs page.
-export default function AdminRecentActivityCard({ logs }: AdminRecentActivityCardProps) {
+export default function AdminRecentActivityCard({ logs, logsHref = "/admin/logs" }: AdminRecentActivityCardProps) {
   const groups: { heading: string; items: ActivityLog[] }[] = [];
   for (const log of logs) {
     const heading = dayHeading(log.timestamp);
@@ -75,7 +77,7 @@ export default function AdminRecentActivityCard({ logs }: AdminRecentActivityCar
 
   return (
     <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 h-full">
-      <CardHeader title="Recent activity" linkHref="/admin/logs" linkLabel="View all logs" />
+      <CardHeader title="Recent activity" linkHref={logsHref ?? undefined} linkLabel="View all logs" />
 
       {logs.length === 0 ? (
         <p className="text-gray-400 text-sm">No recent activity.</p>

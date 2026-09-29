@@ -1,6 +1,6 @@
 "use client";
 
-import { Minus, Plus, ShoppingCart, X } from "lucide-react";
+import { ShoppingCart, X } from "lucide-react";
 import { CartItem, PaymentMethod } from "../../../staff/(dashboard)/neworder/types";
 
 function formatCurrency(value: number) {
@@ -15,7 +15,6 @@ function formatCurrency(value: number) {
 interface OrderSummaryProps {
   cartItems: CartItem[];
   onRemoveItem: (id: string) => void;
-  onQuantityChange: (id: string, delta: number) => void;
   // "" = not chosen yet — required only when an amount is entered.
   paymentMethod: PaymentMethod | "";
   onPaymentMethodChange: (method: PaymentMethod) => void;
@@ -29,7 +28,6 @@ interface OrderSummaryProps {
 export default function OrderSummary({
   cartItems,
   onRemoveItem,
-  onQuantityChange,
   paymentMethod,
   onPaymentMethodChange,
   amountPaid,
@@ -55,61 +53,35 @@ export default function OrderSummary({
           stretching the whole Order Summary card. */}
       <div className="flex-1 p-4 sm:p-5 space-y-3 overflow-y-auto min-h-[150px] sm:min-h-[200px] max-h-[320px]">
         {cartItems.length > 0 ? (
-          cartItems.map((item) => {
-            const itemSubtotal = item.price * item.quantity;
-            return (
-              <div
-                key={item.id}
-                className="border border-gray-200 rounded-lg bg-gray-50 p-3 space-y-2"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <p className="font-medium text-gray-800 break-words leading-5 pr-2 min-w-0 flex-1">
-                    {item.name}
+          cartItems.map((item) => (
+            <div
+              key={item.id}
+              className="flex items-center justify-between gap-3 border-b border-gray-100 pb-3 last:border-0"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-gray-800 break-words leading-5">{item.name}</p>
+                {/* Only when it adds information — at 1 it just repeats the price. */}
+                {item.quantity > 1 && (
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {item.quantity} × {formatCurrency(item.price)}
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => onRemoveItem(item.id)}
-                    className="text-gray-400 hover:text-red-500 shrink-0"
-                    aria-label={`Remove ${item.name}`}
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between gap-3 text-sm">
-                  <div className="flex items-center gap-2 text-gray-600">
-                    <span>Qty:</span>
-                    <div className="flex items-center border border-gray-300 rounded-md overflow-hidden bg-white">
-                      <button
-                        type="button"
-                        onClick={() => onQuantityChange(item.id, -1)}
-                        className="p-1.5 text-gray-700 hover:bg-gray-100"
-                        aria-label={`Decrease quantity for ${item.name}`}
-                      >
-                        <Minus size={14} />
-                      </button>
-                      <span className="min-w-8 text-center font-medium text-gray-800">{item.quantity}</span>
-                      <button
-                        type="button"
-                        onClick={() => onQuantityChange(item.id, 1)}
-                        className="p-1.5 text-gray-700 hover:bg-gray-100"
-                        aria-label={`Increase quantity for ${item.name}`}
-                      >
-                        <Plus size={14} />
-                      </button>
-                    </div>
-                  </div>
-
-                  <span className="font-semibold text-gray-900">{formatCurrency(itemSubtotal)}</span>
-                </div>
-
-                <div className="flex items-center justify-between text-xs text-gray-500">
-                  <span>Unit Price</span>
-                  <span>{formatCurrency(item.price)}</span>
-                </div>
+                )}
               </div>
-            );
-          })
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="font-semibold text-sm text-gray-900">
+                  {formatCurrency(item.price * item.quantity)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onRemoveItem(item.id)}
+                  className="p-1 text-gray-400 hover:text-red-500"
+                  aria-label={`Remove ${item.name}`}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+          ))
         ) : (
           <div className="flex items-center justify-center h-full min-h-[120px] text-center text-gray-400 text-sm">
             Cart is empty.

@@ -117,8 +117,15 @@ function mapOrder(order: BackendOrder): Order {
   };
 }
 
-export async function getOrders(): Promise<Order[]> {
-  const orders = await fetchAllPages<BackendOrder>("/orders", "orders");
+// mine = only the logged-in user's own orders (Staff Sales page).
+// includeItems = also return each order's line items (Claim Monitoring's
+// Excel export) — heavier, so only for callers that actually need them.
+export async function getOrders(options: { mine?: boolean; includeItems?: boolean } = {}): Promise<Order[]> {
+  const params = [options.mine && "mine=true", options.includeItems && "includeItems=true"].filter(Boolean);
+  const orders = await fetchAllPages<BackendOrder>(
+    params.length > 0 ? `/orders?${params.join("&")}` : "/orders",
+    "orders"
+  );
   return orders.map(mapOrder);
 }
 
@@ -126,11 +133,11 @@ export async function getOrders(): Promise<Order[]> {
 // Sales) driven by useServerPage.ts, as opposed to getOrders() above, which
 // walks every page for callers that need the complete set (dashboards,
 // stat cards, shift-handover reconciliation math).
-export async function getOrdersPage(page: number, pageSize: number): Promise<ServerPageResult<Order>> {
+export async function getOrdersPage(page: number, pageSize: number, mine = false): Promise<ServerPageResult<Order>> {
   const result = await apiClient.get<{
     orders: BackendOrder[];
     pagination: { totalPages: number };
-  }>(`/orders?page=${page}&pageSize=${pageSize}`);
+  }>(`/orders?page=${page}&pageSize=${pageSize}${mine ? "&mine=true" : ""}`);
   return { items: result.orders.map(mapOrder), totalPages: result.pagination.totalPages };
 }
 
@@ -176,8 +183,10 @@ export async function cancelOrder(id: string): Promise<void> {
   await apiClient.patch(`/orders/${id}/cancel`);
 }
 
-export async function markOrderAsPaid(id: string): Promise<void> {
-  await apiClient.patch(`/orders/${id}/mark-paid`);
+export async function markOrderAsPaid(id: string, paymentMethod: PaymentMethod): Promise<void> {
+  await apiClient.patch(`/orders/${id}/mark-paid`, {
+    paymentMethod: PAYMENT_METHOD_MAP_TO_BACKEND[paymentMethod],
+  });
 }
 
 export async function reverseOrderPayment(id: string): Promise<void> {

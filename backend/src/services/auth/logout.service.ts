@@ -3,8 +3,6 @@ import { TokenRepository } from "../../repositories/token.repository.js";
 import { AttendanceRepository } from "../../repositories/attendance.repository.js";
 import { ShiftHandoverRepository } from "../../repositories/shift-handover.repository.js";
 import { getUnreportedActivity } from "../shift-handover/reconciliation.util.js";
-import { AuditAction } from "../../../generated/prisma/client.js";
-import { writeAuditLog } from "../../lib/audit-log.js";
 
 const tokenRepository = new TokenRepository();
 const attendanceRepository = new AttendanceRepository();
@@ -36,18 +34,13 @@ export async function LogoutService(refreshToken: string) {
       };
     }
 
-    // Server-authoritative: Logout is not just a token teardown for a Staff
-    // member with an open shift — it also has to close it out, and it must
-    // never be usable to bypass Clock Out's own unreported-activity rule.
-    // Reuses the exact same check (getUnreportedActivity) and the exact
-    // same session-closing math clockOutService itself uses — the business
-    // logic lives in exactly one place; this composes it, rather than
-    // calling clockOutService as a black box, so the check, the close, and
-    // the token revocation all commit as one atomic unit (no window where
-    // attendance is closed but the session is still technically valid, or
-    // vice versa). Accounts with no active attendance record (Admin, or a
-    // Staff member who already clocked out manually) skip straight to the
-    // token revocation below, unchanged from today.
+    // Server-authoritative: a Staff member with an open shift cannot log
+    // out at all — they must submit their Shift Handover and then Clock Out
+    // themselves (Clock Out enforces the same handover/unreported checks).
+    // Logout never closes the shift on their behalf. The two checks below
+    // run first only so the error names the earliest step still missing.
+    // Accounts with no active attendance record (Admin, or a Staff member
+    // who already clocked out) skip straight to the token revocation below.
     const result = await prisma.$transaction(async (tx) => {
       const activeAttendance = await attendanceRepository.findActiveForUser(token.userId, tx);
 
@@ -76,23 +69,8 @@ export async function LogoutService(refreshToken: string) {
           return { unreportedActivity: true } as const;
         }
 
-        const now = new Date();
-        const hours = (now.getTime() - activeAttendance.timeIn.getTime()) / (1000 * 60 * 60);
-        const totalHours = Math.round(hours * 10) / 10;
-
-        await attendanceRepository.closeSession(
-          activeAttendance.id,
-          { timeOut: now, totalHours, autoClosed: false },
-          tx
-        );
-
-        await writeAuditLog(tx, {
-          userId: token.userId,
-          action: AuditAction.UPDATE,
-          module: "Attendance",
-          description: "Clocked out (automatic, on logout)",
-          newValue: { timeOut: now, totalHours },
-        });
+        // Handover is done — the only step left is clocking out.
+        return { clockOutRequired: true } as const;
       }
 
       await tokenRepository.revokeToken(token.id, tx);
@@ -122,6 +100,16 @@ export async function LogoutService(refreshToken: string) {
         code: 409,
         status: "error",
         message: "You have unreported activity. Please submit a Shift Handover before logging out.",
+      };
+    }
+
+    if ("clockOutRequired" in result) {
+      // Nothing was written — still logged in, shift still open. Message
+      // text is matched by the frontend ("clock out") to pick its modal.
+      return {
+        code: 409,
+        status: "error",
+        message: "Please clock out on the Attendance page before logging out.",
       };
     }
 

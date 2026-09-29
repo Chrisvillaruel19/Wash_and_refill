@@ -1,22 +1,29 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Wallet, ClipboardCheck, CheckCircle2, AlertTriangle } from "lucide-react";
-import StatCard from "../../components/staffcom/dashboard/StatCard";
+import { Wallet, ClipboardCheck, PackageCheck, AlertTriangle } from "lucide-react";
+import AdminStatCard from "../../components/admincom/AdminStatCard";
+import AdminRecentActivityCard from "../../components/admincom/AdminRecentActivityCard";
+import OrderPipelineCard from "../../components/admincom/dashboard/OrderPipelineCard";
+import { peso } from "../../components/admincom/dashboard/format";
 import LowStockCard from "../../components/staffcom/dashboard/LowStockCard";
-import RecentActivityCard from "../../components/staffcom/dashboard/RecentActivityCard";
 import OrdersTable from "../../components/staffcom/dashboard/OrdersTable";
 import MyClaimedTodayCard from "../../components/staffcom/dashboard/MyClaimedTodayCard";
 import { getOrdersPage, getMyClaimedOrdersToday } from "../../lib/services/ordersApi.service";
-import { getStaffDashboard, getRecentActivity } from "../../lib/services/dashboard.service";
-import { Order, LowStockItem, ActivityLog } from "./types";
+import { getStaffDashboard, getRecentActivity, StaffDashboardData } from "../../lib/services/dashboard.service";
+import { Order, ActivityLog } from "./types";
 
+// Same card system as the Admin dashboard. Top to bottom (phones stack
+// everything in this same order):
+//   today's numbers (2×2 on phones, 4 across on desktop)
+//   order pipeline  | low stock
+//   recent orders
+//   my claimed today | recent activity
 export default function StaffDashboardPage() {
+  const [data, setData] = useState<StaffDashboardData | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [claimedToday, setClaimedToday] = useState<Order[]>([]);
-  const [lowStock, setLowStock] = useState<LowStockItem[]>([]);
   const [activity, setActivity] = useState<ActivityLog[]>([]);
-  const [stats, setStats] = useState({ todaysSales: 0, claimedToday: 0, ready: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -28,9 +35,7 @@ export default function StaffDashboardPage() {
           getOrdersPage(1, 20),
           getMyClaimedOrdersToday(),
         ]);
-
-        setStats({ todaysSales: dashboard.todaysSales, claimedToday: dashboard.claimedToday, ready: dashboard.ready });
-        setLowStock(dashboard.lowStock);
+        setData(dashboard);
         setOrders(orderPage.items);
         setClaimedToday(myClaimedToday);
       } catch {
@@ -56,49 +61,67 @@ export default function StaffDashboardPage() {
     return <p className="text-gray-400 p-6">Loading dashboard...</p>;
   }
 
-  if (error) {
-    return <p className="text-red-500 p-6">{error}</p>;
+  if (error || !data) {
+    return <p className="text-red-500 p-6">{error || "Unable to load dashboard data."}</p>;
   }
 
+  const lowStockCount = data.lowStock.length;
+  const activeOrders = data.pending + data.inProgress + data.ready;
+
   return (
-    <div className="p-4 sm:p-6">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        <StatCard
-          label="Today's Sales"
-          value={`₱${stats.todaysSales.toFixed(2)}`}
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
+        <AdminStatCard
+          label="My shift sales"
+          value={peso(data.myShiftSales)}
           icon={Wallet}
           iconColor="text-green-600 bg-green-100"
+          sub={<span className="block">{data.onShift ? "Your paid orders since clock-in" : "Not clocked in"}</span>}
         />
-        <StatCard
-          label="Claimed today"
-          value={stats.claimedToday}
+        <AdminStatCard
+          label="Claimed by you"
+          value={data.claimedToday}
           icon={ClipboardCheck}
           iconColor="text-gray-700 bg-gray-100"
+          sub={<span className="block">Released to customers today</span>}
         />
-        <StatCard
-          label="Ready"
-          value={stats.ready}
-          icon={CheckCircle2}
-          iconColor="text-green-600 bg-green-100"
+        <AdminStatCard
+          label="Ready to release"
+          value={data.ready}
+          icon={PackageCheck}
+          iconColor="text-blue-600 bg-blue-100"
           href="/staff/service"
+          sub={<span className="block">of {activeOrders} active orders</span>}
         />
-        <StatCard
-          label="Low stocks alert"
-          value={lowStock.length}
+        <AdminStatCard
+          label="Low stock"
+          value={lowStockCount}
           icon={AlertTriangle}
           iconColor="text-red-600 bg-red-100"
           href="/staff/inventory"
+          valueClassName={lowStockCount > 0 ? "text-red-600" : "text-gray-800"}
+          sub={<span className="block">{lowStockCount > 0 ? "Needs restocking" : "All supplies OK"}</span>}
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 items-start">
-        <LowStockCard items={lowStock} />
-        <RecentActivityCard logs={activity} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <OrderPipelineCard
+          pending={data.pending}
+          inProgress={data.inProgress}
+          ready={data.ready}
+          claimedToday={data.claimedToday}
+          href="/staff/service"
+          claimedLabel="Claimed by you today"
+        />
+        <LowStockCard items={data.lowStock} />
       </div>
 
-      <MyClaimedTodayCard orders={claimedToday} />
-
       <OrdersTable orders={orders} />
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <MyClaimedTodayCard orders={claimedToday} />
+        <AdminRecentActivityCard logs={activity} logsHref={null} />
+      </div>
     </div>
   );
 }

@@ -1,8 +1,11 @@
+import { prisma } from "../../lib/prisma.js";
 import { OrderRepository } from "../../repositories/order.repository.js";
+import { AttendanceRepository } from "../../repositories/attendance.repository.js";
 import { lowStockInventoryService } from "../inventory/index.js";
 import { getBusinessDayRange } from "../../lib/business-timezone.js";
 
 const orderRepository = new OrderRepository();
+const attendanceRepository = new AttendanceRepository();
 
 // Deliberately does not re-embed the full orders list — the frontend's
 // OrdersTable already has its own source via the existing GET /orders
@@ -11,8 +14,14 @@ const orderRepository = new OrderRepository();
 export async function getStaffDashboardService(userId: string) {
   try {
     const todayRange = getBusinessDayRange();
-    const [todaysSales, claimedToday, statusCounts, lowStockResult] = await Promise.all([
-      orderRepository.sumPaidRevenue(todayRange),
+    // Staff see only their own paid sales for their current shift (since
+    // clock-in) — the shop-wide total is Admin-only. Not clocked in = 0.
+    const activeAttendance = await attendanceRepository.findActiveForUser(userId);
+    const shiftStart = activeAttendance?.timeIn ?? null;
+    const [myShiftSales, claimedToday, statusCounts, lowStockResult] = await Promise.all([
+      shiftStart
+        ? orderRepository.sumPaidRevenue({ start: shiftStart, end: new Date(Date.now() + 60_000) }, prisma, userId)
+        : Promise.resolve(0),
       orderRepository.countClaimedForUserInRange(userId, todayRange),
       orderRepository.countByStatus(),
       lowStockInventoryService(),
@@ -23,8 +32,11 @@ export async function getStaffDashboardService(userId: string) {
       status: "success",
       message: "Staff dashboard statistics retrieved successfully",
       data: {
-        todaysSales,
+        myShiftSales,
+        onShift: shiftStart !== null,
         claimedToday,
+        pending: statusCounts.PENDING,
+        inProgress: statusCounts.IN_PROGRESS,
         ready: statusCounts.READY,
         lowStockItems: lowStockResult.data?.items ?? [],
       },

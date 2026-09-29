@@ -9,6 +9,7 @@ import type { ServerPageResult } from "../useServerPage";
 
 interface BackendOrderDetail {
   quantity: number;
+  weight?: string | null;
   subtotal: string;
   serviceType: string | null;
   service: { serviceName: string } | null;
@@ -228,72 +229,62 @@ export type NewOrderItemInput =
   | { type: "SERVICE"; serviceId: string; weight: number; quantity: number; serviceType?: ServiceType }
   | { type: "INVENTORY"; inventoryId: string; quantity: number };
 
-export interface ReceiptLineItem {
-  name: string;
-  quantity: number;
-  unitPrice: number;
-  subtotal: number;
-  type: "PACKAGE" | "SERVICE" | "INVENTORY";
-  serviceType?: ServiceType;
-}
-
-export interface CreatedOrderReceipt extends Order {
-  customerName: string;
-  phoneNumber: string;
-  userName?: string;
-  paymentStatus: PayStatus;
-  paymentMethod?: PaymentMethod;
+// Everything New Order's receipt prints — built from the backend's saved
+// order (server-computed prices/totals), never from the client-side cart.
+export interface OrderReceipt {
+  id: string;
+  orderNumber: string;
+  createdAt: string;
+  staffName?: string;
+  customer: string;
+  contact: string;
+  lines: { label: string; detail: string; subtotal: number }[];
+  total: number;
   amountPaid: number;
-  totalAmount: number;
-  orderDetails: ReceiptLineItem[];
+  change: number;
+  payStatus: PayStatus;
+  paymentMethod?: PaymentMethod;
 }
 
-function mapReceiptOrder(order: BackendOrder): CreatedOrderReceipt {
-  const mappedOrder = mapOrder(order);
-  const orderDetails: ReceiptLineItem[] = (order.orderDetails ?? []).map((detail) => {
-    const name =
-      detail.package?.packageName ?? detail.service?.serviceName ?? detail.inventory?.itemName ?? "Item";
-    const quantity = Number(detail.quantity) || 0;
-    const subtotal = Number(detail.subtotal) || 0;
-    const unitPrice = quantity > 0 ? subtotal / quantity : 0;
-    const type: ReceiptLineItem["type"] = detail.package
-      ? "PACKAGE"
-      : detail.service
-        ? "SERVICE"
-        : "INVENTORY";
-    const serviceType = detail.serviceType ? SERVICE_TYPE_FROM_BACKEND[detail.serviceType] : undefined;
-
-    return {
-      name,
-      quantity,
-      unitPrice,
-      subtotal,
-      type,
-      ...(serviceType ? { serviceType } : {}),
-    };
-  });
-
+function mapReceipt(order: BackendOrder): OrderReceipt {
+  const total = Number(order.totalAmount);
+  const amountPaid = Number(order.amountPaid);
   return {
-    ...mappedOrder,
-    customerName: order.customer.customerName,
-    phoneNumber: order.customer.phoneNumber,
-    userName: order.user?.name,
-    paymentStatus: mappedOrder.payStatus,
+    id: order.id,
+    // Short, readable reference for the customer — first block of the UUID.
+    orderNumber: order.id.slice(0, 8).toUpperCase(),
+    createdAt: order.createdAt,
+    staffName: order.user?.name,
+    customer: order.customer.customerName,
+    contact: order.customer.phoneNumber,
+    lines: (order.orderDetails ?? []).map((d) => {
+      const name = d.package?.packageName ?? d.service?.serviceName ?? d.inventory?.itemName ?? "Item";
+      const serviceType = d.serviceType ? SERVICE_TYPE_FROM_BACKEND[d.serviceType] : null;
+      const weight = d.weight != null ? Number(d.weight) : null;
+      const parts = [weight !== null ? `${weight} kg` : null, d.quantity > 1 || weight === null ? `×${d.quantity}` : null];
+      return {
+        label: serviceType ? `${name} (${serviceType})` : name,
+        detail: parts.filter(Boolean).join(" "),
+        subtotal: Number(d.subtotal),
+      };
+    }),
+    total,
+    amountPaid,
+    change: Math.max(0, amountPaid - total),
+    payStatus: PAY_STATUS_MAP[order.paymentStatus] ?? "UnPaid",
     paymentMethod: order.paymentMethod ? PAYMENT_METHOD_MAP[order.paymentMethod] : undefined,
-    amountPaid: Number(order.amountPaid),
-    totalAmount: Number(order.totalAmount),
-    orderDetails,
   };
 }
 
 export async function createOrder(data: {
   customerName: string;
   phoneNumber: string;
-  paymentMethod: PaymentMethod;
+  // Optional for Unpaid orders (no amount entered yet).
+  paymentMethod?: PaymentMethod;
   amountPaid: number;
   items: NewOrderItemInput[];
   idempotencyKey: string;
-}): Promise<CreatedOrderReceipt> {
+}): Promise<OrderReceipt> {
   const items = data.items.map((item) =>
     item.type === "SERVICE" && item.serviceType
       ? { ...item, serviceType: SERVICE_TYPE_TO_BACKEND[item.serviceType] }
@@ -302,12 +293,12 @@ export async function createOrder(data: {
   const { order } = await apiClient.post<{ order: BackendOrder }>("/orders", {
     customerName: data.customerName,
     phoneNumber: data.phoneNumber,
-    paymentMethod: PAYMENT_METHOD_MAP_TO_BACKEND[data.paymentMethod],
+    paymentMethod: data.paymentMethod ? PAYMENT_METHOD_MAP_TO_BACKEND[data.paymentMethod] : undefined,
     amountPaid: data.amountPaid,
     items,
     idempotencyKey: data.idempotencyKey,
   });
-  return mapReceiptOrder(order);
+  return mapReceipt(order);
 }
 
 const PAYMENT_METHOD_MAP_TO_BACKEND: Record<PaymentMethod, string> = {

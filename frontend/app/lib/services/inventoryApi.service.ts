@@ -41,6 +41,15 @@ export async function restockInventoryItem(
   return mapItem(item);
 }
 
+// Admin-only restock from the Catalog page — no PIN, the backend route
+// checks the ADMIN role instead.
+export async function adminRestockInventoryItem(id: string, quantity: number): Promise<InventoryItem> {
+  const { item } = await apiClient.post<{ item: BackendInventoryItem }>(`/inventory/${id}/admin-restock`, {
+    quantity,
+  });
+  return mapItem(item);
+}
+
 export async function createInventoryItem(data: {
   name: string;
   currentStock: number;
@@ -60,12 +69,12 @@ export async function createInventoryItem(data: {
 
 export async function updateInventoryItem(
   id: string,
-  data: { name: string; currentStock?: number; lowStockAlert: number; unit: string; price: number }
+  // No quantity: stock only changes through Restock (audit-logged) or
+  // orders, never by overwriting it from the Edit form.
+  data: { name: string; lowStockAlert: number; unit: string; price: number }
 ): Promise<InventoryItem> {
-  const quantity = data.currentStock === undefined ? {} : { quantity: data.currentStock };
   const { item } = await apiClient.patch<{ item: BackendInventoryItem }>(`/inventory/${id}`, {
     itemName: data.name,
-    ...quantity,
     unit: data.unit,
     unitPrice: data.price,
     lowStockThreshold: data.lowStockAlert,

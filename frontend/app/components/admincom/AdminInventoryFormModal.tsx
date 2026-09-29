@@ -116,19 +116,20 @@ export default function AdminInventoryFormModal({
             />
           </div>
 
+          {/* Add mode only — existing items change stock via the Restock button. */}
           {canEditStock && (
-            <div>
-              <label htmlFor="inventory-current-stock" className="block text-sm text-gray-500 mb-1">Current Stock</label>
-              <input
-                id="inventory-current-stock"
-                type="number"
-                min={0}
-                placeholder="0"
-                value={currentStock}
-                onChange={(e) => setCurrentStock(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
-              />
-            </div>
+          <div>
+            <label htmlFor="inventory-current-stock" className="block text-sm text-gray-500 mb-1">Current Stock</label>
+            <input
+              id="inventory-current-stock"
+              type="number"
+              min={0}
+              placeholder="0"
+              value={currentStock}
+              onChange={(e) => setCurrentStock(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
+            />
+          </div>
           )}
 
           <div>
@@ -165,7 +166,7 @@ export default function AdminInventoryFormModal({
               type="number"
               min={0.01}
               step={0.01}
-              placeholder="0"
+              placeholder="0.00"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"

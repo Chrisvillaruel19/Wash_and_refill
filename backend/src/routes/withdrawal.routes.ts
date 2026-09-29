@@ -32,4 +32,8 @@ router.post(
 
 router.get("/", authMiddleware.execute, requireRole(Role.ADMIN), withdrawalController.list);
 
+// How much can be withdrawn right now — open drawer (float excluded) and
+// each recent closed shift's remaining cash/GCash earnings.
+router.get("/available", authMiddleware.execute, requireRole(Role.ADMIN), withdrawalController.available);
+
 export default router;

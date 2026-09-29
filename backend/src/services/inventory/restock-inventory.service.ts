@@ -20,23 +20,31 @@ const userRepository = new UserRepository();
 // modal for immediate feedback) — frontend state can be manipulated, so
 // the actual inventory mutation below is never trusted to a PIN check that
 // already happened once in an earlier request.
+//
+// pin === null means the caller is an Admin restocking directly from the
+// Catalog page. Only the ADMIN-only /:id/admin-restock route ever passes
+// null — the shared /:id/restock route's schema requires a PIN string.
 export async function restockInventoryService(
   userId: string,
   id: string,
   quantity: number,
-  pin?: string
+  pin: string | null
 ) {
   try {
-    const actor = await userRepository.findById(userId);
-    const isAdmin = actor?.role === Role.ADMIN;
-    const isAuthorized = isAdmin || (pin ? await userRepository.verifyRestockPin(pin) : false);
+    // Any Admin's PIN authorizes the restock — matching a shared
+    // cash-drawer PIN in the physical store, since this business runs
+    // with the same PIN valid for every Admin, not scoped to whichever
+    // Admin happens to be logged in elsewhere.
+    if (pin !== null) {
+      const isAuthorized = await userRepository.verifyRestockPin(pin);
 
-    if (!isAuthorized) {
-      return {
-        code: 403,
-        status: "error",
-        message: "Incorrect Restock Authorization PIN.",
-      };
+      if (!isAuthorized) {
+        return {
+          code: 403,
+          status: "error",
+          message: "Incorrect Restock Authorization PIN.",
+        };
+      }
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -54,7 +62,7 @@ export async function restockInventoryService(
         userId,
         action: AuditAction.RESTOCK,
         module: "Inventory",
-        description: `Restocked ${quantity} ${updated.unit} of "${updated.itemName}" (${isAdmin ? "Admin-authorized" : "PIN-authorized"})`,
+        description: `Restocked ${quantity} ${updated.unit} of "${updated.itemName}" (${pin === null ? "by Admin" : "PIN-authorized"})`,
         oldValue: { quantity: existing.quantity },
         newValue: { quantity: updated.quantity },
       });

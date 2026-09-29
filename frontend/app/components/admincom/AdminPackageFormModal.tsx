@@ -89,10 +89,7 @@ export default function AdminPackageFormModal({
   );
 
   function addRow() {
-    setRows((prev) => [
-      ...prev,
-      { rowId: nextRowId++, inventoryId: "", quantity: 1 },
-    ]);
+    setRows((prev) => [...prev, { rowId: nextRowId++, inventoryId: "", quantity: 0 }]);
   }
 
   function removeRow(rowId: number) {
@@ -201,7 +198,7 @@ export default function AdminPackageFormModal({
               type="number"
               min={0.01}
               step={0.01}
-              placeholder="0"
+              placeholder="0.00"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
@@ -252,7 +249,8 @@ export default function AdminPackageFormModal({
                   <input
                     type="number"
                     min={1}
-                    value={row.quantity}
+                    placeholder="0"
+                    value={row.quantity || ""}
                     onChange={(e) => updateRowQuantity(row.rowId, parseInt(e.target.value) || 0)}
                     className="w-20 shrink-0 border border-gray-300 rounded-lg p-2 text-gray-900 text-sm"
                   />

@@ -14,11 +14,10 @@ function formatCurrency(value: number) {
 
 interface OrderSummaryProps {
   cartItems: CartItem[];
-  total: number;
-  change: number;
   onRemoveItem: (id: string) => void;
   onQuantityChange: (id: string, delta: number) => void;
-  paymentMethod: PaymentMethod;
+  // "" = not chosen yet — required only when an amount is entered.
+  paymentMethod: PaymentMethod | "";
   onPaymentMethodChange: (method: PaymentMethod) => void;
   amountPaid: number;
   onAmountPaidChange: (amount: number) => void;
@@ -29,8 +28,6 @@ interface OrderSummaryProps {
 
 export default function OrderSummary({
   cartItems,
-  total,
-  change,
   onRemoveItem,
   onQuantityChange,
   paymentMethod,
@@ -41,6 +38,12 @@ export default function OrderSummary({
   isSubmitting,
   submitError,
 }: OrderSummaryProps) {
+  const total = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const change = amountPaid - total;
+  // Empty amount = saved as Unpaid; a partial amount is rejected on submit.
+  const isUnpaid = amountPaid <= 0;
+  const isShort = !isUnpaid && change < 0;
+
   return (
     <div className="bg-white rounded-xl shadow-md overflow-hidden flex flex-col h-fit lg:sticky lg:top-4">
       <div className="bg-blue-600 text-white flex items-center gap-2 px-4 sm:px-5 py-3">
@@ -48,7 +51,9 @@ export default function OrderSummary({
         <span className="font-semibold">Order Summary</span>
       </div>
 
-      <div className="p-4 sm:p-5 space-y-3 overflow-y-auto max-h-[360px] min-h-[120px]">
+      {/* Capped height so a long cart scrolls inside the list instead of
+          stretching the whole Order Summary card. */}
+      <div className="flex-1 p-4 sm:p-5 space-y-3 overflow-y-auto min-h-[150px] sm:min-h-[200px] max-h-[320px]">
         {cartItems.length > 0 ? (
           cartItems.map((item) => {
             const itemSubtotal = item.price * item.quantity;
@@ -124,6 +129,9 @@ export default function OrderSummary({
               onChange={(e) => onPaymentMethodChange(e.target.value as PaymentMethod)}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             >
+              <option value="" disabled>
+                Select
+              </option>
               <option value="Cash">Cash</option>
               <option value="GCash">GCash</option>
             </select>
@@ -151,8 +159,9 @@ export default function OrderSummary({
         </div>
         <div className="flex justify-between text-sm mb-4">
           <span className="text-gray-600">Change</span>
-          <span className={`font-semibold ${change < 0 ? "text-red-600" : "text-gray-900"}`}>
-            {formatCurrency(change)}
+          {/* Negative (in red) when the amount entered is below the total. */}
+          <span className={`font-semibold ${isShort ? "text-red-600" : "text-gray-900"}`}>
+            {isShort ? `-₱${(-change).toFixed(2)}` : `₱${isUnpaid ? "0.00" : change.toFixed(2)}`}
           </span>
         </div>
 
@@ -168,7 +177,7 @@ export default function OrderSummary({
         <button
           type="button"
           onClick={onFinishTransaction}
-          disabled={cartItems.length === 0 || isSubmitting}
+          disabled={cartItems.length === 0 || isShort || (!isUnpaid && !paymentMethod) || isSubmitting}
           className="w-full bg-blue-600 text-white rounded-lg py-3 font-semibold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
         >
           {isSubmitting ? "Processing..." : "Finish Transaction"}

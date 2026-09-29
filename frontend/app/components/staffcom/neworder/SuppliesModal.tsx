@@ -15,11 +15,11 @@ const CONFIRMATION_DISPLAY_MS = 900;
 
 export default function SuppliesModal({ supplies, onAdd, onClose }: SuppliesModalProps) {
   useEscapeKey(onClose);
-  const [quantities, setQuantities] = useState<Record<string, string>>({});
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
   // Which supply's Add button is currently showing "Added" — the quantity
-  // resets to 1 the instant Add is clicked (see handleAdd below), which
+  // box clears the instant Add is clicked (see handleAdd below), which
   // previously looked exactly like the typed amount had been silently
-  // dropped: the box read "1" the moment a user glanced at it right after
+  // dropped: the box reset the moment a user glanced at it right after
   // clicking, even though the Order Summary had already received the
   // correct quantity. This makes the successful add visible for a beat
   // before the input reflects its reset default, instead of the two
@@ -33,15 +33,15 @@ export default function SuppliesModal({ supplies, onAdd, onClose }: SuppliesModa
     };
   }, []);
 
-  function handleQuantityChange(id: string, value: string) {
+  function handleQuantityChange(id: string, value: number) {
     setQuantities((prev) => ({ ...prev, [id]: value }));
   }
 
   function handleAdd(supply: SupplyItem) {
-    const qty = Number(quantities[supply.id]);
-    if (!quantities[supply.id]?.trim() || !Number.isInteger(qty) || qty <= 0) return;
+    // Empty box = the placeholder's 1 — the common "add one of this" case.
+    const qty = quantities[supply.id] || 1;
     onAdd(supply, qty);
-    setQuantities((prev) => ({ ...prev, [supply.id]: "" }));
+    setQuantities((prev) => ({ ...prev, [supply.id]: 0 }));
 
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     setJustAdded(supply.id);
@@ -76,16 +76,15 @@ export default function SuppliesModal({ supplies, onAdd, onClose }: SuppliesModa
                 <input
                   type="number"
                   min={1}
-                  placeholder="0"
-                  value={quantities[supply.id] ?? ""}
+                  placeholder="1"
+                  value={quantities[supply.id] || ""}
                   onChange={(e) =>
-                    handleQuantityChange(supply.id, e.target.value)
+                    handleQuantityChange(supply.id, parseInt(e.target.value) || 0)
                   }
                   className="w-16 border border-gray-300 rounded-lg p-1 text-center text-gray-900"
                 />
                 <button
                   onClick={() => handleAdd(supply)}
-                  disabled={!quantities[supply.id]?.trim() || Number(quantities[supply.id]) <= 0}
                   className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap flex items-center gap-1 transition-colors ${
                     justAdded === supply.id
                       ? "bg-green-600 text-white"

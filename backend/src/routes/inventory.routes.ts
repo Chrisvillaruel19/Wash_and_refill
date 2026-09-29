@@ -10,6 +10,7 @@ import {
   createInventorySchema,
   updateInventorySchema,
   restockInventorySchema,
+  adminRestockInventorySchema,
 } from "../schema/inventory/index.js";
 
 const router = Router();
@@ -63,6 +64,16 @@ router.post(
   restockLimiter,
   validateSchema(restockInventorySchema),
   inventoryController.restock
+);
+
+// Admin restocking from the Catalog page — the ADMIN role check stands in
+// for the PIN, which only exists so Staff can prove Admin authorization.
+router.post(
+  "/:id/admin-restock",
+  authMiddleware.execute,
+  requireRole(Role.ADMIN),
+  validateSchema(adminRestockInventorySchema),
+  inventoryController.adminRestock
 );
 
 router.delete(

@@ -50,6 +50,15 @@ export class ExpenseRepository {
     return tx.expense.count();
   }
 
+  // Admin dashboard: total spent within the range (by expenseDate).
+  async sumInRange(range: { start: Date; end: Date }, tx: PrismaClientOrTx = prisma): Promise<number> {
+    const result = await tx.expense.aggregate({
+      where: { expenseDate: { gte: range.start, lt: range.end } },
+      _sum: { amount: true },
+    });
+    return Number(result._sum.amount ?? 0);
+  }
+
   // Staff scope — only the authenticated user's own submissions. Still
   // joins User (not just the already-known userId) so the service layer can
   // derive `submittedBy` the same way for both scopes.

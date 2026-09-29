@@ -6,15 +6,15 @@ import CustomerInfoForm from "../../../components/staffcom/neworder/CustomerInfo
 import PackageGrid from "../../../components/staffcom/neworder/PackageGrid";
 import OrderSummary from "../../../components/staffcom/neworder/OrderSummary";
 import NewOrderModals from "../../../components/staffcom/neworder/NewOrderModals";
-import ReceiptModal, { OrderReceipt } from "../../../components/staffcom/neworder/ReceiptModal";
 import { ServiceCategory, CartItem, PaymentMethod, Package, ServiceItem, SupplyItem, ServiceType } from "./types";
 import { InventoryItem } from "../types";
 import { serviceCategories } from "./data";
 import { getPackages } from "../../../lib/services/packageApi.service";
 import { getServices } from "../../../lib/services/laundryServiceApi.service";
 import { getInventory } from "../../../lib/services/inventoryApi.service";
-import { createOrder, NewOrderItemInput } from "../../../lib/services/ordersApi.service";
+import { createOrder, NewOrderItemInput, OrderReceipt } from "../../../lib/services/ordersApi.service";
 import { ApiError } from "../../../lib/apiClient";
+import OrderReceiptModal from "../../../components/staffcom/neworder/OrderReceiptModal";
 import { isValidPhone, PHONE_ERROR_MESSAGE, isValidName, NAME_ERROR_MESSAGE } from "../../../lib/validation";
 
 function calculateCartTotal(items: CartItem[]) {
@@ -39,18 +39,18 @@ export default function NewOrderPage() {
   const [customerName, setCustomerName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("Cash");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
   const [amountPaid, setAmountPaid] = useState(0);
   const [packages, setPackages] = useState<Package[]>([]);
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
-  const [latestReceipt, setLatestReceipt] = useState<OrderReceipt | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [receipt, setReceipt] = useState<OrderReceipt | null>(null);
   // React state updates aren't guaranteed to re-render before a second click
   // event is dispatched, so the actual re-entrancy guard is this ref (set
   // synchronously, immediately) — isSubmitting state just drives the UI.
@@ -87,7 +87,6 @@ export default function NewOrderPage() {
 
   const supplies = useMemo(() => buildSupplyMenu(inventory), [inventory]);
   const cartTotal = useMemo(() => calculateCartTotal(cartItems), [cartItems]);
-  const change = amountPaid > 0 ? amountPaid - cartTotal : 0;
 
   function addToCart(newItem: CartItem) {
     setCartItems((prev) => {
@@ -188,10 +187,20 @@ export default function NewOrderPage() {
       setSubmitError(PHONE_ERROR_MESSAGE);
       return;
     }
-    if (!Number.isFinite(amountPaid) || amountPaid < 0) {
-      setSubmitError("Enter a valid amount paid.");
+    // Empty amount = Unpaid order; otherwise it must cover the total (the
+    // backend enforces the same rule).
+    const total = cartTotal;
+    if (amountPaid > 0 && amountPaid < total) {
+      setSubmitError(
+        `Amount is less than the total (₱${total.toFixed(2)}). Enter the full amount, or leave it empty to save as unpaid.`
+      );
       return;
     }
+    if (amountPaid > 0 && !paymentMethod) {
+      setSubmitError("Please select a payment method.");
+      return;
+    }
+
     isSubmittingRef.current = true;
     setIsSubmitting(true);
     setSubmitError("");
@@ -213,20 +222,24 @@ export default function NewOrderPage() {
     });
 
     try {
-      const createdOrder = await createOrder({
+      const created = await createOrder({
         customerName: trimmedName,
         phoneNumber: trimmedPhone,
-        paymentMethod,
+        paymentMethod: paymentMethod || undefined,
         amountPaid,
         items,
         idempotencyKey: idempotencyKeyRef.current!,
       });
 
-      setLatestReceipt(createdOrder);
+      setReceipt(created);
+      // Fresh key for the next, distinct transaction — a retry of THIS
+      // transaction is now impossible since the cart/form are about to
+      // reset anyway.
       idempotencyKeyRef.current = crypto.randomUUID();
       setCartItems([]);
       setCustomerName("");
       setPhoneNumber("");
+      setPaymentMethod("");
       setAmountPaid(0);
       setPaymentMethod("Cash");
 
@@ -288,8 +301,6 @@ export default function NewOrderPage() {
         <div>
           <OrderSummary
             cartItems={cartItems}
-            total={cartTotal}
-            change={change}
             onRemoveItem={removeFromCart}
             onQuantityChange={adjustQuantity}
             paymentMethod={paymentMethod}
@@ -320,7 +331,7 @@ export default function NewOrderPage() {
         onCloseSuppliesModal={() => setShowSuppliesModal(false)}
       />
 
-      <ReceiptModal order={latestReceipt} onClose={() => setLatestReceipt(null)} />
+      {receipt && <OrderReceiptModal receipt={receipt} onClose={() => setReceipt(null)} />}
     </div>
   );
 }

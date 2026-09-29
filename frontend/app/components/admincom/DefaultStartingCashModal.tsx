@@ -26,10 +26,19 @@ export default function DefaultStartingCashModal({
   onClose,
 }: DefaultStartingCashModalProps) {
   useEscapeKey(onClose);
-  const [value, setValue] = useState(String(currentValue));
+  const [value, setValue] = useState("");
   const [localError, setLocalError] = useState("");
 
-  async function handleSave() {
+  // Clear the input once a save succeeds — the saved amount is shown in the
+  // "Current" line above instead. The parent resets `success` to "" before
+  // every save, so each successful save is a fresh ""→message transition.
+  const [prevSuccess, setPrevSuccess] = useState(success);
+  if (success !== prevSuccess) {
+    setPrevSuccess(success);
+    if (success) setValue("");
+  }
+
+  function handleSave() {
     const parsed = Number(value);
     if (!Number.isFinite(parsed) || value.trim() === "") {
       setLocalError("Enter a valid amount.");
@@ -44,12 +53,7 @@ export default function DefaultStartingCashModal({
       return;
     }
     setLocalError("");
-    try {
-      await onSave(parsed);
-      setValue("");
-    } catch {
-      // Keep the value available for retry if the save request fails.
-    }
+    onSave(parsed);
   }
 
   const displayedError = localError || error;
@@ -70,7 +74,14 @@ export default function DefaultStartingCashModal({
           shift starts with this amount regardless of the previous shift&apos;s actual cash count.
         </p>
 
-        <label htmlFor="default-starting-cash" className="sr-only">Default starting cash</label>
+        <p className="text-sm text-gray-700 mb-2">
+          Current:{" "}
+          <span className="font-semibold">
+            ₱{currentValue.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
+        </p>
+
+        <label htmlFor="default-starting-cash" className="sr-only">New default starting cash</label>
         <div className="relative mb-2">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₱</span>
           <input
@@ -78,7 +89,7 @@ export default function DefaultStartingCashModal({
             type="number"
             min={0}
             step="0.01"
-            placeholder="0"
+            placeholder="Enter new amount"
             value={value}
             onChange={(e) => {
               setValue(e.target.value);

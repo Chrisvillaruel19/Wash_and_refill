@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Wallet, TrendingUp, Settings } from "lucide-react";
+import { Wallet, TrendingUp, Settings, HandCoins } from "lucide-react";
 import AdminStatCard from "../../../components/admincom/AdminStatCard";
 import AdminWithdrawalFormModal, {
   WithdrawalFormData,
@@ -16,6 +16,7 @@ import {
 } from "../../../lib/services/shiftHandoverApi.service";
 import {
   getWithdrawals,
+  getAvailableToWithdraw,
   createWithdrawal,
   getCurrentDrawerBalance,
   WithdrawalRecord,
@@ -25,6 +26,12 @@ import Pagination from "../../../components/staffcom/Pagination";
 import { useServerPage } from "../../../lib/useServerPage";
 
 const HANDOVERS_PAGE_SIZE = 6;
+
+// "₱10,413.00" / "-₱1.00" — sign before the peso sign, thousands grouped.
+function peso(n: number) {
+  const abs = Math.abs(n).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${n < 0 ? "-" : ""}₱${abs}`;
+}
 
 // Local-time YYYY-MM-DD — same convention as Staff Sales' toDateInputValue,
 // used only to ask getSalesBreakdown for "today" (Manila business-day
@@ -52,6 +59,9 @@ export default function AdminSalesPage() {
   // two cards agree on the same definition instead of silently disagreeing
   // on time scope.
   const [todayAverageOrderValue, setTodayAverageOrderValue] = useState(0);
+  // Sum of what the Cash Withdrawal window offers (open drawer + closed
+  // shifts' remaining cash/GCash, starting cash excluded); null = not loaded.
+  const [availableToWithdraw, setAvailableToWithdraw] = useState<number | null>(null);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -109,11 +119,22 @@ export default function AdminSalesPage() {
       }
     }
     load();
+    refreshAvailableToWithdraw();
     // Non-critical — the page's other sections still work if this fails;
     // the modal simply shows whatever was last successfully loaded (0 on
     // first failure) rather than blocking the whole page.
     getDefaultStartingCash().then(setDefaultStartingCash).catch(() => {});
   }, []);
+
+  function refreshAvailableToWithdraw() {
+    getAvailableToWithdraw()
+      .then((a) =>
+        setAvailableToWithdraw(
+          a.openShiftCash + a.shifts.reduce((sum, s) => sum + s.cashAvailable + s.gcashAvailable, 0)
+        )
+      )
+      .catch(() => setAvailableToWithdraw(null));
+  }
 
   async function handleSaveStartingCash(value: number) {
     setStartingCashLoading(true);
@@ -162,13 +183,10 @@ export default function AdminSalesPage() {
     setWithdrawSubmitting(true);
     setWithdrawError("");
     try {
-      await createWithdrawal({ amount: data.amount, reason: data.reason });
-      const [refreshed, currentBalance] = await Promise.all([
-        getWithdrawals(),
-        getCurrentDrawerBalance(),
-      ]);
+      await createWithdrawal(data);
+      const refreshed = await getWithdrawals();
       setWithdrawals(refreshed);
-      setTotalCashToday(currentBalance);
+      refreshAvailableToWithdraw();
       setShowWithdrawModal(false);
     } catch (err) {
       setWithdrawError(
@@ -189,22 +207,32 @@ export default function AdminSalesPage() {
 
   return (
     <div className="p-4 sm:p-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <div className="flex flex-col sm:flex-row gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 lg:flex-1 lg:max-w-4xl">
+          {/* Paid orders today — withdrawals never lower this; it's the sales record. */}
           <AdminStatCard
-            label="Total Cash Today"
-            value={`₱${totalCashToday.toFixed(2)}`}
+            label="Today's Sales"
+            value={peso(totalCashToday)}
             icon={Wallet}
             iconColor="text-green-600 bg-green-100"
           />
           <AdminStatCard
-            label="Average Order Value"
-            value={`₱${todayAverageOrderValue.toFixed(2)}`}
-            icon={TrendingUp}
-            iconColor="text-purple-600 bg-purple-100"
+            label="Available to Withdraw"
+            value={availableToWithdraw === null ? "—" : peso(availableToWithdraw)}
+            sub="Starting cash excluded"
+            icon={HandCoins}
+            iconColor="text-blue-600 bg-blue-100"
           />
+          <div className="col-span-2 sm:col-span-1">
+            <AdminStatCard
+              label="Average Order Value"
+              value={peso(todayAverageOrderValue)}
+              icon={TrendingUp}
+              iconColor="text-purple-600 bg-purple-100"
+            />
+          </div>
         </div>
-        <div className="flex gap-3 self-start sm:self-auto">
+        <div className="flex flex-wrap gap-3">
           <button
             onClick={() => {
               setStartingCashError("");
@@ -318,57 +346,88 @@ export default function AdminSalesPage() {
       </div>
 
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 mb-6">
-        <h2 className="text-lg font-bold text-gray-900 mb-4">Cashier Shift Summary</h2>
+        <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
+          <h2 className="text-lg font-bold text-gray-900">Cashier Shift Summary</h2>
+          {handovers.length > 0 && (
+            <p className="text-xs text-gray-400">Click a row to filter the summaries above by that shift.</p>
+          )}
+        </div>
         {handovers.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-sm text-left">
+          // Scrolls sideways inside the card on narrow screens rather than
+          // squeezing 13 money columns.
+          <div className="overflow-x-auto border border-gray-200 rounded-lg">
+            <table className="w-full text-sm whitespace-nowrap">
               <thead>
-                <tr className="text-gray-700 border-b bg-gray-50">
-                  <th className="p-3 whitespace-nowrap">Date</th>
-                  <th className="p-3 whitespace-nowrap">Staff</th>
-                  <th className="p-3 whitespace-nowrap">Sales</th>
-                  <th className="p-3 whitespace-nowrap">Expense</th>
-                  <th className="p-3 whitespace-nowrap">Withdrawal</th>
-                  <th className="p-3 whitespace-nowrap">Expected</th>
-                  <th className="p-3 whitespace-nowrap">Actual</th>
-                  <th className="p-3 whitespace-nowrap">Shortage</th>
-                  <th className="p-3 whitespace-nowrap">Actions</th>
+                <tr className="bg-gray-50 border-b text-gray-600 text-xs uppercase tracking-wide">
+                  <th className="p-3 text-left font-semibold">Date</th>
+                  <th className="p-3 text-left font-semibold">Staff</th>
+                  <th className="p-3 text-right font-semibold">Laundry</th>
+                  <th className="p-3 text-right font-semibold">Supply</th>
+                  <th className="p-3 text-right font-semibold">Custom Service</th>
+                  <th className="p-3 text-right font-semibold">GCash</th>
+                  <th className="p-3 text-right font-semibold">Expense</th>
+                  <th className="p-3 text-right font-semibold">Cash Drawer</th>
+                  <th className="p-3 text-right font-semibold">Withdrawal</th>
+                  <th className="p-3 text-right font-semibold">Expected</th>
+                  <th className="p-3 text-right font-semibold">Actual Count</th>
+                  <th className="p-3 text-right font-semibold">Over / Short</th>
+                  <th className="p-3 text-left font-semibold">Notes</th>
+                  <th className="p-3 text-center font-semibold">Inventory</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="tabular-nums">
                 {handovers.map((h) => {
-                  const isSelected = h.id === selectedShiftId;
-                  const totalSales = h.laundrySales + h.supplySales + (h.customServiceSales ?? 0);
+                  const selected = h.id === selectedShiftId;
+                  const toggle = () => setSelectedShiftId(selected ? null : h.id);
                   return (
                     <tr
                       key={h.id}
-                      onClick={() => setSelectedShiftId(isSelected ? null : h.id)}
+                      tabIndex={0}
+                      aria-selected={selected}
+                      onClick={toggle}
+                      onKeyDown={(e) => {
+                        if (e.target !== e.currentTarget) return;
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          toggle();
+                        }
+                      }}
                       className={`border-b last:border-0 cursor-pointer transition-colors ${
-                        isSelected ? "bg-blue-50" : "hover:bg-gray-50"
+                        selected ? "bg-blue-50 outline outline-2 -outline-offset-2 outline-blue-500" : "hover:bg-gray-50"
                       }`}
                     >
-                      <td className="p-3 whitespace-nowrap text-gray-900">
-                        {new Date(h.timestamp).toLocaleDateString()}
+                      <td className="p-3 text-gray-900">{new Date(h.timestamp).toLocaleDateString()}</td>
+                      <td className="p-3 text-gray-900 font-medium">{h.staffName}</td>
+                      <td className="p-3 text-right text-gray-900">{peso(h.laundrySales)}</td>
+                      <td className="p-3 text-right text-gray-900">{peso(h.supplySales)}</td>
+                      <td className="p-3 text-right text-gray-900">{peso(h.customServiceSales ?? 0)}</td>
+                      <td className="p-3 text-right text-gray-900">{peso(h.digitalSales ?? 0)}</td>
+                      <td className="p-3 text-right text-gray-900">{peso(h.expense)}</td>
+                      <td className="p-3 text-right text-gray-900">{peso(h.cashDrawer)}</td>
+                      <td className="p-3 text-right text-gray-900">{peso(h.withdrawals)}</td>
+                      <td className="p-3 text-right text-gray-900 font-medium">{peso(h.expectedCash)}</td>
+                      <td className="p-3 text-right text-gray-900 font-medium">{peso(h.actualCashCounted)}</td>
+                      <td
+                        className={`p-3 text-right font-semibold ${
+                          h.shortage < 0 ? "text-red-600" : h.shortage > 0 ? "text-green-600" : "text-gray-500"
+                        }`}
+                      >
+                        {peso(h.shortage)}
                       </td>
-                      <td className="p-3 whitespace-nowrap font-medium text-gray-900">{h.staffName}</td>
-                      <td className="p-3 whitespace-nowrap text-gray-900">₱{totalSales.toFixed(2)}</td>
-                      <td className="p-3 whitespace-nowrap text-gray-900">₱{h.expense.toFixed(2)}</td>
-                      <td className="p-3 whitespace-nowrap text-gray-900">₱{h.withdrawals.toFixed(2)}</td>
-                      <td className="p-3 whitespace-nowrap text-gray-900">₱{h.expectedCash.toFixed(2)}</td>
-                      <td className="p-3 whitespace-nowrap text-gray-900">₱{h.actualCashCounted.toFixed(2)}</td>
-                      <td className={`p-3 whitespace-nowrap font-medium ${h.shortage < 0 ? "text-red-600" : "text-green-600"}`}>
-                        ₱{h.shortage.toFixed(2)}
+                      <td className="p-3 text-gray-700 whitespace-normal min-w-[160px] max-w-[260px] break-words">
+                        {h.notes || <span className="text-gray-300">—</span>}
                       </td>
-                      <td className="p-3 whitespace-nowrap">
+                      <td className="p-3 text-center">
+                        {/* stopPropagation so viewing inventory doesn't also toggle row selection. */}
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             setInventoryModalShiftId(h.id);
                           }}
-                          className="text-blue-600 font-medium hover:text-blue-800"
+                          className="text-blue-600 font-medium hover:text-blue-800 hover:underline"
                         >
-                          Inventory
+                          View
                         </button>
                       </td>
                     </tr>
@@ -398,6 +457,7 @@ export default function AdminSalesPage() {
                 <th className="p-2 whitespace-nowrap">Time</th>
                 <th className="p-2 whitespace-nowrap">Admin</th>
                 <th className="p-2 whitespace-nowrap">Amount</th>
+                <th className="p-2 whitespace-nowrap">From</th>
                 <th className="p-2">Reason</th>
               </tr>
             </thead>
@@ -415,13 +475,25 @@ export default function AdminSalesPage() {
                       })}
                     </td>
                     <td className="p-2 whitespace-nowrap text-gray-900">{w.adminName}</td>
-                    <td className="p-2 whitespace-nowrap text-gray-900">₱{w.amount.toFixed(2)}</td>
+                    <td className="p-2 whitespace-nowrap text-gray-900">{peso(w.amount)}</td>
+                    <td className="p-2 whitespace-nowrap text-gray-700">
+                      <span
+                        className={`inline-block mr-1.5 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                          w.source === "GCash" ? "bg-blue-50 text-blue-700" : "bg-green-50 text-green-700"
+                        }`}
+                      >
+                        {w.source}
+                      </span>
+                      {w.fromShift
+                        ? `${w.fromShift.staffName}'s shift, ${new Date(w.fromShift.endTime).toLocaleDateString()}`
+                        : "Open drawer"}
+                    </td>
                     <td className="p-2 text-gray-900">{w.reason}</td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="p-4 text-center text-gray-400">
+                  <td colSpan={6} className="p-4 text-center text-gray-400">
                     No withdrawals recorded yet.
                   </td>
                 </tr>

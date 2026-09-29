@@ -1,9 +1,9 @@
 import { prisma } from "../../lib/prisma.js";
 import { AttendanceRepository } from "../../repositories/attendance.repository.js";
-import { Prisma, AttendanceStatus, AuditAction } from "../../../generated/prisma/client.js";
+import { Prisma, AuditAction } from "../../../generated/prisma/client.js";
 import { writeAuditLog } from "../../lib/audit-log.js";
 import { getBusinessDateOnly } from "../../lib/business-timezone.js";
-import { getAttendanceStatus } from "./attendance-status.util.js";
+import { computeClockInStatus } from "./shift-schedule.util.js";
 
 const attendanceRepository = new AttendanceRepository();
 
@@ -18,7 +18,7 @@ export async function clockInService(userId: string) {
       const today = getBusinessDateOnly(now);
 
       const record = await attendanceRepository.create(
-        { userId, date: today, timeIn: now, status: getAttendanceStatus(now) },
+        { userId, date: today, timeIn: now, status: computeClockInStatus(now) },
         tx
       );
 
@@ -26,8 +26,8 @@ export async function clockInService(userId: string) {
         userId,
         action: AuditAction.CREATE,
         module: "Attendance",
-        description: "Clocked in",
-        newValue: { date: today, timeIn: now },
+        description: record.status === "LATE" ? "Clocked in (late)" : "Clocked in",
+        newValue: { date: today, timeIn: now, status: record.status },
       });
 
       return record;

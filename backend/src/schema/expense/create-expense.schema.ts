@@ -12,6 +12,7 @@ export const createExpenseSchema = z.object({
 
     description: longTextRule("Description"),
 
-    receiptUrl: receiptUrlRule.optional(),
+    // Required — every expense must be backed by a receipt photo.
+    receiptUrl: z.string({ message: "A receipt image is required" }).pipe(receiptUrlRule),
   }),
 });

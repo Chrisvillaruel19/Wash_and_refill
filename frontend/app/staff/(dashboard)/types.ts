@@ -22,6 +22,9 @@ export interface ActivityLog {
     | "autoclockout";
   message: string;
   timestamp: string;
+  // Backend AuditLog module ("Order", "Expense", "Inventory", ...) — picks
+  // the icon on the Admin dashboard's activity feed.
+  module?: string;
 }
 
 export type OrderStatus = "Pending" | "In progress" | "Ready" | "Claimed" | "Cancelled";
@@ -64,6 +67,8 @@ export interface InventoryItem {
   price: number;
 }
 
+export type AttendanceStatus = "Present" | "Late" | "Absent";
+
 export interface AttendanceRecord {
   id: string;
   staffName: string;
@@ -71,7 +76,10 @@ export interface AttendanceRecord {
   timeIn: string | null;
   timeOut: string | null;
   totalHours: number | null;
-  status: "Present" | "Late" | "Absent";
+  // Present = timed in by 8:00 AM, Late = after. Absent rows are synthetic
+  // (Admin view only): a past business day nobody timed in — no staff
+  // member, no time in/out.
+  status: AttendanceStatus;
   // True when the system closed this record automatically because it sat
   // clocked-in past MAX_SESSION_HOURS (a forgotten clock-out), rather than
   // the staff member actually clocking out. Kept visible, never hidden, so

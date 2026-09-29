@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { PackagePlus, Search, Pencil, Trash2, KeyRound } from "lucide-react";
+import { Search, Pencil, Trash2, KeyRound, PackagePlus } from "lucide-react";
 import {
   getInventory,
   createInventoryItem,
   updateInventoryItem,
   deleteInventoryItem,
-  restockInventoryItem,
+  adminRestockInventoryItem,
 } from "../../../lib/services/inventoryApi.service";
 import { setRestockPin } from "../../../lib/auth";
 import { ApiError } from "../../../lib/apiClient";
@@ -66,13 +66,11 @@ export default function AdminCatalogPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editTarget, setEditTarget] = useState<InventoryItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<InventoryItem | null>(null);
+  const [restockTarget, setRestockTarget] = useState<InventoryItem | null>(null);
   const [showPinModal, setShowPinModal] = useState(false);
   const [pinModalLoading, setPinModalLoading] = useState(false);
   const [pinModalError, setPinModalError] = useState("");
   const [pinModalSuccess, setPinModalSuccess] = useState("");
-  const [restockTarget, setRestockTarget] = useState<InventoryItem | null>(null);
-  const [restocking, setRestocking] = useState(false);
-  const [restockError, setRestockError] = useState("");
 
   // Drop off (Packages) state
   const [packages, setPackages] = useState<Package[]>([]);
@@ -179,6 +177,21 @@ export default function AdminCatalogPage() {
     }
   }
 
+  async function handleRestockConfirm(quantity: number) {
+    if (!restockTarget) return;
+    setActionSubmitting(true);
+    setActionError("");
+    try {
+      const updated = await adminRestockInventoryItem(restockTarget.id, quantity);
+      setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+      setRestockTarget(null);
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "Unable to restock item. Please try again.");
+    } finally {
+      setActionSubmitting(false);
+    }
+  }
+
   async function handleDeleteConfirm() {
     if (!deleteTarget) return;
     setActionSubmitting(true);
@@ -191,33 +204,6 @@ export default function AdminCatalogPage() {
       setActionError("Unable to delete item. Please try again.");
     } finally {
       setActionSubmitting(false);
-    }
-  }
-
-  function requestRestock(item: InventoryItem) {
-    setRestockError("");
-    setRestockTarget(item);
-  }
-
-  function handleRestockCancel() {
-    setRestockTarget(null);
-    setRestockError("");
-  }
-
-  async function handleRestockConfirm(quantity: number) {
-    if (!restockTarget) return;
-    setRestocking(true);
-    setRestockError("");
-    try {
-      const updated = await restockInventoryItem(restockTarget.id, quantity);
-      setItems((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
-      handleRestockCancel();
-    } catch (err) {
-      setRestockError(
-        err instanceof ApiError ? err.message : "Unable to restock item. Please try again."
-      );
-    } finally {
-      setRestocking(false);
     }
   }
 
@@ -591,19 +577,22 @@ export default function AdminCatalogPage() {
                               <button
                                 onClick={() => {
                                   setActionError("");
+                                  setRestockTarget(item);
+                                }}
+                                className="text-gray-500 hover:text-green-600"
+                                title="Restock"
+                              >
+                                <PackagePlus size={16} />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setActionError("");
                                   setEditTarget(item);
                                 }}
                                 className="text-gray-500 hover:text-blue-600"
                                 title="Edit item details"
                               >
                                 <Pencil size={16} />
-                              </button>
-                              <button
-                                onClick={() => requestRestock(item)}
-                                className="text-gray-500 hover:text-green-600"
-                                title="Restock item"
-                              >
-                                <PackagePlus size={17} />
                               </button>
                               <button
                                 onClick={() => {
@@ -736,9 +725,9 @@ export default function AdminCatalogPage() {
         <RestockModal
           item={restockTarget}
           onConfirm={handleRestockConfirm}
-          onCancel={handleRestockCancel}
-          submitting={restocking}
-          error={restockError}
+          onCancel={() => setRestockTarget(null)}
+          submitting={actionSubmitting}
+          error={actionError}
         />
       )}
 

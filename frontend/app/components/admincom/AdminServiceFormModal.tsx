@@ -30,7 +30,7 @@ export default function AdminServiceFormModal({
   useEscapeKey(onCancel);
   const isEdit = !!initialService;
 
-  const [categoryId, setCategoryId] = useState(initialService?.categoryId ?? categories[0]?.id ?? "");
+  const [categoryId, setCategoryId] = useState(initialService?.categoryId ?? "");
   const [name, setName] = useState(initialService?.name ?? "");
   const [pricePerKg, setPricePerKg] = useState(
     initialService ? String(initialService.pricePerKg) : ""
@@ -88,6 +88,9 @@ export default function AdminServiceFormModal({
               onChange={(e) => setCategoryId(e.target.value)}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             >
+              <option value="" disabled>
+                Select a type
+              </option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -117,7 +120,6 @@ export default function AdminServiceFormModal({
               type="number"
               min={0.01}
               step={0.01}
-              placeholder="0"
               value={pricePerKg}
               onChange={(e) => setPricePerKg(e.target.value)}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"

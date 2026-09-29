@@ -3,6 +3,7 @@ import {
   createWithdrawalService,
   listWithdrawalsService,
   getCurrentBalanceService,
+  getAvailableWithdrawalService,
 } from "../services/withdrawal/index.js";
 import { JwtPayload } from "../lib/jwt.js";
 
@@ -35,6 +36,20 @@ export class WithdrawalController {
         code: 500,
         status: "error",
         message: "Unable to record withdrawal",
+      });
+    }
+  };
+
+  public available = async (req: Request, res: Response) => {
+    try {
+      const result = await getAvailableWithdrawalService();
+      return res.status(result.code).json(result);
+    } catch (error) {
+      console.error("WithdrawalController.available error", error);
+      return res.status(500).json({
+        code: 500,
+        status: "error",
+        message: "Unable to retrieve available withdrawal amounts",
       });
     }
   };

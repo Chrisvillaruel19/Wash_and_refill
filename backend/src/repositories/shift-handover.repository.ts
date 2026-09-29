@@ -26,6 +26,47 @@ export class ShiftHandoverRepository {
     return tx.shiftHandover.count();
   }
 
+  // Withdrawals: the most recent closed shifts, newest first, with just the
+  // totals needed to work out how much of each shift's earnings is left.
+  async findRecentForEarnings(limit: number, tx: PrismaClientOrTx = prisma) {
+    return tx.shiftHandover.findMany({
+      select: {
+        id: true,
+        endTime: true,
+        laundryEarnings: true,
+        supplySales: true,
+        customServiceSales: true,
+        digitalSales: true,
+        expense: true,
+        withdrawal: true,
+        expectedBalance: true,
+        actualCashCount: true,
+        user: { select: { name: true } },
+      },
+      orderBy: { endTime: "desc" },
+      take: limit,
+    });
+  }
+
+  async findForEarnings(id: string, tx: PrismaClientOrTx = prisma) {
+    return tx.shiftHandover.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        endTime: true,
+        laundryEarnings: true,
+        supplySales: true,
+        customServiceSales: true,
+        digitalSales: true,
+        expense: true,
+        withdrawal: true,
+        expectedBalance: true,
+        actualCashCount: true,
+        user: { select: { name: true } },
+      },
+    });
+  }
+
   // The single most recent handover across ALL staff — the shared drawer's
   // last known state, used as the starting balance for the next handover
   // and for Withdrawal's live balance calculation.

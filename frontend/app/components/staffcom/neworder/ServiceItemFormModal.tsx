@@ -27,8 +27,8 @@ export default function ServiceItemFormModal({
 }: ServiceItemFormModalProps) {
   useEscapeKey(onCancel);
   const [selectedItemId, setSelectedItemId] = useState("");
-  const [quantityKg, setQuantityKg] = useState("");
-  const [serviceType, setServiceType] = useState<ServiceType>("Wash & Dry");
+  const [quantityKg, setQuantityKg] = useState(0);
+  const [serviceType, setServiceType] = useState<ServiceType | "">("");
 
   const selectedItem = itemOptions.find((item) => item.id === selectedItemId);
 
@@ -38,12 +38,11 @@ export default function ServiceItemFormModal({
   }, [selectedItem, quantityKg]);
 
   function handleConfirm() {
-    const parsedQuantityKg = Number(quantityKg);
-    if (!selectedItem || !quantityKg.trim() || parsedQuantityKg <= 0) return;
+    if (!selectedItem || !serviceType || quantityKg <= 0) return;
     onConfirm({
       itemId: selectedItem.id,
       itemName: selectedItem.name,
-      quantityKg: parsedQuantityKg,
+      quantityKg,
       serviceType,
       total,
     });
@@ -83,7 +82,9 @@ export default function ServiceItemFormModal({
             onChange={(e) => setSelectedItemId(e.target.value)}
             className="border border-gray-300 rounded-lg p-2 w-full text-gray-900"
           >
-            <option value="" disabled>Select an item</option>
+            <option value="" disabled>
+              Select a service
+            </option>
             {itemOptions.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name}
@@ -92,7 +93,7 @@ export default function ServiceItemFormModal({
           </select>
 
           <p className="text-base sm:text-lg font-medium text-gray-900">
-            Price: {selectedItem ? selectedItem.pricePerKg.toFixed(2) : "--"} / KG
+            Price: {(selectedItem?.pricePerKg ?? 0).toFixed(2)} / KG
           </p>
         </div>
 
@@ -107,8 +108,8 @@ export default function ServiceItemFormModal({
               min={0.25}
               step={0.25}
               placeholder="0"
-              value={quantityKg}
-              onChange={(e) => setQuantityKg(e.target.value)}
+              value={quantityKg || ""}
+              onChange={(e) => setQuantityKg(parseFloat(e.target.value) || 0)}
               className="border border-gray-300 rounded-lg p-2 w-full text-gray-900"
             />
           </div>
@@ -128,6 +129,9 @@ export default function ServiceItemFormModal({
             onChange={(e) => setServiceType(e.target.value as ServiceType)}
             className="border border-gray-300 rounded-lg p-2 w-full text-gray-900"
           >
+            <option value="" disabled>
+              Select a service type
+            </option>
             {serviceTypes.map((type) => (
               <option key={type} value={type}>
                 {type}
@@ -145,7 +149,7 @@ export default function ServiceItemFormModal({
           </button>
           <button
             onClick={handleConfirm}
-            disabled={!selectedItem || !quantityKg.trim() || Number(quantityKg) <= 0}
+            disabled={!selectedItem || !serviceType || quantityKg <= 0}
             className="flex-1 bg-blue-600 text-white rounded-lg py-2 font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
             CONFIRM

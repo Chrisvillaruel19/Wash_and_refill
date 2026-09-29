@@ -28,7 +28,19 @@ export default function SetRestockPinModal({
   const [confirmPin, setConfirmPin] = useState("");
   const [localError, setLocalError] = useState("");
 
-  async function handleSave() {
+  // Clear both fields once a save succeeds so the PIN doesn't linger on
+  // screen. The parent resets `success` to "" before every save, so each
+  // successful save is a fresh ""→message transition.
+  const [prevSuccess, setPrevSuccess] = useState(success);
+  if (success !== prevSuccess) {
+    setPrevSuccess(success);
+    if (success) {
+      setPin("");
+      setConfirmPin("");
+    }
+  }
+
+  function handleSave() {
     if (!/^\d{4,6}$/.test(pin)) {
       setLocalError("PIN must be 4-6 digits.");
       return;
@@ -38,15 +50,7 @@ export default function SetRestockPinModal({
       return;
     }
     setLocalError("");
-
-    try {
-      await onSave(pin, confirmPin);
-      setPin("");
-      setConfirmPin("");
-    } catch {
-      // Keep the entered values in place if the save request fails so the
-      // admin can retry without retyping the full PIN.
-    }
+    onSave(pin, confirmPin);
   }
 
   const displayedError = localError || error;

@@ -28,6 +28,16 @@ export class AttendanceRepository {
     return tx.attendance.findUnique({ where: { id } });
   }
 
+  // Admin dashboard "Staff on duty": everyone who timed in on this business
+  // date (a @db.Date value from getBusinessDateOnly).
+  async findForDate(date: Date, tx: PrismaClientOrTx = prisma) {
+    return tx.attendance.findMany({
+      where: { date },
+      include: { user: { select: { id: true, name: true } } },
+      orderBy: { timeIn: "asc" },
+    });
+  }
+
   async findActiveForUser(userId: string, tx: PrismaClientOrTx = prisma) {
     return tx.attendance.findFirst({
       where: { userId, timeOut: null },

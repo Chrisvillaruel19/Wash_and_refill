@@ -16,5 +16,29 @@ export function packageColorProps(color: string): { className: string; style?: C
   if (isLegacyPackageColorClass(color)) {
     return { className: color };
   }
+  if (!color.trim()) {
+    return { className: "bg-gray-600" };
+  }
   return { className: "", style: { backgroundColor: color } };
+}
+
+export function packageTextClass(color: string): string {
+  if (isLegacyPackageColorClass(color)) {
+    return /bg-(white|gray-100|gray-200|yellow-|lime-)/.test(color)
+      ? "text-gray-900"
+      : "text-white";
+  }
+
+  const hex = color.match(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/);
+  if (!hex) return "text-white";
+
+  const normalized = hex[1].length === 3
+    ? hex[1].split("").map((digit) => `${digit}${digit}`).join("")
+    : hex[1];
+  const red = parseInt(normalized.slice(0, 2), 16);
+  const green = parseInt(normalized.slice(2, 4), 16);
+  const blue = parseInt(normalized.slice(4, 6), 16);
+  const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
+
+  return luminance > 0.72 ? "text-gray-900" : "text-white";
 }

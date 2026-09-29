@@ -31,7 +31,9 @@ export default function GroupedItemsList({
   return (
     <div className={className}>
       {visible.map((g) => (
-        <p key={g.name} className={`truncate ${itemClassName}`} title={g.name}>
+        // Long names wrap instead of truncating — no hover tooltip needed,
+        // which also wouldn't work on touch screens.
+        <p key={g.name} className={`break-words ${itemClassName}`}>
           {g.qty > 1 ? `${g.name} ×${g.qty}` : g.name}
         </p>
       ))}

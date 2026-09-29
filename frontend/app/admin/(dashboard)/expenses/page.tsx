@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Search, Receipt, Wallet } from "lucide-react";
 import AdminStatCard from "../../../components/admincom/AdminStatCard";
 import Pagination from "../../../components/staffcom/Pagination";
+import ReceiptViewerModal from "../../../components/ReceiptViewerModal";
 import { usePagination } from "../../../lib/usePagination";
 import { useServerPage } from "../../../lib/useServerPage";
 import { getExpenses, getExpensesPage } from "../../../lib/services/expensesApi.service";
@@ -28,6 +29,7 @@ export default function AdminExpensesPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [viewingReceipt, setViewingReceipt] = useState<(ExpenseRecord & { imageDataUrl: string }) | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -173,12 +175,19 @@ export default function AdminExpensesPage() {
                     </td>
                     <td className="p-3 sm:p-4 whitespace-nowrap">
                       {e.imageDataUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={e.imageDataUrl}
-                          alt="Receipt"
-                          className="w-10 h-10 rounded-lg object-cover"
-                        />
+                        <button
+                          type="button"
+                          onClick={() => setViewingReceipt({ ...e, imageDataUrl: e.imageDataUrl! })}
+                          className="block rounded-lg ring-offset-2 hover:ring-2 hover:ring-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          title="View receipt"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={e.imageDataUrl}
+                            alt="Receipt"
+                            className="w-10 h-10 rounded-lg object-cover"
+                          />
+                        </button>
                       ) : (
                         <span className="text-gray-400">—</span>
                       )}
@@ -197,6 +206,10 @@ export default function AdminExpensesPage() {
         </div>
       </div>
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+
+      {viewingReceipt && (
+        <ReceiptViewerModal expense={viewingReceipt} onClose={() => setViewingReceipt(null)} />
+      )}
     </div>
   );
 }

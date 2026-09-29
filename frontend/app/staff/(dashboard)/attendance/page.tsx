@@ -7,6 +7,7 @@ import { ApiError } from "../../../lib/apiClient";
 import { getCurrentUser } from "../../../lib/auth";
 import { AttendanceRecord } from "../types";
 import Pagination from "../../../components/staffcom/Pagination";
+import AttendanceStatusBadge from "../../../components/staffcom/AttendanceStatusBadge";
 import { usePagination } from "../../../lib/usePagination";
 
 const PAGE_SIZE = 8;
@@ -47,13 +48,13 @@ export default function Attendance() {
     return () => clearInterval(interval);
   }, []);
 
-  const activeRecord = records.find((r) => r.staffName === staffName && !r.timeOut) || null;
+  const activeRecord = records.find((r) => r.staffName === staffName && r.timeIn && !r.timeOut) || null;
 
   const totalHours = records
     .filter((r) => r.staffName === staffName && r.totalHours !== null)
     .reduce((sum, r) => sum + (r.totalHours || 0), 0);
 
-  const todayShiftHours = activeRecord
+  const todayShiftHours = activeRecord && activeRecord.timeIn
     ? Math.max(0, (now.getTime() - new Date(activeRecord.timeIn).getTime()) / (1000 * 60 * 60))
     : null;
 
@@ -182,9 +183,7 @@ export default function Attendance() {
                       {r.totalHours !== null ? r.totalHours.toFixed(1) : "-"}
                     </td>
                     <td className="p-3 whitespace-nowrap">
-                      <span className="px-3 py-1 rounded-full text-xs font-medium border text-green-600 border-green-300 bg-green-50">
-                        {r.status}
-                      </span>
+                      <AttendanceStatusBadge status={r.status} />
                       {r.autoClosed && (
                         <span className="ml-1 px-3 py-1 rounded-full text-xs font-medium border text-amber-600 border-amber-300 bg-amber-50">
                           Auto-closed

@@ -59,7 +59,7 @@ export default function AdminPackageFormModal({
   const isEdit = !!initialPackage;
 
   const [name, setName] = useState(initialPackage?.name ?? "");
-  const [price, setPrice] = useState(initialPackage?.price ?? 0);
+  const [price, setPrice] = useState(initialPackage ? String(initialPackage.price) : "");
   const [color, setColor] = useState(initialPackage?.color ?? DEFAULT_COLOR);
   const [rows, setRows] = useState<SupplyRow[]>(
     () =>
@@ -89,11 +89,7 @@ export default function AdminPackageFormModal({
   );
 
   function addRow() {
-    const firstAvailable = inventoryOptions.find((i) => !rows.some((r) => r.inventoryId === i.id));
-    setRows((prev) => [
-      ...prev,
-      { rowId: nextRowId++, inventoryId: firstAvailable?.id ?? "", quantity: 1 },
-    ]);
+    setRows((prev) => [...prev, { rowId: nextRowId++, inventoryId: "", quantity: 0 }]);
   }
 
   function removeRow(rowId: number) {
@@ -121,7 +117,8 @@ export default function AdminPackageFormModal({
       setError("Package name must be at most 100 characters.");
       return;
     }
-    if (price <= 0) {
+    const parsedPrice = Number(price);
+    if (!price.trim() || parsedPrice <= 0) {
       setError("Price must be greater than zero.");
       return;
     }
@@ -154,7 +151,7 @@ export default function AdminPackageFormModal({
 
     onSave({
       name: trimmedName,
-      price,
+      price: parsedPrice,
       color,
       details: rows.map((r) => ({ inventoryId: r.inventoryId, quantity: r.quantity })),
     });
@@ -201,8 +198,9 @@ export default function AdminPackageFormModal({
               type="number"
               min={0.01}
               step={0.01}
+              placeholder="0.00"
               value={price}
-              onChange={(e) => setPrice(parseFloat(e.target.value) || 0)}
+              onChange={(e) => setPrice(e.target.value)}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             />
           </div>
@@ -251,7 +249,8 @@ export default function AdminPackageFormModal({
                   <input
                     type="number"
                     min={1}
-                    value={row.quantity}
+                    placeholder="0"
+                    value={row.quantity || ""}
                     onChange={(e) => updateRowQuantity(row.rowId, parseInt(e.target.value) || 0)}
                     className="w-20 shrink-0 border border-gray-300 rounded-lg p-2 text-gray-900 text-sm"
                   />

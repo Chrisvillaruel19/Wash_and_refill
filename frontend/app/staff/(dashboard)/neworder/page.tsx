@@ -12,10 +12,14 @@ import { serviceCategories } from "./data";
 import { getPackages } from "../../../lib/services/packageApi.service";
 import { getServices } from "../../../lib/services/laundryServiceApi.service";
 import { getInventory } from "../../../lib/services/inventoryApi.service";
-import { createOrder, NewOrderItemInput } from "../../../lib/services/ordersApi.service";
+import { createOrder, NewOrderItemInput, OrderReceipt } from "../../../lib/services/ordersApi.service";
 import { ApiError } from "../../../lib/apiClient";
-import { alertSuccess } from "../../../lib/alerts";
+import OrderReceiptModal from "../../../components/staffcom/neworder/OrderReceiptModal";
 import { isValidPhone, PHONE_ERROR_MESSAGE, isValidName, NAME_ERROR_MESSAGE } from "../../../lib/validation";
+
+function calculateCartTotal(items: CartItem[]) {
+  return items.reduce((sum, item) => sum + Math.round(item.price * 100) * item.quantity, 0) / 100;
+}
 
 // Two inventory rows can share a display name (e.g. "Liquid Detergent" in
 // Sachet vs Liters) — suffix with unit only when a name collides, same
@@ -35,7 +39,7 @@ export default function NewOrderPage() {
   const [customerName, setCustomerName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("Cash");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
   const [amountPaid, setAmountPaid] = useState(0);
   const [packages, setPackages] = useState<Package[]>([]);
   const [services, setServices] = useState<ServiceItem[]>([]);
@@ -46,6 +50,7 @@ export default function NewOrderPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [receipt, setReceipt] = useState<OrderReceipt | null>(null);
   // React state updates aren't guaranteed to re-render before a second click
   // event is dispatched, so the actual re-entrancy guard is this ref (set
   // synchronously, immediately) — isSubmitting state just drives the UI.
@@ -81,6 +86,7 @@ export default function NewOrderPage() {
   }, []);
 
   const supplies = useMemo(() => buildSupplyMenu(inventory), [inventory]);
+  const cartTotal = useMemo(() => calculateCartTotal(cartItems), [cartItems]);
 
   function addToCart(newItem: CartItem) {
     setCartItems((prev) => {
@@ -124,6 +130,16 @@ export default function NewOrderPage() {
 
   function removeFromCart(id: string) {
     setCartItems((prev) => prev.filter((item) => item.id !== id));
+  }
+
+  function adjustQuantity(id: string, delta: number) {
+    setCartItems((prev) =>
+      prev
+        .map((item) =>
+          item.id === id ? { ...item, quantity: Math.max(0, item.quantity + delta) } : item
+        )
+        .filter((item) => item.quantity > 0)
+    );
   }
 
   function handleCategorySelect(category: ServiceCategory) {
@@ -171,6 +187,19 @@ export default function NewOrderPage() {
       setSubmitError(PHONE_ERROR_MESSAGE);
       return;
     }
+    // Empty amount = Unpaid order; otherwise it must cover the total (the
+    // backend enforces the same rule).
+    const total = cartTotal;
+    if (amountPaid > 0 && amountPaid < total) {
+      setSubmitError(
+        `Amount is less than the total (₱${total.toFixed(2)}). Enter the full amount, or leave it empty to save as unpaid.`
+      );
+      return;
+    }
+    if (amountPaid > 0 && !paymentMethod) {
+      setSubmitError("Please select a payment method.");
+      return;
+    }
 
     isSubmittingRef.current = true;
     setIsSubmitting(true);
@@ -193,16 +222,16 @@ export default function NewOrderPage() {
     });
 
     try {
-      await createOrder({
+      const created = await createOrder({
         customerName: trimmedName,
         phoneNumber: trimmedPhone,
-        paymentMethod,
+        paymentMethod: paymentMethod || undefined,
         amountPaid,
         items,
         idempotencyKey: idempotencyKeyRef.current!,
       });
 
-      alertSuccess("Transaction completed!", "Check your dashboard for the updated summary.");
+      setReceipt(created);
       // Fresh key for the next, distinct transaction — a retry of THIS
       // transaction is now impossible since the cart/form are about to
       // reset anyway.
@@ -210,11 +239,10 @@ export default function NewOrderPage() {
       setCartItems([]);
       setCustomerName("");
       setPhoneNumber("");
+      setPaymentMethod("");
       setAmountPaid(0);
+      setPaymentMethod("Cash");
 
-      // Stock was just consumed by the backend as part of order creation —
-      // refresh so the Supplies menu reflects current quantities for the
-      // next transaction instead of the numbers fetched on page load.
       try {
         setInventory(await getInventory());
       } catch {
@@ -274,6 +302,7 @@ export default function NewOrderPage() {
           <OrderSummary
             cartItems={cartItems}
             onRemoveItem={removeFromCart}
+            onQuantityChange={adjustQuantity}
             paymentMethod={paymentMethod}
             onPaymentMethodChange={setPaymentMethod}
             amountPaid={amountPaid}
@@ -301,6 +330,8 @@ export default function NewOrderPage() {
         onSupplyAdd={handleSupplyAdd}
         onCloseSuppliesModal={() => setShowSuppliesModal(false)}
       />
+
+      {receipt && <OrderReceiptModal receipt={receipt} onClose={() => setReceipt(null)} />}
     </div>
   );
 }

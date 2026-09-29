@@ -41,6 +41,7 @@ export default function ForgotPassword() {
       // distinguishes "reset link sent" from "this account is managed by
       // an Administrator" (Staff) without this page needing to know which.
       setMessage(responseMessage || "If an account with that email exists, a password reset link has been sent.");
+      setEmail("");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Unable to process your request right now. Please try again.");
     } finally {

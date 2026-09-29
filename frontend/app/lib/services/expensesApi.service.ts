@@ -72,7 +72,7 @@ export async function createExpense(data: {
   amount: number;
   category: ExpenseCategory;
   description: string;
-  imageDataUrl?: string;
+  imageDataUrl: string; // required — the backend rejects an expense without a receipt
 }): Promise<void> {
   await apiClient.post("/expenses", {
     amount: data.amount,

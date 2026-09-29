@@ -420,7 +420,10 @@ model ShiftHandover {
   // recomputation.
   claimedOrders      Order[]
   claimedExpenses    Expense[]
-  claimedWithdrawals Withdrawal[]
+  claimedWithdrawals Withdrawal[] @relation("ClaimedWithdrawals")
+  // Earnings the Admin withdrew from this shift AFTER it was handed over
+  // (see Withdrawal.earningsFromHandoverId).
+  earningsWithdrawals Withdrawal[] @relation("EarningsWithdrawals")
 
   // findMostRecent (shift-handover.repository.ts) sorts by this on every
   // Shift Handover / Withdrawal creation, while the global DrawerState lock
@@ -493,9 +496,27 @@ model Withdrawal {
   withdrawalDate  DateTime
 
   shiftHandoverId String?
-  shiftHandover   ShiftHandover? @relation(fields: [shiftHandoverId], references: [id])
+  shiftHandover   ShiftHandover? @relation("ClaimedWithdrawals", fields: [shiftHandoverId], references: [id])
+
+  // Where the money came from: bills out of the cash drawer, or money moved
+  // out of the shop's GCash account.
+  source          WithdrawalSource @default(CASH)
+
+  // Set when the Admin takes a closed shift's earnings after its handover
+  // (cash counted minus the starting float, and/or that shift's GCash
+  // sales). Such a withdrawal is also created already claimed by that same
+  // handover (shiftHandoverId), so it never affects the next open shift's
+  // drawer math. Null = an ordinary withdrawal from the open shift's drawer.
+  earningsFromHandoverId String?
+  earningsFromHandover   ShiftHandover? @relation("EarningsWithdrawals", fields: [earningsFromHandoverId], references: [id])
 
   @@index([shiftHandoverId])
+  @@index([earningsFromHandoverId])
+}
+
+enum WithdrawalSource {
+  CASH
+  GCASH
 }
 
 // Serialization point for the one shared cash drawer. Exactly one row

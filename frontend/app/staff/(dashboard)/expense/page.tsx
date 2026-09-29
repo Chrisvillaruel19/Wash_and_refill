@@ -6,6 +6,7 @@ import { getExpenses, getExpensesPage, createExpense } from "../../../lib/servic
 import { ExpenseRecord, ExpenseCategory } from "../types";
 import ExpandableText from "../../../components/staffcom/ExpandableText";
 import Pagination from "../../../components/staffcom/Pagination";
+import ReceiptViewerModal from "../../../components/ReceiptViewerModal";
 import { usePagination } from "../../../lib/usePagination";
 import { useServerPage } from "../../../lib/useServerPage";
 
@@ -22,13 +23,14 @@ const categories: ExpenseCategory[] = [
 export default function Expense() {
   const [search, setSearch] = useState("");
   const [amount, setAmount] = useState(0);
-  const [category, setCategory] = useState<ExpenseCategory>("Supplies & Materials");
+  const [category, setCategory] = useState<ExpenseCategory | "">("");
   const [description, setDescription] = useState("");
   const [imageDataUrl, setImageDataUrl] = useState<string | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isSubmittingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [submitError, setSubmitError] = useState("");
+  const [viewingReceipt, setViewingReceipt] = useState<(ExpenseRecord & { imageDataUrl: string }) | null>(null);
   // Bumped after a successful submit to force a refetch of whichever data
   // source (server page or the lazily-loaded full set below) is active.
   const [reloadKey, setReloadKey] = useState(0);
@@ -85,6 +87,10 @@ export default function Expense() {
       setSubmitError("Amount must be greater than zero.");
       return;
     }
+    if (!category) {
+      setSubmitError("Please select a category.");
+      return;
+    }
     const trimmedDescription = description.trim();
     if (!trimmedDescription) {
       setSubmitError("A description is required.");
@@ -92,6 +98,10 @@ export default function Expense() {
     }
     if (trimmedDescription.length > 500) {
       setSubmitError("Description must be at most 500 characters.");
+      return;
+    }
+    if (!imageDataUrl) {
+      setSubmitError("Please upload a photo of the receipt.");
       return;
     }
 
@@ -102,7 +112,7 @@ export default function Expense() {
       await createExpense({ amount, category, description: trimmedDescription, imageDataUrl });
       setReloadKey((k) => k + 1);
       setAmount(0);
-      setCategory("Supplies & Materials");
+      setCategory("");
       setDescription("");
       setImageDataUrl(undefined);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -177,6 +187,9 @@ export default function Expense() {
               onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
               className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
             >
+              <option value="" disabled>
+                Select a category
+              </option>
               {categories.map((c) => (
                 <option key={c} value={c}>
                   {c}
@@ -186,7 +199,7 @@ export default function Expense() {
           </div>
           <button
             onClick={handleSubmit}
-            disabled={amount <= 0 || isSubmitting}
+            disabled={amount <= 0 || !category || isSubmitting}
             className="flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
             <CheckCircle2 size={18} /> {isSubmitting ? "Submitting..." : "Submit Expense"}
@@ -212,7 +225,7 @@ export default function Expense() {
             />
           </div>
           <div>
-            <label htmlFor="expense-receipt" className="block text-sm text-gray-600 mb-1">Receipt</label>
+            <label htmlFor="expense-receipt" className="block text-sm text-gray-600 mb-1">Receipt *</label>
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
@@ -264,12 +277,15 @@ export default function Expense() {
                 />
               </div>
               {e.imageDataUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={e.imageDataUrl}
-                  alt="Receipt"
-                  className="w-20 h-20 rounded-lg object-cover shrink-0"
-                />
+                <button
+                  type="button"
+                  onClick={() => setViewingReceipt({ ...e, imageDataUrl: e.imageDataUrl! })}
+                  className="shrink-0 rounded-lg ring-offset-2 hover:ring-2 hover:ring-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  title="View receipt"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={e.imageDataUrl} alt="Receipt" className="w-20 h-20 rounded-lg object-cover" />
+                </button>
               )}
               <p className="text-xl font-bold text-gray-900 shrink-0">₱{e.amount.toFixed(2)}</p>
             </div>
@@ -281,6 +297,10 @@ export default function Expense() {
         )}
       </div>
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+
+      {viewingReceipt && (
+        <ReceiptViewerModal expense={viewingReceipt} onClose={() => setViewingReceipt(null)} />
+      )}
     </div>
   );
 }

@@ -8,9 +8,13 @@ export async function listWithdrawalsService() {
   try {
     const records = await withdrawalRepository.findAll();
 
-    const withdrawals = records.map(({ user, ...record }) => ({
+    const withdrawals = records.map(({ user, earningsFromHandover, ...record }) => ({
       ...record,
       performedBy: user.name,
+      // Which closed shift's earnings this came from; null = the open drawer.
+      fromShift: earningsFromHandover
+        ? { staffName: earningsFromHandover.user.name, endTime: earningsFromHandover.endTime }
+        : null,
     }));
 
     return {

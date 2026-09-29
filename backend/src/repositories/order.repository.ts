@@ -10,6 +10,8 @@ type PrismaClientOrTx = typeof prisma | Prisma.TransactionClient;
 const listInclude = { customer: true, user: { select: { id: true, name: true } } } as const;
 const detailInclude = {
   customer: true,
+  // Staff name for New Order's receipt.
+  user: { select: { id: true, name: true } },
   orderDetails: {
     include: { service: true, package: true, inventory: true },
   },
@@ -316,6 +318,19 @@ export class OrderRepository {
       _sum: { totalAmount: true },
     });
     return Number(result._sum.totalAmount ?? 0);
+  }
+
+  // Admin dashboard: every paid, non-cancelled order paid within the range —
+  // just the fields needed to total sales per day and per payment method.
+  async findPaidInRange(range: { start: Date; end: Date }, tx: PrismaClientOrTx = prisma) {
+    return tx.order.findMany({
+      where: {
+        paymentStatus: PaymentStatus.PAID,
+        status: { not: OrderStatus.CANCELLED },
+        paymentDate: { gte: range.start, lt: range.end },
+      },
+      select: { paymentDate: true, totalAmount: true, paymentMethod: true },
+    });
   }
 
   // Dashboard: order counts by status, for the status-count cards and the

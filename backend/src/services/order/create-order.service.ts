@@ -171,6 +171,16 @@ export async function createOrderService(input: {
         );
       }
 
+      // All-or-nothing: 0 = Unpaid (pay later via Mark as Paid), otherwise
+      // it must cover the total. A partial amount would be lost — Mark as
+      // Paid records the full total on the day it's clicked, so cash taken
+      // now would never reach that day's drawer reconciliation.
+      if (input.amountPaid > 0 && input.amountPaid < totalAmount) {
+        throw new OrderValidationError(
+          `Amount paid (₱${input.amountPaid.toFixed(2)}) is less than the order total (₱${totalAmount.toFixed(2)}). Enter the full amount, or leave it empty to save the order as unpaid.`
+        );
+      }
+
       const paymentStatus = input.amountPaid >= totalAmount ? PaymentStatus.PAID : PaymentStatus.UNPAID;
       const paymentDate = paymentStatus === PaymentStatus.PAID ? new Date() : null;
 

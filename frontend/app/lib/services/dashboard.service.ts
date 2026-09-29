@@ -42,7 +42,27 @@ export interface AdminDashboardData {
   bestSelling: { name: string; quantitySold: number }[];
   lowStockCount: number;
   employeeCount: number;
+  cashSalesToday: number;
+  gcashSalesToday: number;
+  yesterdaySales: number;
+  expensesToday: number;
+  // Oldest → newest, one entry per Manila business day ("YYYY-MM-DD").
+  salesLast7Days: { date: string; total: number }[];
+  staffOnDuty: StaffOnDuty[];
 }
+
+export interface StaffOnDuty {
+  name: string;
+  timeIn: string | null;
+  timeOut: string | null;
+  status: "Present" | "Late" | "Absent";
+}
+
+const ATTENDANCE_STATUS: Record<string, StaffOnDuty["status"]> = {
+  PRESENT: "Present",
+  LATE: "Late",
+  ABSENT: "Absent",
+};
 
 export async function getAdminDashboard(): Promise<AdminDashboardData> {
   const result = await apiClient.get<{
@@ -52,8 +72,16 @@ export async function getAdminDashboard(): Promise<AdminDashboardData> {
     bestSellingPackages: { name: string; quantitySold: number }[];
     lowStockCount: number;
     employeeCount: number;
+    cashSalesToday?: number;
+    gcashSalesToday?: number;
+    yesterdaySales?: number;
+    expensesToday?: number;
+    salesLast7Days?: { date: string; total: number }[];
+    staffOnDuty?: { name: string; timeIn: string | null; timeOut: string | null; status: string }[];
   }>("/dashboard/admin");
 
+  // The newer fields fall back to empty values so the page still renders
+  // against a backend that hasn't been restarted with them yet.
   return {
     totalCashToday: Number(result.totalSales),
     unclaimedOrders: result.unclaimedOrders,
@@ -61,6 +89,15 @@ export async function getAdminDashboard(): Promise<AdminDashboardData> {
     bestSelling: result.bestSellingPackages,
     lowStockCount: result.lowStockCount,
     employeeCount: result.employeeCount,
+    cashSalesToday: Number(result.cashSalesToday ?? result.totalSales),
+    gcashSalesToday: Number(result.gcashSalesToday ?? 0),
+    yesterdaySales: Number(result.yesterdaySales ?? 0),
+    expensesToday: Number(result.expensesToday ?? 0),
+    salesLast7Days: result.salesLast7Days ?? [],
+    staffOnDuty: (result.staffOnDuty ?? []).map((s) => ({
+      ...s,
+      status: ATTENDANCE_STATUS[s.status] ?? "Present",
+    })),
   };
 }
 
@@ -89,6 +126,7 @@ function mapActivityLog(log: BackendActivityLog): ActivityLog {
       ? `${log.performedBy}: ${log.description}`
       : `${log.performedBy} performed ${log.action} on ${log.module}`,
     timestamp: log.createdAt,
+    module: log.module,
   };
 }
 

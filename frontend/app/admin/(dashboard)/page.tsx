@@ -1,46 +1,35 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Wallet, ClipboardList, AlertTriangle, Users } from "lucide-react";
+import { Wallet, Receipt, PackageCheck, AlertTriangle } from "lucide-react";
 import AdminStatCard from "../../components/admincom/AdminStatCard";
 import AdminRecentActivityCard from "../../components/admincom/AdminRecentActivityCard";
-import { getAdminDashboard, getRecentActivity } from "../../lib/services/dashboard.service";
+import OrderPipelineCard from "../../components/admincom/dashboard/OrderPipelineCard";
+import StaffOnDutyCard from "../../components/admincom/dashboard/StaffOnDutyCard";
+import SalesTrendChart from "../../components/admincom/dashboard/SalesTrendChart";
+import BestSellersCard from "../../components/admincom/dashboard/BestSellersCard";
+import { peso } from "../../components/admincom/dashboard/format";
+import { AdminDashboardData, getAdminDashboard, getRecentActivity } from "../../lib/services/dashboard.service";
 import { ActivityLog } from "../../staff/(dashboard)/types";
 
+// Layout, top to bottom (phones stack everything in this same order):
+//   today's numbers (2×2 on phones, 4 across on desktop)
+//   order pipeline | staff on duty
+//   7-day sales    | best sellers
+//   recent activity
 export default function AdminDashboardPage() {
+  const [data, setData] = useState<AdminDashboardData | null>(null);
   const [activity, setActivity] = useState<ActivityLog[]>([]);
-  const [employeeCount, setEmployeeCount] = useState(0);
-  const [totalCashToday, setTotalCashToday] = useState(0);
-  const [unclaimedOrders, setUnclaimedOrders] = useState(0);
-  const [statusCounts, setStatusCounts] = useState({ pending: 0, inProgress: 0, ready: 0, claimed: 0 });
-  const [bestSelling, setBestSelling] = useState<{ name: string; quantitySold: number }[]>([]);
-  const [lowStockCount, setLowStockCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     async function load() {
-      try {
-        const dashboard = await getAdminDashboard();
-         
-        setTotalCashToday(dashboard.totalCashToday);
-        setUnclaimedOrders(dashboard.unclaimedOrders);
-        setStatusCounts(dashboard.statusCounts);
-        setBestSelling(dashboard.bestSelling);
-        setLowStockCount(dashboard.lowStockCount);
-        setEmployeeCount(dashboard.employeeCount);
-      } catch {
-        setError("Unable to load dashboard data. Please try again.");
-        setLoading(false);
-        return;
-      }
-
-      try {
-        setActivity(await getRecentActivity());
-      } catch {
-        setActivity([]);
-      }
-
+      // Activity is non-essential — the dashboard still renders if it fails.
+      const [dashboard, logs] = await Promise.allSettled([getAdminDashboard(), getRecentActivity()]);
+      if (dashboard.status === "fulfilled") setData(dashboard.value);
+      else setError("Unable to load dashboard data. Please try again.");
+      setActivity(logs.status === "fulfilled" ? logs.value : []);
       setLoading(false);
     }
     load();
@@ -50,97 +39,87 @@ export default function AdminDashboardPage() {
     return <p className="text-gray-400 p-6">Loading dashboard...</p>;
   }
 
-  if (error) {
-    return <p className="text-red-500 p-6">{error}</p>;
+  if (error || !data) {
+    return <p className="text-red-500 p-6">{error || "Unable to load dashboard data."}</p>;
   }
 
+  const salesToday = data.totalCashToday;
+  const net = salesToday - data.expensesToday;
+  const change = salesToday - data.yesterdaySales;
+  const { pending, inProgress, ready, claimed } = data.statusCounts;
+
   return (
-    <div className="p-4 sm:p-6">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         <AdminStatCard
-          label="Total Cash Today"
-          value={`₱${totalCashToday.toFixed(2)}`}
+          label="Sales today"
+          value={peso(salesToday)}
           icon={Wallet}
           iconColor="text-green-600 bg-green-100"
+          href="/admin/sales"
+          sub={
+            <>
+              {/* Two lines on phones, one line from sm up. */}
+              <span className="block">
+                Cash {peso(data.cashSalesToday, 0)}
+                <span className="hidden sm:inline"> · </span>
+                <br className="sm:hidden" />
+                GCash {peso(data.gcashSalesToday, 0)}
+              </span>
+              <span
+                className={`block ${change > 0 ? "text-green-600" : change < 0 ? "text-red-600" : "text-gray-500"}`}
+              >
+                {change > 0 ? "▲" : change < 0 ? "▼" : "•"} {peso(Math.abs(change), 0)} vs yesterday
+              </span>
+            </>
+          }
         />
         <AdminStatCard
-          label="Total unclaimed orders"
-          value={unclaimedOrders}
-          icon={ClipboardList}
+          label="Expenses today"
+          value={peso(data.expensesToday)}
+          icon={Receipt}
           iconColor="text-orange-500 bg-orange-100"
-          href="/admin/claim_monitoring"
+          href="/admin/expenses"
+          sub={
+            <span className="block">
+              Net <span className={net < 0 ? "text-red-600" : "text-gray-700"}>{peso(net, 0)}</span>
+            </span>
+          }
         />
         <AdminStatCard
-          label="Low stock items"
-          value={lowStockCount}
+          label="Ready to release"
+          value={ready}
+          icon={PackageCheck}
+          iconColor="text-blue-600 bg-blue-100"
+          href="/admin/claim_monitoring"
+          sub={<span className="block">of {data.unclaimedOrders} active orders</span>}
+        />
+        <AdminStatCard
+          label="Low stock"
+          value={data.lowStockCount}
           icon={AlertTriangle}
           iconColor="text-red-600 bg-red-100"
           href="/admin/catalog"
+          valueClassName={data.lowStockCount > 0 ? "text-red-600" : "text-gray-800"}
+          sub={
+            <span className="block">
+              {data.lowStockCount > 0 ? "Needs restocking" : "All supplies OK"}
+            </span>
+          }
         />
-        <AdminStatCard
-          label="Employees"
-          value={employeeCount}
-          icon={Users}
-          iconColor="text-blue-600 bg-blue-100"
-          href="/admin/employee"
-        />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 items-start">
-        <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
-          <h2 className="text-lg font-bold text-gray-800 mb-4">Order Status</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-gray-500 text-sm">Pending</p>
-              <p className="text-2xl font-bold text-orange-500 mt-1">{statusCounts.pending}</p>
-            </div>
-            <div>
-              <p className="text-gray-500 text-sm">In Progress</p>
-              <p className="text-2xl font-bold text-blue-600 mt-1">{statusCounts.inProgress}</p>
-            </div>
-            <div>
-              <p className="text-gray-500 text-sm">Ready</p>
-              <p className="text-2xl font-bold text-green-600 mt-1">{statusCounts.ready}</p>
-            </div>
-            <div>
-              <p className="text-gray-500 text-sm">Claimed Today</p>
-              <p className="text-2xl font-bold text-gray-700 mt-1">{statusCounts.claimed}</p>
-            </div>
-          </div>
-        </div>
-
-        <AdminRecentActivityCard logs={activity} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <OrderPipelineCard pending={pending} inProgress={inProgress} ready={ready} claimedToday={claimed} />
+        <StaffOnDutyCard staff={data.staffOnDuty} />
       </div>
 
-      <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
-        <h2 className="text-lg font-bold text-gray-800 mb-4">Best Selling Packages</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead>
-              <tr className="text-gray-700 border-b bg-gray-50">
-                <th className="p-2 whitespace-nowrap">Package Name</th>
-                <th className="p-2 whitespace-nowrap">Quantity Sold</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bestSelling.length > 0 ? (
-                bestSelling.map((p) => (
-                  <tr key={p.name} className="border-b last:border-0">
-                    <td className="p-2 whitespace-nowrap text-gray-900">{p.name}</td>
-                    <td className="p-2 whitespace-nowrap text-gray-900">{p.quantitySold}</td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={2} className="p-4 text-center text-gray-400">
-                    No sales yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <SalesTrendChart days={data.salesLast7Days} />
+        <BestSellersCard items={data.bestSelling} />
       </div>
+
+      <AdminRecentActivityCard logs={activity} />
     </div>
   );
 }

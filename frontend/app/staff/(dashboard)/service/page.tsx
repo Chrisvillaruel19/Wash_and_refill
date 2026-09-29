@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Clock, RefreshCw, CheckCircle2, ClipboardCheck, Search } from "lucide-react";
 import OrderCard from "../../../components/staffcom/service/OrderCard";
+import OrdersTable from "../../../components/staffcom/service/OrdersTable";
 import ConfirmClaimModal from "../../../components/staffcom/service/ConfirmClaimModal";
 import ConfirmCancelModal from "../../../components/staffcom/service/ConfirmCancelModal";
 import ConfirmMarkPaidModal from "../../../components/staffcom/service/ConfirmMarkPaidModal";
@@ -75,14 +76,14 @@ export default function ServicePage() {
     initialLoad();
   }, []);
 
-  function changeStatus(orderId: string, direction: 1 | -1) {
+  // Forward only, one step at a time — the only move the backend allows.
+  function advanceStatus(orderId: string) {
     if (actionSubmitting) return;
     const order = orders.find((o) => o.id === orderId);
     if (!order) return;
 
-    const currentIndex = statusFlow.indexOf(order.status);
-    const nextIndex = currentIndex + direction;
-    if (nextIndex < 0 || nextIndex >= statusFlow.length) return;
+    const nextIndex = statusFlow.indexOf(order.status) + 1;
+    if (nextIndex <= 0 || nextIndex >= statusFlow.length) return;
 
     const nextStatus = statusFlow[nextIndex];
 
@@ -111,6 +112,16 @@ export default function ServicePage() {
     } finally {
       setActionSubmitting(false);
     }
+  }
+
+  function openCancel(orderId: string) {
+    setActionError("");
+    setPendingCancelId(orderId);
+  }
+
+  function openMarkPaid(orderId: string) {
+    setActionError("");
+    setPendingMarkPaidId(orderId);
   }
 
   function confirmClaim() {
@@ -260,28 +271,32 @@ export default function ServicePage() {
         </div>
       </div>
 
-      <div className="space-y-4">
-        {displayedItems.length > 0 ? (
-          displayedItems.map((order) => (
-            <OrderCard
-              key={order.id}
-              order={order}
-              onMoveBack={() => changeStatus(order.id, -1)}
-              onMoveForward={() => changeStatus(order.id, 1)}
-              onCancel={() => {
-                setActionError("");
-                setPendingCancelId(order.id);
-              }}
-              onMarkAsPaid={() => {
-                setActionError("");
-                setPendingMarkPaidId(order.id);
-              }}
+      {displayedItems.length > 0 ? (
+        <>
+          {/* Table from md (tablet) up; stacked cards on phones. */}
+          <div className="hidden md:block">
+            <OrdersTable
+              orders={displayedItems}
+              onAdvance={advanceStatus}
+              onCancel={openCancel}
+              onMarkAsPaid={openMarkPaid}
             />
-          ))
-        ) : (
-          <p className="text-gray-400 text-center py-10">No orders found.</p>
-        )}
-      </div>
+          </div>
+          <div className="md:hidden space-y-3">
+            {displayedItems.map((order) => (
+              <OrderCard
+                key={order.id}
+                order={order}
+                onAdvance={() => advanceStatus(order.id)}
+                onCancel={() => openCancel(order.id)}
+                onMarkAsPaid={() => openMarkPaid(order.id)}
+              />
+            ))}
+          </div>
+        </>
+      ) : (
+        <p className="text-gray-400 text-center py-10">No orders found.</p>
+      )}
 
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
 

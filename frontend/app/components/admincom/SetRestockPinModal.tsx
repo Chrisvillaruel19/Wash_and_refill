@@ -8,7 +8,7 @@ interface SetRestockPinModalProps {
   loading: boolean;
   error: string;
   success: string;
-  onSave: (pin: string, confirmPin: string) => void;
+  onSave: (pin: string, confirmPin: string) => Promise<void> | void;
   onClose: () => void;
 }
 
@@ -27,6 +27,18 @@ export default function SetRestockPinModal({
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [localError, setLocalError] = useState("");
+
+  // Clear both fields once a save succeeds so the PIN doesn't linger on
+  // screen. The parent resets `success` to "" before every save, so each
+  // successful save is a fresh ""→message transition.
+  const [prevSuccess, setPrevSuccess] = useState(success);
+  if (success !== prevSuccess) {
+    setPrevSuccess(success);
+    if (success) {
+      setPin("");
+      setConfirmPin("");
+    }
+  }
 
   function handleSave() {
     if (!/^\d{4,6}$/.test(pin)) {
@@ -62,7 +74,7 @@ export default function SetRestockPinModal({
         <label htmlFor="new-restock-pin" className="sr-only">New PIN</label>
         <input
           id="new-restock-pin"
-          type="text"
+          type="password"
           inputMode="numeric"
           placeholder="New 4-6 digit PIN"
           value={pin}
@@ -78,7 +90,7 @@ export default function SetRestockPinModal({
         <label htmlFor="confirm-restock-pin" className="sr-only">Confirm PIN</label>
         <input
           id="confirm-restock-pin"
-          type="text"
+          type="password"
           inputMode="numeric"
           placeholder="Confirm PIN"
           value={confirmPin}

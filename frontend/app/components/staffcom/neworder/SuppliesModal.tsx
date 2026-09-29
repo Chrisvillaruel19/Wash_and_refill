@@ -17,9 +17,9 @@ export default function SuppliesModal({ supplies, onAdd, onClose }: SuppliesModa
   useEscapeKey(onClose);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   // Which supply's Add button is currently showing "Added" — the quantity
-  // resets to 1 the instant Add is clicked (see handleAdd below), which
+  // box clears the instant Add is clicked (see handleAdd below), which
   // previously looked exactly like the typed amount had been silently
-  // dropped: the box read "1" the moment a user glanced at it right after
+  // dropped: the box reset the moment a user glanced at it right after
   // clicking, even though the Order Summary had already received the
   // correct quantity. This makes the successful add visible for a beat
   // before the input reflects its reset default, instead of the two
@@ -38,9 +38,10 @@ export default function SuppliesModal({ supplies, onAdd, onClose }: SuppliesModa
   }
 
   function handleAdd(supply: SupplyItem) {
+    // Empty box = the placeholder's 1 — the common "add one of this" case.
     const qty = quantities[supply.id] || 1;
     onAdd(supply, qty);
-    setQuantities((prev) => ({ ...prev, [supply.id]: 1 }));
+    setQuantities((prev) => ({ ...prev, [supply.id]: 0 }));
 
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     setJustAdded(supply.id);
@@ -75,9 +76,10 @@ export default function SuppliesModal({ supplies, onAdd, onClose }: SuppliesModa
                 <input
                   type="number"
                   min={1}
-                  value={quantities[supply.id] ?? 1}
+                  placeholder="1"
+                  value={quantities[supply.id] || ""}
                   onChange={(e) =>
-                    handleQuantityChange(supply.id, parseInt(e.target.value) || 1)
+                    handleQuantityChange(supply.id, parseInt(e.target.value) || 0)
                   }
                   className="w-16 border border-gray-300 rounded-lg p-1 text-center text-gray-900"
                 />

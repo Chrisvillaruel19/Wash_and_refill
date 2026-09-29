@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CalendarCheck, Clock, ListChecks, Search } from "lucide-react";
+import { CalendarCheck, CalendarX, Clock, AlarmClock, Search } from "lucide-react";
 import AdminStatCard from "../../../components/admincom/AdminStatCard";
 import { getAttendanceRecords } from "../../../lib/services/attendanceApi.service";
 import { AttendanceRecord } from "../../../staff/(dashboard)/types";
 import Pagination from "../../../components/staffcom/Pagination";
+import AttendanceStatusBadge from "../../../components/staffcom/AttendanceStatusBadge";
 import { usePagination } from "../../../lib/usePagination";
 
 const PAGE_SIZE = 8;
@@ -37,13 +38,20 @@ export default function AdminAttendancePage() {
   }, []);
 
   const today = new Date().toLocaleDateString();
-  const presentToday = records.filter((r) => r.date === today).length;
-  const currentlyClockedIn = records.filter((r) => !r.timeOut).length;
+  // Absent rows are placeholders for days nobody timed in — never a
+  // clock-in, so they're excluded from the "who's here" counts.
+  const worked = records.filter((r) => r.status !== "Absent");
+  const presentToday = worked.filter((r) => r.date === today).length;
+  const currentlyClockedIn = worked.filter((r) => !r.timeOut).length;
+  const lateCount = records.filter((r) => r.status === "Late").length;
+  const absentCount = records.filter((r) => r.status === "Absent").length;
 
+  const query = search.toLowerCase();
   const filteredRecords = records.filter(
     (r) =>
-      r.date.toLowerCase().includes(search.toLowerCase()) ||
-      r.staffName.toLowerCase().includes(search.toLowerCase())
+      r.date.toLowerCase().includes(query) ||
+      r.staffName.toLowerCase().includes(query) ||
+      r.status.toLowerCase().includes(query)
   );
 
   // usePagination must run on every render regardless of loading/error
@@ -66,7 +74,7 @@ export default function AdminAttendancePage() {
 
   return (
     <div className="p-4 sm:p-6">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 mb-6">
         <AdminStatCard
           label="Present Today"
           value={presentToday}
@@ -80,10 +88,16 @@ export default function AdminAttendancePage() {
           iconColor="text-blue-600 bg-blue-100"
         />
         <AdminStatCard
-          label="Total Records"
-          value={records.length}
-          icon={ListChecks}
-          iconColor="text-gray-600 bg-gray-100"
+          label="Late Days"
+          value={lateCount}
+          icon={AlarmClock}
+          iconColor="text-orange-600 bg-orange-100"
+        />
+        <AdminStatCard
+          label="Absent Days"
+          value={absentCount}
+          icon={CalendarX}
+          iconColor="text-red-600 bg-red-100"
         />
       </div>
 
@@ -92,7 +106,7 @@ export default function AdminAttendancePage() {
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="Search Date or name"
+            placeholder="Search date, name, or status"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             name="attendance-search"
@@ -127,9 +141,7 @@ export default function AdminAttendancePage() {
                       {r.totalHours !== null ? r.totalHours.toFixed(1) : "-"}
                     </td>
                     <td className="p-3 whitespace-nowrap">
-                      <span className="px-3 py-1 rounded-full text-xs font-medium border text-green-600 border-green-300 bg-green-50">
-                        {r.status}
-                      </span>
+                      <AttendanceStatusBadge status={r.status} />
                       {r.autoClosed && (
                         <span className="ml-1 px-3 py-1 rounded-full text-xs font-medium border text-amber-600 border-amber-300 bg-amber-50">
                           Auto-closed

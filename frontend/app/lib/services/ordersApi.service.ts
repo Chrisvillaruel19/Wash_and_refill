@@ -9,6 +9,7 @@ import type { ServerPageResult } from "../useServerPage";
 
 interface BackendOrderDetail {
   quantity: number;
+  weight?: string | null;
   subtotal: string;
   serviceType: string | null;
   service: { serviceName: string } | null;
@@ -228,14 +229,62 @@ export type NewOrderItemInput =
   | { type: "SERVICE"; serviceId: string; weight: number; quantity: number; serviceType?: ServiceType }
   | { type: "INVENTORY"; inventoryId: string; quantity: number };
 
+// Everything New Order's receipt prints — built from the backend's saved
+// order (server-computed prices/totals), never from the client-side cart.
+export interface OrderReceipt {
+  id: string;
+  orderNumber: string;
+  createdAt: string;
+  staffName?: string;
+  customer: string;
+  contact: string;
+  lines: { label: string; detail: string; subtotal: number }[];
+  total: number;
+  amountPaid: number;
+  change: number;
+  payStatus: PayStatus;
+  paymentMethod?: PaymentMethod;
+}
+
+function mapReceipt(order: BackendOrder): OrderReceipt {
+  const total = Number(order.totalAmount);
+  const amountPaid = Number(order.amountPaid);
+  return {
+    id: order.id,
+    // Short, readable reference for the customer — first block of the UUID.
+    orderNumber: order.id.slice(0, 8).toUpperCase(),
+    createdAt: order.createdAt,
+    staffName: order.user?.name,
+    customer: order.customer.customerName,
+    contact: order.customer.phoneNumber,
+    lines: (order.orderDetails ?? []).map((d) => {
+      const name = d.package?.packageName ?? d.service?.serviceName ?? d.inventory?.itemName ?? "Item";
+      const serviceType = d.serviceType ? SERVICE_TYPE_FROM_BACKEND[d.serviceType] : null;
+      const weight = d.weight != null ? Number(d.weight) : null;
+      const parts = [weight !== null ? `${weight} kg` : null, d.quantity > 1 || weight === null ? `×${d.quantity}` : null];
+      return {
+        label: serviceType ? `${name} (${serviceType})` : name,
+        detail: parts.filter(Boolean).join(" "),
+        subtotal: Number(d.subtotal),
+      };
+    }),
+    total,
+    amountPaid,
+    change: Math.max(0, amountPaid - total),
+    payStatus: PAY_STATUS_MAP[order.paymentStatus] ?? "UnPaid",
+    paymentMethod: order.paymentMethod ? PAYMENT_METHOD_MAP[order.paymentMethod] : undefined,
+  };
+}
+
 export async function createOrder(data: {
   customerName: string;
   phoneNumber: string;
-  paymentMethod: PaymentMethod;
+  // Optional for Unpaid orders (no amount entered yet).
+  paymentMethod?: PaymentMethod;
   amountPaid: number;
   items: NewOrderItemInput[];
   idempotencyKey: string;
-}): Promise<Order> {
+}): Promise<OrderReceipt> {
   const items = data.items.map((item) =>
     item.type === "SERVICE" && item.serviceType
       ? { ...item, serviceType: SERVICE_TYPE_TO_BACKEND[item.serviceType] }
@@ -244,12 +293,12 @@ export async function createOrder(data: {
   const { order } = await apiClient.post<{ order: BackendOrder }>("/orders", {
     customerName: data.customerName,
     phoneNumber: data.phoneNumber,
-    paymentMethod: PAYMENT_METHOD_MAP_TO_BACKEND[data.paymentMethod],
+    paymentMethod: data.paymentMethod ? PAYMENT_METHOD_MAP_TO_BACKEND[data.paymentMethod] : undefined,
     amountPaid: data.amountPaid,
     items,
     idempotencyKey: data.idempotencyKey,
   });
-  return mapOrder(order);
+  return mapReceipt(order);
 }
 
 const PAYMENT_METHOD_MAP_TO_BACKEND: Record<PaymentMethod, string> = {

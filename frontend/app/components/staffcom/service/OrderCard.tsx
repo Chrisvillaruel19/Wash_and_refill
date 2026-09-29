@@ -1,118 +1,87 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, X } from "lucide-react";
-import { Order, OrderStatus } from "../../../staff/(dashboard)/types";
+import { Order } from "../../../staff/(dashboard)/types";
 import GroupedItemsList from "../GroupedItemsList";
+import { getOrderActionState, primaryButtonClass, statusBadgeStyles } from "./orderActions";
 
 interface OrderCardProps {
   order: Order;
-  onMoveBack: () => void;
-  onMoveForward: () => void;
+  // Moves the order one step forward (Pending → In progress → Ready →
+  // Claimed). The backend only allows forward, one-step moves.
+  onAdvance: () => void;
   onCancel: () => void;
   onMarkAsPaid: () => void;
 }
 
-const statusStyles: Record<OrderStatus, string> = {
-  Pending: "bg-orange-500",
-  "In progress": "bg-blue-600",
-  Ready: "bg-green-600",
-  Claimed: "bg-gray-500",
-  Cancelled: "bg-red-500",
-};
-
-const statusFlow: OrderStatus[] = ["Pending", "In progress", "Ready", "Claimed"];
-
-export default function OrderCard({
-  order,
-  onMoveBack,
-  onMoveForward,
-  onCancel,
-  onMarkAsPaid,
-}: OrderCardProps) {
-  const currentIndex = statusFlow.indexOf(order.status);
-  const isTerminal = order.status === "Claimed" || order.status === "Cancelled";
-  const isFirst = isTerminal || currentIndex === 0;
-  const isLast = isTerminal || currentIndex === statusFlow.length - 1;
-  const canCancel = order.status === "Pending" || order.status === "In progress" || order.status === "Ready";
-  const canMarkAsPaid = order.payStatus === "UnPaid" && order.status !== "Cancelled";
+// Phone layout of one Services order — tablet/desktop use OrdersTable.
+export default function OrderCard({ order, onAdvance, onCancel, onMarkAsPaid }: OrderCardProps) {
+  const { canCancel, isUnpaid, needsPaymentToRelease, primary } = getOrderActionState(order);
 
   return (
-    <div className="bg-white rounded-xl shadow-md p-5 flex flex-wrap items-center justify-between gap-4">
-      <div className="min-w-[160px] max-w-[220px]">
-        <p className="font-bold text-gray-800 truncate" title={order.customer}>
-          {order.customer}
-        </p>
-        <p className="text-sm text-gray-500 truncate" title={order.contact}>
-          {order.contact}
-        </p>
-        <p className="text-sm text-gray-500">{order.time}</p>
-        <p className="text-sm text-gray-500">{order.date}</p>
-        {order.staffName && (
-          <p className="text-xs text-gray-400 mt-1">Created by: {order.staffName}</p>
-        )}
+    <div className="bg-white rounded-xl shadow-md p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-bold text-gray-800 break-words">{order.customer}</p>
+          <p className="text-sm text-gray-500">{order.contact}</p>
+          <p className="text-xs text-gray-400">
+            {order.date} · {order.time}
+            {order.staffName && ` · ${order.staffName}`}
+          </p>
+        </div>
+        <span
+          className={`shrink-0 px-3 py-0.5 rounded-full text-xs font-semibold ${statusBadgeStyles[order.status]}`}
+        >
+          {order.status}
+        </span>
       </div>
 
-      <div className="flex-1 min-w-[200px] max-w-full">
-        <p className="text-xs text-gray-400 mb-1">Service</p>
-        <GroupedItemsList
-          items={order.items || []}
-          itemClassName="font-medium text-gray-800 text-sm"
-        />
+      <div className="mt-3">
+        <GroupedItemsList items={order.items || []} itemClassName="font-medium text-gray-800 text-sm" />
       </div>
 
-      <div className="text-right">
-        <p className="font-bold text-gray-800">
-          Amount: ₱{order.amount.toFixed(2)}{" "}
-          <span className={order.payStatus === "Paid" ? "text-blue-600" : "text-red-500"}>
-            {order.payStatus.toUpperCase()}
-          </span>
-        </p>
-        {canMarkAsPaid && (
-          <button
-            onClick={onMarkAsPaid}
-            className="mt-1 text-xs font-medium text-green-600 border border-green-500 rounded-lg px-3 py-1 hover:bg-green-50"
-          >
-            Mark as Paid
-          </button>
-        )}
-      </div>
-
-      <div className="text-center">
-        <p className="text-sm text-gray-500 mb-1">Status</p>
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <p className="font-bold text-gray-800">₱{order.amount.toFixed(2)}</p>
         <div className="flex items-center gap-2">
-          <button
-            onClick={onMoveBack}
-            disabled={isFirst}
-            className="border border-gray-300 rounded-lg p-2 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-50 text-gray-700"
-          >
-            <ArrowLeft size={16} />
-          </button>
-
-          <span
-            className={`${statusStyles[order.status]} text-white font-semibold px-4 py-2 rounded-lg text-sm`}
-          >
-            {order.status}
-          </span>
-
-          <button
-            onClick={onMoveForward}
-            disabled={isLast}
-            className="border border-gray-300 rounded-lg p-2 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-50 text-gray-700"
-          >
-            <ArrowRight size={16} />
-          </button>
-
-          {canCancel && (
+          {isUnpaid && !needsPaymentToRelease && (
             <button
-              onClick={onCancel}
-              title="Cancel order"
-              className="border border-red-300 rounded-lg p-2 hover:bg-red-50 text-red-500"
+              onClick={onMarkAsPaid}
+              className="text-xs font-medium text-green-600 border border-green-500 rounded-lg px-3 py-1 hover:bg-green-50"
             >
-              <X size={16} />
+              Mark as Paid
             </button>
           )}
+          <PayBadge paid={order.payStatus === "Paid"} />
         </div>
       </div>
+
+      {primary && (
+        <button
+          onClick={primary.kind === "collectPayment" ? onMarkAsPaid : onAdvance}
+          className={`mt-3 w-full rounded-lg px-4 py-2.5 text-sm font-semibold text-white ${primaryButtonClass(primary.kind)}`}
+        >
+          {primary.label}
+        </button>
+      )}
+      {canCancel && (
+        <button
+          onClick={onCancel}
+          className="mt-2 block mx-auto text-xs font-medium text-red-500 hover:text-red-700 hover:underline"
+        >
+          Cancel order
+        </button>
+      )}
     </div>
+  );
+}
+
+export function PayBadge({ paid }: { paid: boolean }) {
+  return (
+    <span
+      className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+        paid ? "text-blue-600 border-blue-300 bg-blue-50" : "text-red-500 border-red-300 bg-red-50"
+      }`}
+    >
+      {paid ? "PAID" : "UNPAID"}
+    </span>
   );
 }

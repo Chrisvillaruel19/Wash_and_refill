@@ -1,5 +1,20 @@
 @import "tailwindcss";
 
+/* Tailwind v4 defaults border colour to currentColor (near-black text), so
+   every bare `border` / `border-b` / `divide-y` — table rows, header lines,
+   card dividers — drew a harsh black line. Default them to that same colour
+   at 50% opacity instead; any border with its own colour (border-red-300,
+   etc.) still overrides this. */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: color-mix(in oklab, currentColor 50%, transparent);
+  }
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

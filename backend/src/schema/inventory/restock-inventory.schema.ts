@@ -13,6 +13,8 @@ export const restockInventorySchema = z.object({
     // The shared Restock Authorization PIN an Admin set from their own
     // account — never the Admin's login password. See
     // restock-inventory.service.ts.
-    pin: pinRule,
+    // Staff must provide the shared PIN. Admins are authorized by their
+    // authenticated role and may omit it.
+    pin: pinRule.optional(),
   }),
 });

@@ -113,6 +113,24 @@ export class InventoryController {
     }
   };
 
+  // ADMIN-only route (see inventory.routes.ts) — no PIN required.
+  public adminRestock = async (req: Request, res: Response) => {
+    try {
+      const userId = (req as AuthenticatedRequest).user?.sub as string;
+      const id = req.params.id as string;
+      const { quantity } = req.body;
+      const result = await restockInventoryService(userId, id, quantity, null);
+      return res.status(result.code).json(result);
+    } catch (error) {
+      console.error("InventoryController.adminRestock error", error);
+      return res.status(500).json({
+        code: 500,
+        status: "error",
+        message: "Unable to restock inventory item",
+      });
+    }
+  };
+
   public remove = async (req: Request, res: Response) => {
     try {
       const userId = (req as AuthenticatedRequest).user?.sub as string;

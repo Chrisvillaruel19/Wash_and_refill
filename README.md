@@ -33,11 +33,13 @@ See [`backend/README.md`](./backend/README.md).
 
 ### Email (Forgot Password) Setup — Resend
 
-The Admin Forgot Password flow sends real reset-link emails via [Resend](https://resend.com)'s HTTPS API (plain `fetch`, no SDK dependency). If `RESEND_API_KEY` isn't configured, the backend automatically falls back to logging the reset link to the console instead — useful for local development, but not acceptable for production.
+The Forgot Password flow (Admin and Staff — any active account, by its own email) sends real reset-link emails via [Resend](https://resend.com)'s HTTPS API (plain `fetch`, no SDK dependency). If `RESEND_API_KEY` isn't configured, the backend automatically falls back to logging the reset link to the console instead — useful for local development, but not acceptable for production.
 
 This replaced an earlier Gmail/Nodemailer SMTP transport: Render (and many PaaS hosts) restrict outbound SMTP ports, which caused `forgot-password` requests to hang for up to Nodemailer's ~2-minute default connection timeout before failing. An HTTPS API call has no such port restriction and now fails within a 10-second timeout instead.
 
-Required environment variables in `backend/.env`:
+**Alternative — Gmail via Nodemailer:** set `GMAIL_USER` and `GMAIL_APP_PASSWORD` (a Google App Password) in `backend/.env` and reset emails are sent from that Gmail account to any address, no domain needed. It takes priority over Resend when both are set. Only works where outbound SMTP is allowed (local PC, VPS — not Render); see `backend/.env.example`.
+
+Required environment variables in `backend/.env` (Resend):
 
 | Variable | Example / Placeholder |
 |---|---|
@@ -55,7 +57,7 @@ Required environment variables in `backend/.env`:
 
 **`.env` must never be committed.** It's gitignored for exactly this reason — only `backend/.env.example` (placeholder values only, no real credentials) is tracked in version control.
 
-**Known limitation — production readiness:** Forgot Password only delivers to `villaruelnino191@gmail.com` (dev owner's personal Resend account) due to Resend's no-domain sandbox restriction. Before any real client uses this system: (a) Admin's email must be updated to the client's real address, and (b) a domain must be purchased and verified in Resend. This is a Resend platform requirement, not something more code can work around.
+**Known limitation — production readiness:** Forgot Password only delivers to `villaruelnino191@gmail.com` (dev owner's personal Resend account) due to Resend's no-domain sandbox restriction. Before any real client uses this system: (a) the Admin's and every Staff member's email must be updated to their real (e.g. Gmail) address, (b) a domain must be purchased and verified in Resend, and (c) `EMAIL_FROM` must be set to an address on that domain (e.g. `no-reply@yourdomain.com`). This is a Resend platform requirement, not something more code can work around.
 
 ### Database migrations — dev vs. production
 

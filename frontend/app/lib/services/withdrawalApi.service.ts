@@ -9,7 +9,7 @@ export interface WithdrawalRecord {
   reason: string;
   adminName: string;
   source: WithdrawalSource;
-  // Set when taken from a closed shift's earnings; null = the open drawer.
+  // Set when taken from a closed shift's earnings; null = the open shift's drawer.
   fromShift: { staffName: string; endTime: string } | null;
 }
 
@@ -40,47 +40,61 @@ export async function getWithdrawals(): Promise<WithdrawalRecord[]> {
   return withdrawals.map(mapWithdrawal);
 }
 
-export interface ShiftEarningsAvailable {
+export interface ShiftPortion {
   handoverId: string;
   staffName: string;
   endTime: string;
-  cashAvailable: number;
-  gcashAvailable: number;
+  available: number;
 }
 
 export interface AvailableToWithdraw {
-  // Open shift's drawer cash, never including the starting cash.
-  openShiftCash: number;
+  // The fixed float — never withdrawable.
   startingCash: number;
-  // Closed shifts that still have earnings left to withdraw, newest first.
-  shifts: ShiftEarningsAvailable[];
+  cash: {
+    total: number;
+    // Left above the starting cash at the last handover's count, minus what
+    // was already taken from it. Negative = that count was short.
+    lastShift: ShiftPortion | null;
+    // The open shift so far: cash sales − expenses − withdrawals.
+    openShift: number;
+  };
+  gcash: {
+    total: number;
+    // Closed shifts with GCash not yet withdrawn, oldest first.
+    shifts: ShiftPortion[];
+  };
+}
+
+function mapPortion(s: ShiftPortion): ShiftPortion {
+  return { ...s, available: Number(s.available) };
 }
 
 export async function getAvailableToWithdraw(): Promise<AvailableToWithdraw> {
   const r = await apiClient.get<AvailableToWithdraw>("/withdrawals/available");
   return {
-    openShiftCash: Number(r.openShiftCash),
     startingCash: Number(r.startingCash),
-    shifts: r.shifts.map((s) => ({
-      ...s,
-      cashAvailable: Number(s.cashAvailable),
-      gcashAvailable: Number(s.gcashAvailable),
-    })),
+    cash: {
+      total: Number(r.cash.total),
+      lastShift: r.cash.lastShift ? mapPortion(r.cash.lastShift) : null,
+      openShift: Number(r.cash.openShift),
+    },
+    gcash: {
+      total: Number(r.gcash.total),
+      shifts: r.gcash.shifts.map(mapPortion),
+    },
   };
 }
 
+// One amount per source — the server splits it across the shifts it came from.
 export async function createWithdrawal(data: {
   amount: number;
   reason: string;
   source: WithdrawalSource;
-  // Omitted = the open shift's drawer.
-  fromHandoverId?: string;
 }): Promise<void> {
   await apiClient.post("/withdrawals", {
     amount: data.amount,
     reason: data.reason,
     source: data.source === "GCash" ? "GCASH" : "CASH",
-    ...(data.fromHandoverId ? { fromHandoverId: data.fromHandoverId } : {}),
   });
 }
 

@@ -7,23 +7,17 @@ interface ShiftInventoryModalProps {
   staffName: string;
   timestamp: string;
   rows: ShiftHandoverInventoryRow[];
-  totalSales: number;
   onClose: () => void;
 }
 
 // Compact, scrollable detail view for one handover's full immutable
 // inventory snapshot — kept out of the Cashier Shift Summary card itself so
 // that grid stays short regardless of how many inventory items the shop
-// tracks. Reuses the same fixed-overlay modal shell already used throughout
+// tracks. Inventory only: the shift's money figures live in the grid's own
+// columns. Reuses the same fixed-overlay modal shell already used throughout
 // Admin (see AdminWithdrawalFormModal, ConfirmDeleteModal) instead of
 // introducing a new UI pattern/dependency.
-export default function ShiftInventoryModal({
-  staffName,
-  timestamp,
-  rows,
-  totalSales,
-  onClose,
-}: ShiftInventoryModalProps) {
+export default function ShiftInventoryModal({ staffName, timestamp, rows, onClose }: ShiftInventoryModalProps) {
   useEscapeKey(onClose);
 
   return (
@@ -35,40 +29,50 @@ export default function ShiftInventoryModal({
         </p>
 
         <div className="overflow-y-auto flex-1 -mx-2 px-2">
-          <table className="w-full text-sm text-left">
+          <table className="w-full text-sm text-left tabular-nums">
             <thead className="sticky top-0 bg-white">
               <tr className="text-gray-700 border-b bg-gray-50">
                 <th className="p-2 whitespace-nowrap">Item</th>
-                <th className="p-2 whitespace-nowrap">Beginning</th>
-                <th className="p-2 whitespace-nowrap">Ending</th>
+                <th className="p-2 whitespace-nowrap text-right">Beginning</th>
+                <th className="p-2 whitespace-nowrap text-right">Ending</th>
+                <th className="p-2 whitespace-nowrap text-right">Used</th>
               </tr>
             </thead>
             <tbody>
               {rows.length > 0 ? (
-                rows.map((row) => (
-                  <tr key={row.itemName} className="border-b last:border-0">
-                    <td className="p-2 whitespace-nowrap text-gray-900">
-                      {row.itemName}
-                      <span className="text-gray-400"> ({row.unit})</span>
-                    </td>
-                    <td className="p-2 whitespace-nowrap text-gray-900">{row.beginningQty}</td>
-                    <td className="p-2 whitespace-nowrap text-gray-900">{row.endingQty}</td>
-                  </tr>
-                ))
+                rows.map((row) => {
+                  // Ending above beginning means stock was added during the
+                  // shift, so "used" can't be read off the two counts.
+                  const used = row.beginningQty - row.endingQty;
+                  return (
+                    <tr key={row.itemName} className="border-b last:border-0">
+                      <td className="p-2 whitespace-nowrap text-gray-900">
+                        {row.itemName}
+                        <span className="text-gray-400"> ({row.unit})</span>
+                      </td>
+                      <td className="p-2 whitespace-nowrap text-right text-gray-900">{row.beginningQty}</td>
+                      <td className="p-2 whitespace-nowrap text-right text-gray-900">{row.endingQty}</td>
+                      <td className="p-2 whitespace-nowrap text-right font-medium">
+                        {used >= 0 ? (
+                          <span className="text-gray-900">{used}</span>
+                        ) : (
+                          <span className="text-green-600" title="Stock was added during this shift">
+                            +{-used} restocked
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
-                  <td colSpan={3} className="p-4 text-center text-gray-400">
+                  <td colSpan={4} className="p-4 text-center text-gray-400">
                     No inventory items recorded for this handover.
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
-        </div>
-
-        <div className="border-t border-gray-200 mt-4 pt-3 flex items-center justify-between">
-          <span className="text-sm font-medium text-gray-500">Total Sales</span>
-          <span className="text-lg font-bold text-gray-900">₱{totalSales.toFixed(2)}</span>
         </div>
 
         <div className="flex justify-end pt-4">

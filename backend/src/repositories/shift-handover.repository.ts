@@ -26,44 +26,34 @@ export class ShiftHandoverRepository {
     return tx.shiftHandover.count();
   }
 
-  // Withdrawals: the most recent closed shifts, newest first, with just the
-  // totals needed to work out how much of each shift's earnings is left.
-  async findRecentForEarnings(limit: number, tx: PrismaClientOrTx = prisma) {
-    return tx.shiftHandover.findMany({
+  // Withdrawals: the latest closed shift — its cash count is the drawer's
+  // last known physical state.
+  async findLatestForEarnings(tx: PrismaClientOrTx = prisma) {
+    return tx.shiftHandover.findFirst({
       select: {
         id: true,
         endTime: true,
-        laundryEarnings: true,
-        supplySales: true,
-        customServiceSales: true,
-        digitalSales: true,
-        expense: true,
-        withdrawal: true,
         expectedBalance: true,
         actualCashCount: true,
         user: { select: { name: true } },
       },
       orderBy: { endTime: "desc" },
-      take: limit,
     });
   }
 
-  async findForEarnings(id: string, tx: PrismaClientOrTx = prisma) {
-    return tx.shiftHandover.findUnique({
-      where: { id },
+  // Every closed shift that took GCash, oldest first — each one's GCash stays
+  // withdrawable until taken, however old (GCash is never counted into the
+  // drawer, so a later count can't absorb it the way it absorbs cash).
+  async findWithGcashSales(tx: PrismaClientOrTx = prisma) {
+    return tx.shiftHandover.findMany({
+      where: { digitalSales: { gt: 0 } },
       select: {
         id: true,
         endTime: true,
-        laundryEarnings: true,
-        supplySales: true,
-        customServiceSales: true,
         digitalSales: true,
-        expense: true,
-        withdrawal: true,
-        expectedBalance: true,
-        actualCashCount: true,
         user: { select: { name: true } },
       },
+      orderBy: { endTime: "asc" },
     });
   }
 

@@ -1,26 +1,51 @@
+import nodemailer from "nodemailer";
 import { ENV } from "../config/env.js";
 
 const RESEND_API_URL = "https://api.resend.com/emails";
 
 // Nodemailer's default SMTP connection timeout was ~2 minutes — the exact
-// cause of the "stuck on Sending..." production bug this replaced (Render's
-// egress to smtp.gmail.com:587 was failing outright). A transactional email
-// API over HTTPS should respond in well under a second; 10s is generous
-// headroom for a genuine network hiccup while still failing fast enough
-// that a user is never left waiting minutes on a loading spinner.
+// cause of an earlier "stuck on Sending..." production bug (Render's egress
+// to smtp.gmail.com was failing outright). Both transports below are capped
+// at 10s so a user is never left waiting minutes on a loading spinner.
 const SEND_TIMEOUT_MS = 10_000;
 
-// Uses Resend's HTTPS API when configured; otherwise falls back to logging
-// the email content to the console, so local dev works without a real API
-// key. Either way, callers get the same sendMail(to, subject, html)
-// interface — forgot-password.service.ts never needs to know which path
-// ran. RESEND_API_KEY is validated as required-in-production by
-// config/env.ts, so by the time this runs in production the key is
-// guaranteed to be set; the fallback below is only ever reachable locally.
+// Created once, on first use — only when Gmail is configured.
+let gmailTransport: ReturnType<typeof nodemailer.createTransport> | null = null;
+
+function getGmailTransport() {
+  gmailTransport ??= nodemailer.createTransport({
+    service: "gmail",
+    auth: { user: ENV.GMAIL_USER, pass: ENV.GMAIL_APP_PASSWORD },
+    connectionTimeout: SEND_TIMEOUT_MS,
+    greetingTimeout: SEND_TIMEOUT_MS,
+    socketTimeout: SEND_TIMEOUT_MS,
+  });
+  return gmailTransport;
+}
+
+// Picks the transport in this order:
+//  1. Gmail via Nodemailer (GMAIL_USER + GMAIL_APP_PASSWORD) — sends from the
+//     shop's own Gmail to any address, no domain needed. Needs outbound SMTP,
+//     which some hosts (e.g. Render) block — use Resend there.
+//  2. Resend's HTTPS API (RESEND_API_KEY + a verified-domain EMAIL_FROM).
+//  3. Neither: log the email to the console (local dev only — production
+//     requires one of the above, enforced in config/env.ts).
+// Callers get the same sendMail(to, subject, html) either way.
 export async function sendMail(to: string, subject: string, html: string): Promise<void> {
+  if (ENV.GMAIL_USER && ENV.GMAIL_APP_PASSWORD) {
+    // Gmail rewrites any other From address to the account itself anyway.
+    await getGmailTransport().sendMail({
+      from: `"Wash & Refill Laundry" <${ENV.GMAIL_USER}>`,
+      to,
+      subject,
+      html,
+    });
+    return;
+  }
+
   if (!ENV.RESEND_API_KEY) {
     console.log(
-      `[DEV MODE] RESEND_API_KEY not configured — email not actually sent.\nTo: ${to}\nSubject: ${subject}\n${html}`
+      `[DEV MODE] No email transport configured — email not actually sent.\nTo: ${to}\nSubject: ${subject}\n${html}`
     );
     return;
   }

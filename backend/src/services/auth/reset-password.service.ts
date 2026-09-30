@@ -2,6 +2,8 @@ import {UserRepository} from "../../repositories/user.repository.js";
 import {TokenRepository} from "../../repositories/token.repository.js";
 import {hashPassword} from "../../utils/password.js";
 import {prisma} from "../../lib/prisma.js";
+import {writeAuditLog} from "../../lib/audit-log.js";
+import {AuditAction} from "../../../generated/prisma/client.js";
 
 
 const userRepository = new UserRepository();
@@ -50,6 +52,16 @@ export async function resetPasswordService(
                 resetToken.userId,
                 tx
             );
+
+            // Staff can reset their own password now, so the Admin needs to
+            // see it happened (Logs → Password Resets). "Employee" keeps it
+            // Admin-only in the Dashboard activity feed.
+            await writeAuditLog(tx, {
+                userId: resetToken.userId,
+                action: AuditAction.RESET_PASSWORD,
+                module: "Employee",
+                description: "Reset own password via email link",
+            });
         });
 
         return{

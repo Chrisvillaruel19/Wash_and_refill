@@ -52,6 +52,14 @@ export class UserRepository {
     });
   }
 
+  // Forgot Password only — ignores capitalization of what the user typed.
+  async findByEmailInsensitive(email: string, tx: PrismaClientOrTx = prisma) {
+    return await tx.user.findFirst({
+      where: { email: { equals: email, mode: "insensitive" } },
+      select: { id: true, email: true, accountStatus: true },
+    });
+  }
+
   async findByEmail(email: string, tx: PrismaClientOrTx = prisma) {
     return await tx.user.findFirst({
       where: {

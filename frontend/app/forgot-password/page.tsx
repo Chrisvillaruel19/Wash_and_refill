@@ -37,9 +37,8 @@ export default function ForgotPassword() {
 
     try {
       const responseMessage = await forgotPassword(trimmedEmail);
-      // The backend's message is the meaningful content here — it already
-      // distinguishes "reset link sent" from "this account is managed by
-      // an Administrator" (Staff) without this page needing to know which.
+      // Deliberately the same message whether or not the email exists, so
+      // this page can't be used to find out which emails have accounts.
       setMessage(responseMessage || "If an account with that email exists, a password reset link has been sent.");
       setEmail("");
     } catch (err) {
@@ -68,11 +67,11 @@ export default function ForgotPassword() {
             Forgot Password
           </h1>
           <p className="text-center text-sm text-gray-700 mb-2">
-            Enter your account email and we&apos;ll send you a password reset link.
+            Enter the email on your account and we&apos;ll send you a password reset link.
           </p>
           <p className="text-center text-xs text-gray-500 mb-6">
-            Only Admin accounts can reset via email. Staff — please contact your
-            Administrator to reset your password.
+            The link expires in 15 minutes. Check your spam folder if it doesn&apos;t arrive. No
+            access to your email? Ask your Administrator to reset your password.
           </p>
 
           {error && (

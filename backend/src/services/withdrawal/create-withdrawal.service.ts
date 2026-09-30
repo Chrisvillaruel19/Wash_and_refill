@@ -1,104 +1,92 @@
 import { prisma } from "../../lib/prisma.js";
 import { WithdrawalRepository } from "../../repositories/withdrawal.repository.js";
 import { acquireDrawerLock } from "../../lib/drawer-lock.js";
-import { getCurrentDrawerBalance, getDrawerStart } from "../shift-handover/reconciliation.util.js";
 import { AuditAction, WithdrawalSource } from "../../../generated/prisma/client.js";
 import { writeAuditLog } from "../../lib/audit-log.js";
 import { InsufficientFundsError } from "./withdrawal-errors.js";
-import { getShiftEarningsAvailable } from "./earnings.util.js";
+import { getAvailableToWithdraw, splitWithdrawal } from "./earnings.util.js";
 
 const withdrawalRepository = new WithdrawalRepository();
 
-// Two kinds of withdrawal:
-//  - From the OPEN shift's drawer (no fromHandoverId): cash only, and never
-//    the starting float — that stays in the drawer for change.
-//  - From a CLOSED shift's earnings (fromHandoverId set): that shift's
-//    counted cash minus its float, or its GCash sales — see earnings.util.ts.
+// The Admin asks for one amount of Cash or GCash; the server splits it into
+// one record per shift it came from (see splitWithdrawal), so the history
+// and each shift's remaining earnings stay exact.
 export async function createWithdrawalService(
   userId: string,
-  data: { amount: number; reason: string; source?: WithdrawalSource; fromHandoverId?: string }
+  data: { amount: number; reason: string; source?: WithdrawalSource }
 ) {
   const source = data.source ?? WithdrawalSource.CASH;
   const sourceLabel = source === WithdrawalSource.GCASH ? "GCash" : "cash";
   try {
     const created = await prisma.$transaction(async (tx) => {
-      // Must be the first statement — see drawer-lock.ts. This is what
-      // makes getCurrentDrawerBalance's read safe against a concurrent
-      // handover or another concurrent withdrawal: both operation types
-      // serialize through this same lock, so neither can read a
-      // pre-mutation balance while the other is mid-write.
+      // Must be the first statement — see drawer-lock.ts. Serializes this
+      // against handovers and other withdrawals, so the available amount
+      // read below can't change before the records are written.
       await acquireDrawerLock(tx);
 
-      let available: number;
-      let fromLabel: string;
-      if (data.fromHandoverId) {
-        const shift = await getShiftEarningsAvailable(data.fromHandoverId, tx);
-        if (!shift) throw new InsufficientFundsError("That shift handover no longer exists.");
-        available = source === WithdrawalSource.GCASH ? shift.gcashAvailable : shift.cashAvailable;
-        fromLabel = `${shift.staffName}'s shift (${shift.endTime.toLocaleDateString("en-PH", { timeZone: "Asia/Manila" })})`;
-      } else {
-        if (source !== WithdrawalSource.CASH) {
-          throw new InsufficientFundsError("GCash can only be withdrawn from a closed shift's earnings.");
-        }
-        const [balance, float] = await Promise.all([getCurrentDrawerBalance(tx), getDrawerStart(tx)]);
-        available = balance - float;
-        fromLabel = "the open shift's drawer";
-      }
+      const available = await getAvailableToWithdraw(tx);
+      const total = source === WithdrawalSource.GCASH ? available.gcash.total : available.cash.total;
 
-      const remainingCash = available - data.amount;
-
-      // Rounded to the nearest centavo before the guard: these totals are a
-      // chain of floating-point money sums (see the identical issue in
-      // Shift Handover's cashStatus check), so a withdrawal of exactly the
-      // available amount could otherwise land a fraction of a centavo below
-      // zero and be falsely rejected as insufficient funds.
-      if (Math.round(remainingCash * 100) / 100 < 0) {
+      // Compared in centavos: a withdrawal of exactly the available amount
+      // must not be rejected over a floating-point fraction.
+      if (Math.round(data.amount * 100) > Math.round(total * 100)) {
         throw new InsufficientFundsError(
-          `Only ₱${Math.max(0, available).toFixed(2)} ${sourceLabel} is available to withdraw from ${fromLabel} (the starting cash stays in the drawer). Cannot withdraw ₱${data.amount.toFixed(2)}.`
+          source === WithdrawalSource.GCASH
+            ? `Only ₱${total.toFixed(2)} GCash is available to withdraw. Cannot withdraw ₱${data.amount.toFixed(2)}.`
+            : `Only ₱${total.toFixed(2)} cash is available to withdraw (the ₱${available.startingCash.toFixed(2)} starting cash stays in the drawer). Cannot withdraw ₱${data.amount.toFixed(2)}.`
         );
       }
 
-      // Open-shift withdrawals stay unclaimed (shiftHandoverId null) and are
-      // swept into whichever Shift Handover reconciles them next. A closed
-      // shift's earnings withdrawal is created already claimed by that
-      // shift, so it never counts against the next open shift's drawer.
-      const withdrawal = await withdrawalRepository.create(
-        {
-          userId,
-          amount: data.amount,
-          reason: data.reason,
-          remainingCash,
-          withdrawalDate: new Date(),
-          source,
-          ...(data.fromHandoverId
-            ? { earningsFromHandoverId: data.fromHandoverId, shiftHandoverId: data.fromHandoverId }
-            : {}),
-        },
-        tx
-      );
+      const remainingAfter = Math.round((total - data.amount) * 100) / 100;
+      const withdrawalDate = new Date();
+      const slices = splitWithdrawal(available, source, data.amount);
+
+      // A slice from a closed shift is created already claimed by that
+      // shift, so it never counts against the next open shift's drawer. An
+      // open-drawer slice stays unclaimed and is swept into the next Shift
+      // Handover like any other drawer activity.
+      const records = [];
+      for (const slice of slices) {
+        records.push(
+          await withdrawalRepository.create(
+            {
+              userId,
+              amount: slice.amount,
+              reason: data.reason,
+              remainingCash: remainingAfter,
+              withdrawalDate,
+              source,
+              ...(slice.handoverId
+                ? { earningsFromHandoverId: slice.handoverId, shiftHandoverId: slice.handoverId }
+                : {}),
+            },
+            tx
+          )
+        );
+      }
 
       await writeAuditLog(tx, {
         userId,
         action: AuditAction.WITHDRAWAL,
         module: "Withdrawal",
-        description: `Withdrew ₱${data.amount.toFixed(2)} ${sourceLabel} from ${fromLabel} — ${data.reason}`,
+        description: `Withdrew ₱${data.amount.toFixed(2)} ${sourceLabel} — ${data.reason}`,
         newValue: {
           amount: data.amount,
           reason: data.reason,
           source,
-          fromHandoverId: data.fromHandoverId ?? null,
-          remainingAvailable: remainingCash,
+          slices: slices.map((s) => ({ fromHandoverId: s.handoverId, amount: s.amount })),
+          remainingAvailable: remainingAfter,
         },
       });
 
-      return withdrawal;
+      return records;
     });
 
     return {
       code: 201,
       status: "success",
       message: "Withdrawal recorded successfully",
-      data: { withdrawal: created },
+      data: { withdrawals: created },
     };
   } catch (error) {
     if (error instanceof InsufficientFundsError) {

@@ -40,6 +40,14 @@ export async function getRestockLogs(): Promise<ActivityLog[]> {
   return result.logs.map((l) => mapLog(l, "restock"));
 }
 
+// Self-service resets via the emailed link (Admin or Staff).
+export async function getPasswordResetLogs(): Promise<ActivityLog[]> {
+  const result = await apiClient.get<BackendAuditLogPage>(
+    `/audit-logs?action=RESET_PASSWORD&pageSize=${MAX_PAGE_SIZE}`
+  );
+  return result.logs.map((l) => mapLog(l, "update"));
+}
+
 export async function getEditedLogs(): Promise<ActivityLog[]> {
   const result = await apiClient.get<BackendAuditLogPage>(
     `/audit-logs?action=UPDATE&pageSize=${MAX_PAGE_SIZE}`

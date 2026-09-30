@@ -43,48 +43,24 @@ export default function AdminDashboardPage() {
     return <p className="text-red-500 p-6">{error || "Unable to load dashboard data."}</p>;
   }
 
-  const salesToday = data.totalCashToday;
-  const net = salesToday - data.expensesToday;
-  const change = salesToday - data.yesterdaySales;
   const { pending, inProgress, ready, claimed } = data.statusCounts;
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         <AdminStatCard
-          label="Sales today"
-          value={peso(salesToday)}
+          label="Total sales today"
+          value={peso(data.totalCashToday)}
           icon={Wallet}
           iconColor="text-green-600 bg-green-100"
           href="/admin/sales"
-          sub={
-            <>
-              {/* Two lines on phones, one line from sm up. */}
-              <span className="block">
-                Cash {peso(data.cashSalesToday, 0)}
-                <span className="hidden sm:inline"> · </span>
-                <br className="sm:hidden" />
-                GCash {peso(data.gcashSalesToday, 0)}
-              </span>
-              <span
-                className={`block ${change > 0 ? "text-green-600" : change < 0 ? "text-red-600" : "text-gray-500"}`}
-              >
-                {change > 0 ? "▲" : change < 0 ? "▼" : "•"} {peso(Math.abs(change), 0)} vs yesterday
-              </span>
-            </>
-          }
         />
         <AdminStatCard
-          label="Expenses today"
+          label="Total expenses today"
           value={peso(data.expensesToday)}
           icon={Receipt}
           iconColor="text-orange-500 bg-orange-100"
           href="/admin/expenses"
-          sub={
-            <span className="block">
-              Net <span className={net < 0 ? "text-red-600" : "text-gray-700"}>{peso(net, 0)}</span>
-            </span>
-          }
         />
         <AdminStatCard
           label="Ready to release"

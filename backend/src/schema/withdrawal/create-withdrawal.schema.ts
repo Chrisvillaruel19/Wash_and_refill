@@ -12,10 +12,8 @@ export const createWithdrawalSchema = z.object({
 
     reason: longTextRule("Reason"),
 
-    // Omitted = cash from the open shift's drawer.
+    // Omitted = cash. Which shifts the amount comes from is decided by the
+    // server, never the client — see splitWithdrawal.
     source: z.enum(WithdrawalSource, { message: "Invalid withdrawal source" }).optional(),
-
-    // Set = withdrawing a closed shift's earnings (that Shift Handover's id).
-    fromHandoverId: z.string().uuid("Invalid shift handover id").optional(),
   }),
 });

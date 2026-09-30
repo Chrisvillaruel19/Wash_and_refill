@@ -37,8 +37,11 @@ function mapShiftHandover(h: BackendShiftHandover): ShiftHandoverRecord {
   // drawerStart + cashSalesTotal - withdrawalTotal - expenseTotal, where
   // cashSalesTotal excludes digital). Reconstructed here with the exact
   // inverse of that same formula — not a re-derivation of business logic,
-  // just algebraically undoing it for display.
-  const cashDrawer = expectedCash - (laundrySales + supplySales + customServiceSales) + withdrawals + expense;
+  // just algebraically undoing it for display. GCash (digitalSales) is part
+  // of the category totals but never entered expectedBalance, so it has to
+  // come back out here — otherwise a GCash shift shows float − GCash.
+  const cashSales = laundrySales + supplySales + customServiceSales - Number(h.digitalSales);
+  const cashDrawer = expectedCash - cashSales + withdrawals + expense;
 
   return {
     id: h.id,

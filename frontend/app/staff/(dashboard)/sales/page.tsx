@@ -12,6 +12,10 @@ import { Order } from "../types";
 
 const PAGE_SIZE = 8;
 
+// Staff see only their own orders and sales here — shop-wide totals are
+// Admin-only (the backend enforces the same for the sales breakdown).
+const getMyOrdersPage = (page: number, pageSize: number) => getOrdersPage(page, pageSize, true);
+
 // Local-time YYYY-MM-DD, matching what <input type="date"> produces —
 // deliberately not toISOString() (UTC) or a locale string (ambiguous format).
 function toDateInputValue(date: Date): string {
@@ -53,7 +57,7 @@ export default function SalesPage() {
   useEffect(() => {
     async function load() {
       try {
-        const ordersData = await getOrders();
+        const ordersData = await getOrders({ mine: true });
         setOrders(ordersData);
       } catch {
         setLoadError("Unable to load sales data. Please try again.");
@@ -98,7 +102,7 @@ export default function SalesPage() {
     totalPages: serverTotalPages,
     items: serverItems,
     loading: serverLoading,
-  } = useServerPage(getOrdersPage, PAGE_SIZE, !isFiltering);
+  } = useServerPage(getMyOrdersPage, PAGE_SIZE, !isFiltering);
 
   const filteredOrders = orders.filter((order) => {
     const matchesFilter =

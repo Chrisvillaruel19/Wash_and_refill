@@ -17,7 +17,7 @@ import {
   cancelOrder,
   markOrderAsPaid,
 } from "../../../lib/services/ordersApi.service";
-import { Order, OrderStatus } from "../types";
+import { Order, OrderStatus, PaymentMethod } from "../types";
 
 const PAGE_SIZE = 6;
 
@@ -134,9 +134,9 @@ export default function ServicePage() {
     runAction(() => cancelOrder(pendingCancelId));
   }
 
-  function confirmMarkPaid() {
+  function confirmMarkPaid(paymentMethod: PaymentMethod) {
     if (!pendingMarkPaidId) return;
-    runAction(() => markOrderAsPaid(pendingMarkPaidId));
+    runAction(() => markOrderAsPaid(pendingMarkPaidId, paymentMethod));
   }
 
   const counts = {

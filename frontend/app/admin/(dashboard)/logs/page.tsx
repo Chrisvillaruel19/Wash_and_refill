@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
-import { getRestockLogs, getEditedLogs } from "../../../lib/services/auditLogApi.service";
+import { getRestockLogs, getEditedLogs, getPasswordResetLogs } from "../../../lib/services/auditLogApi.service";
 import { getExpenses, getExpensesPage } from "../../../lib/services/expensesApi.service";
 import { getWithdrawals, WithdrawalRecord } from "../../../lib/services/withdrawalApi.service";
 import { ActivityLog, ExpenseRecord } from "../../../staff/(dashboard)/types";
@@ -12,7 +12,7 @@ import { useServerPage } from "../../../lib/useServerPage";
 
 const PAGE_SIZE = 8;
 
-type LogTab = "restock" | "expense" | "edited" | "withdrawal";
+type LogTab = "restock" | "expense" | "edited" | "withdrawal" | "password";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString();
@@ -25,6 +25,7 @@ function formatTime(iso: string) {
 export default function AdminLogsPage() {
   const [restockLogsAll, setRestockLogsAll] = useState<ActivityLog[]>([]);
   const [editedLogsAll, setEditedLogsAll] = useState<ActivityLog[]>([]);
+  const [passwordLogsAll, setPasswordLogsAll] = useState<ActivityLog[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>([]);
   const [activeTab, setActiveTab] = useState<LogTab>("restock");
   const [search, setSearch] = useState("");
@@ -34,11 +35,14 @@ export default function AdminLogsPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [restockData, editedData, withdrawalsData] = await Promise.all([
+        const [restockData, editedData, withdrawalsData, passwordData] = await Promise.all([
           getRestockLogs(),
           getEditedLogs(),
           getWithdrawals(),
+          getPasswordResetLogs(),
         ]);
+
+        setPasswordLogsAll(passwordData);
 
         setRestockLogsAll(restockData);
 
@@ -60,13 +64,17 @@ export default function AdminLogsPage() {
   const editedLogs = editedLogsAll.filter((l) =>
     l.message.toLowerCase().includes(search.toLowerCase())
   );
+  const passwordLogs = passwordLogsAll.filter((l) =>
+    l.message.toLowerCase().includes(search.toLowerCase())
+  );
   const filteredWithdrawals = withdrawals.filter(
     (w) =>
       w.adminName.toLowerCase().includes(search.toLowerCase()) ||
       w.reason.toLowerCase().includes(search.toLowerCase())
   );
 
-  const activityList = activeTab === "restock" ? restockLogs : editedLogs;
+  const activityList =
+    activeTab === "restock" ? restockLogs : activeTab === "password" ? passwordLogs : editedLogs;
 
   const {
     page: activityPage,
@@ -159,6 +167,8 @@ export default function AdminLogsPage() {
           ? "Expense Logs"
           : activeTab === "withdrawal"
           ? "Withdrawal Logs"
+          : activeTab === "password"
+          ? "Password Reset Logs"
           : "Edited Logs"}
       </h1>
       <p className="text-gray-500 mb-6">
@@ -208,6 +218,16 @@ export default function AdminLogsPage() {
             }`}
           >
             View Withdrawal Logs
+          </button>
+          <button
+            onClick={() => setActiveTab("password")}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium border ${
+              activeTab === "password"
+                ? "bg-blue-600 text-white border-blue-600"
+                : "text-gray-600 border-gray-300 hover:bg-gray-50"
+            }`}
+          >
+            View Password Resets
           </button>
         </div>
 

@@ -18,9 +18,9 @@ import {
   getWithdrawals,
   getAvailableToWithdraw,
   createWithdrawal,
-  getCurrentDrawerBalance,
   WithdrawalRecord,
 } from "../../../lib/services/withdrawalApi.service";
+import { getAdminDashboard } from "../../../lib/services/dashboard.service";
 import { ApiError } from "../../../lib/apiClient";
 import Pagination from "../../../components/staffcom/Pagination";
 import { useServerPage } from "../../../lib/useServerPage";
@@ -59,9 +59,9 @@ export default function AdminSalesPage() {
   // two cards agree on the same definition instead of silently disagreeing
   // on time scope.
   const [todayAverageOrderValue, setTodayAverageOrderValue] = useState(0);
-  // Sum of what the Cash Withdrawal window offers (open drawer + closed
-  // shifts' remaining cash/GCash, starting cash excluded); null = not loaded.
-  const [availableToWithdraw, setAvailableToWithdraw] = useState<number | null>(null);
+  // The Withdraw window's Cash and GCash totals (starting cash excluded);
+  // the card shows their sum. null = not loaded.
+  const [availableToWithdraw, setAvailableToWithdraw] = useState<{ cash: number; gcash: number } | null>(null);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -102,13 +102,13 @@ export default function AdminSalesPage() {
     async function load() {
       try {
         const today = todayDateInputValue();
-        const [withdrawalsData, currentBalance, todaySales] = await Promise.all([
+        const [withdrawalsData, dashboardData, todaySales] = await Promise.all([
           getWithdrawals(),
-          getCurrentDrawerBalance(),
+          getAdminDashboard(),
           getSalesBreakdown({ dateFrom: today, dateTo: today }),
         ]);
         setWithdrawals(withdrawalsData);
-        setTotalCashToday(currentBalance);
+        setTotalCashToday(dashboardData.totalCashToday);
         setTodayAverageOrderValue(
           todaySales.paidOrderCount > 0 ? todaySales.totalPaidAmount / todaySales.paidOrderCount : 0
         );
@@ -128,11 +128,7 @@ export default function AdminSalesPage() {
 
   function refreshAvailableToWithdraw() {
     getAvailableToWithdraw()
-      .then((a) =>
-        setAvailableToWithdraw(
-          a.openShiftCash + a.shifts.reduce((sum, s) => sum + s.cashAvailable + s.gcashAvailable, 0)
-        )
-      )
+      .then((a) => setAvailableToWithdraw({ cash: a.cash.total, gcash: a.gcash.total }))
       .catch(() => setAvailableToWithdraw(null));
   }
 
@@ -142,9 +138,7 @@ export default function AdminSalesPage() {
     setStartingCashSuccess("");
     try {
       await updateDefaultStartingCash(value);
-      const refreshedBalance = await getCurrentDrawerBalance();
       setDefaultStartingCash(value);
-      setTotalCashToday(refreshedBalance);
       setStartingCashSuccess("Default starting cash updated.");
     } catch (err) {
       setStartingCashError(
@@ -218,7 +212,9 @@ export default function AdminSalesPage() {
           />
           <AdminStatCard
             label="Available to Withdraw"
-            value={availableToWithdraw === null ? "—" : peso(availableToWithdraw)}
+            value={
+              availableToWithdraw === null ? "—" : peso(availableToWithdraw.cash + availableToWithdraw.gcash)
+            }
             sub="Starting cash excluded"
             icon={HandCoins}
             iconColor="text-blue-600 bg-blue-100"
@@ -252,7 +248,7 @@ export default function AdminSalesPage() {
             }}
             className="bg-blue-600 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-blue-700 whitespace-nowrap"
           >
-            Cash Withdrawal
+            Withdraw Earnings
           </button>
         </div>
       </div>
@@ -364,12 +360,13 @@ export default function AdminSalesPage() {
                   <th className="p-3 text-right font-semibold">Laundry</th>
                   <th className="p-3 text-right font-semibold">Supply</th>
                   <th className="p-3 text-right font-semibold">Custom Service</th>
+                  <th className="p-3 text-right font-semibold">Total Sales</th>
                   <th className="p-3 text-right font-semibold">GCash</th>
                   <th className="p-3 text-right font-semibold">Expense</th>
-                  <th className="p-3 text-right font-semibold">Cash Drawer</th>
+                  <th className="p-3 text-right font-semibold">Starting Cash</th>
                   <th className="p-3 text-right font-semibold">Withdrawal</th>
-                  <th className="p-3 text-right font-semibold">Expected</th>
-                  <th className="p-3 text-right font-semibold">Actual Count</th>
+                  <th className="p-3 text-right font-semibold">Expected Cash</th>
+                  <th className="p-3 text-right font-semibold">Cash Counted</th>
                   <th className="p-3 text-right font-semibold">Over / Short</th>
                   <th className="p-3 text-left font-semibold">Notes</th>
                   <th className="p-3 text-center font-semibold">Inventory</th>
@@ -401,6 +398,9 @@ export default function AdminSalesPage() {
                       <td className="p-3 text-right text-gray-900">{peso(h.laundrySales)}</td>
                       <td className="p-3 text-right text-gray-900">{peso(h.supplySales)}</td>
                       <td className="p-3 text-right text-gray-900">{peso(h.customServiceSales ?? 0)}</td>
+                      <td className="p-3 text-right text-gray-900 font-medium">
+                        {peso(h.laundrySales + h.supplySales + (h.customServiceSales ?? 0))}
+                      </td>
                       <td className="p-3 text-right text-gray-900">{peso(h.digitalSales ?? 0)}</td>
                       <td className="p-3 text-right text-gray-900">{peso(h.expense)}</td>
                       <td className="p-3 text-right text-gray-900">{peso(h.cashDrawer)}</td>
@@ -486,7 +486,7 @@ export default function AdminSalesPage() {
                       </span>
                       {w.fromShift
                         ? `${w.fromShift.staffName}'s shift, ${new Date(w.fromShift.endTime).toLocaleDateString()}`
-                        : "Open drawer"}
+                        : "Open shift drawer"}
                     </td>
                     <td className="p-2 text-gray-900">{w.reason}</td>
                   </tr>
@@ -517,11 +517,6 @@ export default function AdminSalesPage() {
           staffName={inventoryModalShift.staffName}
           timestamp={inventoryModalShift.timestamp}
           rows={inventoryModalShift.inventorySnapshot ?? []}
-          totalSales={
-            inventoryModalShift.laundrySales +
-            inventoryModalShift.supplySales +
-            (inventoryModalShift.customServiceSales ?? 0)
-          }
           onClose={() => setInventoryModalShiftId(null)}
         />
       )}

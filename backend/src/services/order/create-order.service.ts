@@ -5,6 +5,7 @@ import { PackageRepository } from "../../repositories/package.repository.js";
 import { LaundryServiceRepository } from "../../repositories/laundry-service.repository.js";
 import { InventoryRepository } from "../../repositories/inventory.repository.js";
 import { AttendanceRepository } from "../../repositories/attendance.repository.js";
+import { ShiftHandoverRepository } from "../../repositories/shift-handover.repository.js";
 import { refreshStockStatus } from "../inventory/stock-status.util.js";
 import { OrderValidationError, InsufficientStockError, NoActiveShiftError } from "./order-errors.js";
 import { OrderStatus, PaymentMethod, PaymentStatus, ServiceType, AuditAction, Role, Prisma } from "../../../generated/prisma/client.js";
@@ -17,6 +18,7 @@ const packageRepository = new PackageRepository();
 const laundryServiceRepository = new LaundryServiceRepository();
 const inventoryRepository = new InventoryRepository();
 const attendanceRepository = new AttendanceRepository();
+const shiftHandoverRepository = new ShiftHandoverRepository();
 
 // Real cash transactions legitimately overpay (customer hands over a bigger
 // bill, expects change) — this is a sanity ceiling against data-entry
@@ -51,6 +53,20 @@ export async function createOrderService(input: {
         if (!activeAttendance) {
           throw new NoActiveShiftError(
             "You must have an active shift (clock in) before creating an order."
+          );
+        }
+
+        // The Shift Handover closes the shift: its inventory ending count
+        // becomes the next shift's beginning, and only one is allowed per
+        // shift. An order created after it would use stock (and possibly
+        // money) that no handover ever records — the next staff member
+        // would inherit the gap as a mismatch they didn't cause.
+        const handedOver =
+          activeAttendance.timeIn &&
+          (await shiftHandoverRepository.existsForUserSince(input.userId, activeAttendance.timeIn, tx));
+        if (handedOver) {
+          throw new NoActiveShiftError(
+            "You already submitted your Shift Handover for this shift. Please clock out — no new orders can be created after the handover."
           );
         }
       }

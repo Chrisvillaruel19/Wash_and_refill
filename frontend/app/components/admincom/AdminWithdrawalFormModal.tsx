@@ -12,8 +12,6 @@ export interface WithdrawalFormData {
   amount: number;
   reason: string;
   source: WithdrawalSource;
-  // Omitted = the open shift's drawer.
-  fromHandoverId?: string;
 }
 
 interface AdminWithdrawalFormModalProps {
@@ -23,59 +21,30 @@ interface AdminWithdrawalFormModalProps {
   submitError?: string;
 }
 
-// One selectable place money can be withdrawn from.
-interface SourceOption {
-  key: string;
-  title: string;
-  detail: string;
-  source: WithdrawalSource;
-  fromHandoverId?: string;
-  available: number;
-}
-
 function peso(n: number) {
   return `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function buildOptions(a: AvailableToWithdraw): SourceOption[] {
-  const options: SourceOption[] = [
-    {
-      key: "open",
-      title: "Open shift — cash drawer",
-      detail: `Starting cash ${peso(a.startingCash)} stays in the drawer`,
-      source: "Cash",
-      available: a.openShiftCash,
-    },
-  ];
-  for (const s of a.shifts) {
-    const when = new Date(s.endTime).toLocaleString([], {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
-    if (s.cashAvailable > 0) {
-      options.push({
-        key: `${s.handoverId}-cash`,
-        title: `${s.staffName}'s shift — Cash`,
-        detail: `Closed ${when} · counted cash minus starting cash`,
-        source: "Cash",
-        fromHandoverId: s.handoverId,
-        available: s.cashAvailable,
-      });
-    }
-    if (s.gcashAvailable > 0) {
-      options.push({
-        key: `${s.handoverId}-gcash`,
-        title: `${s.staffName}'s shift — GCash`,
-        detail: `Closed ${when} · GCash sales`,
-        source: "GCash",
-        fromHandoverId: s.handoverId,
-        available: s.gcashAvailable,
-      });
-    }
-  }
-  return options;
+function closedAt(endTime: string) {
+  const when = new Date(endTime).toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return `Closed ${when}`;
+}
+
+function BreakdownRow({ label, detail, value }: { label: string; detail?: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-1.5">
+      <span className="min-w-0">
+        <span className="block text-sm text-gray-800">{label}</span>
+        {detail && <span className="block text-xs text-gray-500">{detail}</span>}
+      </span>
+      <span className="text-sm font-medium text-gray-900 tabular-nums shrink-0">{value}</span>
+    </div>
+  );
 }
 
 export default function AdminWithdrawalFormModal({
@@ -85,34 +54,38 @@ export default function AdminWithdrawalFormModal({
   submitError,
 }: AdminWithdrawalFormModalProps) {
   useEscapeKey(onCancel);
-  const [options, setOptions] = useState<SourceOption[] | null>(null);
+  const [available, setAvailable] = useState<AvailableToWithdraw | null>(null);
   const [loadError, setLoadError] = useState("");
-  const [selectedKey, setSelectedKey] = useState("");
+  const [source, setSource] = useState<WithdrawalSource>("Cash");
   const [amount, setAmount] = useState(0);
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
     getAvailableToWithdraw()
-      .then((a) => setOptions(buildOptions(a)))
+      .then((a) => {
+        setAvailable(a);
+        // Start on whichever source actually has money.
+        if (a.cash.total <= 0 && a.gcash.total > 0) setSource("GCash");
+      })
       .catch(() => setLoadError("Unable to load available amounts. Close this and try again."));
   }, []);
 
-  const selected = options?.find((o) => o.key === selectedKey);
+  const total = available ? (source === "Cash" ? available.cash.total : available.gcash.total) : 0;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!selected) {
-      setError("Choose where to withdraw from.");
+    if (total <= 0) {
+      setError(`There is no ${source} to withdraw right now.`);
       return;
     }
     if (!amount || amount <= 0) {
       setError("Enter an amount greater than zero.");
       return;
     }
-    if (Math.round(amount * 100) > Math.round(selected.available * 100)) {
-      setError(`Only ${peso(selected.available)} is available from this source.`);
+    if (Math.round(amount * 100) > Math.round(total * 100)) {
+      setError(`Only ${peso(total)} ${source} is available.`);
       return;
     }
     const trimmedReason = reason.trim();
@@ -125,21 +98,25 @@ export default function AdminWithdrawalFormModal({
       return;
     }
 
-    onSave({
-      amount,
-      reason: trimmedReason,
-      source: selected.source,
-      fromHandoverId: selected.fromHandoverId,
-    });
+    onSave({ amount, reason: trimmedReason, source });
   }
+
+  const sourceCards: { key: WithdrawalSource; title: string; hint: string; value: number }[] = available
+    ? [
+        { key: "Cash", title: "Cash", hint: "From the drawer", value: available.cash.total },
+        { key: "GCash", title: "GCash", hint: "From the GCash account", value: available.gcash.total },
+      ]
+    : [];
+
+  const lastShift = available?.cash.lastShift;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl p-5 sm:p-8 w-full max-w-md max-h-[90vh] overflow-y-auto">
-        <h2 className="text-xl font-bold mb-1 text-gray-900">Cash Withdrawal</h2>
+        <h2 className="text-xl font-bold mb-1 text-gray-900">Withdraw Earnings</h2>
         <p className="text-sm text-gray-500 mb-4">
-          Withdraw the open drawer&apos;s cash or a closed shift&apos;s earnings. The starting cash is never
-          included.
+          Take out the shop&apos;s earnings in one go.
+          {available && <> The {peso(available.startingCash)} starting cash always stays in the drawer.</>}
         </p>
 
         {(loadError || error || submitError) && (
@@ -151,44 +128,41 @@ export default function AdminWithdrawalFormModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           <fieldset>
             <legend className="block text-sm text-gray-500 mb-2">Withdraw from</legend>
-            {!options && !loadError && <p className="text-sm text-gray-400">Loading available amounts...</p>}
-            {options && (
-              <div className="space-y-2">
-                {options.map((o) => {
-                  const disabled = o.available <= 0;
-                  const isSelected = o.key === selectedKey;
+            {!available && !loadError && <p className="text-sm text-gray-400">Loading available amounts...</p>}
+            {available && (
+              <div className="grid grid-cols-2 gap-2">
+                {sourceCards.map((c) => {
+                  const isSelected = c.key === source;
                   return (
                     <label
-                      key={o.key}
-                      className={`flex items-start gap-3 rounded-lg border p-3 min-h-[44px] ${
-                        disabled
-                          ? "opacity-50 cursor-not-allowed"
-                          : isSelected
-                            ? "border-blue-500 bg-blue-50 cursor-pointer"
-                            : "border-gray-200 hover:bg-gray-50 cursor-pointer"
+                      key={c.key}
+                      className={`flex flex-col rounded-lg border p-3 cursor-pointer ${
+                        isSelected ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:bg-gray-50"
                       }`}
                     >
-                      <input
-                        type="radio"
-                        name="withdraw-from"
-                        value={o.key}
-                        checked={isSelected}
-                        disabled={disabled}
-                        onChange={() => {
-                          setSelectedKey(o.key);
-                          setError("");
-                        }}
-                        className="mt-1 shrink-0"
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-baseline justify-between gap-2">
-                          <span className="font-medium text-gray-900 text-sm">{o.title}</span>
-                          <span className="font-semibold text-gray-900 text-sm tabular-nums shrink-0">
-                            {peso(o.available)}
-                          </span>
-                        </span>
-                        <span className="block text-xs text-gray-500">{o.detail}</span>
+                      <span className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="withdraw-source"
+                          value={c.key}
+                          checked={isSelected}
+                          onChange={() => {
+                            setSource(c.key);
+                            setAmount(0);
+                            setError("");
+                          }}
+                          className="shrink-0"
+                        />
+                        <span className="text-sm font-medium text-gray-900">{c.title}</span>
                       </span>
+                      <span
+                        className={`mt-1 text-lg font-bold tabular-nums ${
+                          c.value > 0 ? "text-gray-900" : "text-gray-400"
+                        }`}
+                      >
+                        {peso(c.value)}
+                      </span>
+                      <span className="text-xs text-gray-500">{c.value > 0 ? c.hint : "Nothing to withdraw"}</span>
                     </label>
                   );
                 })}
@@ -196,16 +170,75 @@ export default function AdminWithdrawalFormModal({
             )}
           </fieldset>
 
+          {available && (
+            <details className="rounded-lg border border-gray-200 px-3 py-2 text-sm">
+              <summary className="cursor-pointer text-blue-600 font-medium select-none">
+                Show where the {source} comes from
+              </summary>
+              <div className="mt-2 divide-y divide-gray-100">
+                {source === "Cash" ? (
+                  <>
+                    <BreakdownRow
+                      label="Left from the last handover count"
+                      detail={
+                        lastShift
+                          ? lastShift.available < 0
+                            ? `${lastShift.staffName}'s shift · ${closedAt(lastShift.endTime)} · the count was short`
+                            : `${lastShift.staffName}'s shift · ${closedAt(lastShift.endTime)}`
+                          : "No handover yet"
+                      }
+                      value={peso(lastShift?.available ?? 0)}
+                    />
+                    <BreakdownRow
+                      label="Open shift so far"
+                      detail={
+                        available.cash.openShift === 0
+                          ? "No cash sales since the last handover"
+                          : "Cash sales minus expenses and withdrawals"
+                      }
+                      value={peso(available.cash.openShift)}
+                    />
+                    <BreakdownRow
+                      label="Starting cash"
+                      detail="Stays in the drawer — not withdrawable"
+                      value={peso(available.startingCash)}
+                    />
+                  </>
+                ) : available.gcash.shifts.length > 0 ? (
+                  available.gcash.shifts.map((s) => (
+                    <BreakdownRow
+                      key={s.handoverId}
+                      label={`${s.staffName}'s shift`}
+                      detail={closedAt(s.endTime)}
+                      value={peso(s.available)}
+                    />
+                  ))
+                ) : (
+                  <p className="py-1.5 text-gray-500">No GCash left to withdraw.</p>
+                )}
+                <p className="pt-2 text-xs text-gray-500">
+                  {source === "Cash"
+                    ? "Taken from the last handover's leftover first, then from the open shift."
+                    : "Taken from the oldest shift first."}{" "}
+                  Each shift is recorded separately in the history.
+                </p>
+              </div>
+            </details>
+          )}
+
           <div>
             <div className="flex items-baseline justify-between mb-1">
               <label htmlFor="withdrawal-amount" className="block text-sm text-gray-500">Amount</label>
-              {selected && selected.available > 0 && (
+              {total > 0 && (
                 <button
                   type="button"
-                  onClick={() => setAmount(selected.available)}
+                  onClick={() => {
+                    setAmount(total);
+                    setError("");
+                  }}
                   className="text-xs font-medium text-blue-600 hover:underline min-h-[32px] px-1"
                 >
-                  Use full {peso(selected.available)}
+                  Withdraw all {peso(total)}
                 </button>
               )}
             </div>
@@ -216,8 +249,9 @@ export default function AdminWithdrawalFormModal({
               step="0.01"
               placeholder="0.00"
               value={amount || ""}
+              disabled={total <= 0}
               onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
-              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
+              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900 disabled:bg-gray-50"
             />
           </div>
 
@@ -244,7 +278,7 @@ export default function AdminWithdrawalFormModal({
             </button>
             <button
               type="submit"
-              disabled={submitting || !options}
+              disabled={submitting || !available || total <= 0}
               className="px-5 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
             >
               {submitting ? "Withdrawing..." : "Withdraw"}

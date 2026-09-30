@@ -11,6 +11,7 @@ import {
   getMyClaimedTodayService,
 } from "../services/order/index.js";
 import { JwtPayload } from "../lib/jwt.js";
+import { Role } from "../../generated/prisma/client.js";
 
 type AuthenticatedRequest = Request & { user?: JwtPayload };
 
@@ -47,7 +48,9 @@ export class OrderController {
     try {
       const page = Number(req.query.page) || 1;
       const pageSize = Math.min(Number(req.query.pageSize) || 20, 100);
-      const result = await listOrdersService({ page, pageSize });
+      const userId = req.query.mine === "true" ? (req as AuthenticatedRequest).user?.sub : undefined;
+      const includeItems = req.query.includeItems === "true";
+      const result = await listOrdersService({ page, pageSize, userId, includeItems });
       return res.status(result.code).json(result);
     } catch (error) {
       console.error("OrderController.list error", error);
@@ -85,7 +88,11 @@ export class OrderController {
         dateFrom?: string;
         dateTo?: string;
       };
-      const result = await getSalesBreakdownService({ shiftHandoverId, dateFrom, dateTo });
+      // Server-enforced: Staff only ever get their own sales totals — the
+      // shop-wide figures are Admin-only.
+      const user = (req as AuthenticatedRequest).user;
+      const userId = user?.role === Role.ADMIN ? undefined : user?.sub;
+      const result = await getSalesBreakdownService({ shiftHandoverId, dateFrom, dateTo, userId });
       return res.status(result.code).json(result);
     } catch (error) {
       console.error("OrderController.getSalesBreakdown error", error);
@@ -152,7 +159,8 @@ export class OrderController {
       const authReq = req as AuthenticatedRequest;
       const userId = authReq.user?.sub as string;
       const id = req.params.id as string;
-      const result = await markOrderPaidService(userId, id, authReq.user?.role);
+      const { paymentMethod } = req.body;
+      const result = await markOrderPaidService(userId, id, paymentMethod, authReq.user?.role);
       return res.status(result.code).json(result);
     } catch (error) {
       console.error("OrderController.markAsPaid error", error);

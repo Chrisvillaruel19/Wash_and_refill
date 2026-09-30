@@ -1,3 +1,5 @@
+import CardHeader from "../../admincom/dashboard/CardHeader";
+import { peso } from "../../admincom/dashboard/format";
 import { Order } from "../../../staff/(dashboard)/types";
 
 // Deliberately no filter tabs or search — unlike OrdersTable, this data is
@@ -10,44 +12,43 @@ interface MyClaimedTodayCardProps {
 }
 
 export default function MyClaimedTodayCard({ orders }: MyClaimedTodayCardProps) {
+  const total = orders.reduce((sum, order) => sum + order.amount, 0);
+
   return (
-    <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 mb-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-bold text-gray-900">My Claimed Orders Today</h2>
-        <span className="text-xs text-gray-400">{orders.length} claimed</span>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm text-left">
-          <thead>
-            <tr className="text-gray-500 border-b">
-              <th className="pb-3 pr-4">Customer</th>
-              <th className="pb-3 pr-4">Contact</th>
-              <th className="pb-3 pr-4">Time</th>
-              <th className="pb-3 pr-4">Amount</th>
-              <th className="pb-3">pay_status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {orders.length > 0 ? (
-              orders.map((order) => (
-                <tr key={order.id} className="border-b last:border-0">
-                  <td className="py-3 pr-4 text-gray-900">{order.customer}</td>
-                  <td className="py-3 pr-4 text-gray-900">{order.contact}</td>
-                  <td className="py-3 pr-4 text-gray-900">{order.time}</td>
-                  <td className="py-3 pr-4 text-gray-900">₱{order.amount.toFixed(2)}</td>
-                  <td className="py-3 text-gray-900">{order.payStatus}</td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={5} className="p-8 text-center text-gray-400">
-                  No claimed orders yet today.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+    <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 h-full">
+      <CardHeader title="My claimed orders today" />
+      <p className="text-sm text-gray-500 mb-4">
+        <span className="font-semibold text-gray-900">{orders.length}</span> released
+        {orders.length > 0 && (
+          <>
+            {" · "}
+            <span className="font-semibold text-gray-900 tabular-nums">{peso(total)}</span>
+          </>
+        )}
+      </p>
+
+      {orders.length > 0 ? (
+        <ul className="divide-y divide-gray-100">
+          {orders.map((order) => (
+            <li key={order.id} className="flex items-center justify-between gap-3 py-2.5">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">{order.customer}</p>
+                <p className="text-xs text-gray-500 truncate">
+                  {order.contact} · {order.time}
+                </p>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-sm font-semibold text-gray-900 tabular-nums">{peso(order.amount)}</p>
+                <p className={`text-xs ${order.payStatus === "Paid" ? "text-green-600" : "text-red-500"}`}>
+                  {order.payStatus === "Paid" ? "Paid" : "Unpaid"}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-gray-400 text-sm py-6 text-center">No claimed orders yet today.</p>
+      )}
     </div>
   );
 }

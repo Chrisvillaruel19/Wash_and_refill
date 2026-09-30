@@ -1,10 +1,12 @@
 import { prisma } from "../../lib/prisma.js";
 import { Prisma, OrderStatus, Role } from "../../../generated/prisma/client.js";
 import { AttendanceRepository } from "../../repositories/attendance.repository.js";
+import { ShiftHandoverRepository } from "../../repositories/shift-handover.repository.js";
 
 type PrismaClientOrTx = typeof prisma | Prisma.TransactionClient;
 
 const attendanceRepository = new AttendanceRepository();
+const shiftHandoverRepository = new ShiftHandoverRepository();
 
 // Strict, sequential, forward-only — no skipping steps, no going backward.
 // CANCELLED is intentionally not reachable through this map at all; it has
@@ -57,5 +59,13 @@ export async function canModifyOrder(
   if (orderOwnerUserId === actorUserId) return true;
 
   const creatorActiveAttendance = await attendanceRepository.findActiveForUser(orderOwnerUserId, tx);
-  return creatorActiveAttendance === null;
+  if (creatorActiveAttendance === null) return true;
+
+  // Still clocked in, but already submitted their Shift Handover for this
+  // shift — the shift is closed and its leftover orders are turned over to
+  // the next shift, even before the outgoing Staff member clocks out.
+  return (
+    creatorActiveAttendance.timeIn !== null &&
+    (await shiftHandoverRepository.existsForUserSince(orderOwnerUserId, creatorActiveAttendance.timeIn, tx))
+  );
 }

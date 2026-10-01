@@ -4,7 +4,6 @@ import {
   clockOutService,
   listAttendanceService,
   getActiveAttendanceService,
-  forceClockOutService,
 } from "../services/attendance/index.js";
 import { JwtPayload } from "../lib/jwt.js";
 
@@ -41,23 +40,6 @@ export class AttendanceController {
         code: 500,
         status: "error",
         message: "Unable to clock out",
-      });
-    }
-  };
-
-  public forceClockOut = async (req: Request, res: Response) => {
-    try {
-      const authReq = req as AuthenticatedRequest;
-      const adminId = authReq.user?.sub as string;
-      const id = req.params.id as string;
-      const result = await forceClockOutService(adminId, id);
-      return res.status(result.code).json(result);
-    } catch (error) {
-      console.error("AttendanceController.forceClockOut error", error);
-      return res.status(500).json({
-        code: 500,
-        status: "error",
-        message: "Unable to force clock out",
       });
     }
   };

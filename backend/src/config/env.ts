@@ -42,12 +42,16 @@ const IS_PRODUCTION = process.env.NODE_ENV === "production";
 if (IS_PRODUCTION) {
   const productionIssues: string[] = [];
   if (!process.env.FRONTEND_URL) productionIssues.push("FRONTEND_URL is required in production");
-  // One email transport must be configured: Gmail (Nodemailer) or Resend.
+  // One email transport must be configured: Brevo, Gmail (Nodemailer) or Resend.
   const hasGmail = Boolean(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD);
+  const hasApiKey = Boolean(process.env.BREVO_API_KEY || process.env.RESEND_API_KEY);
+  if (process.env.BREVO_API_KEY && !process.env.EMAIL_FROM) {
+    productionIssues.push("EMAIL_FROM (a Brevo-verified sender) is required when BREVO_API_KEY is set");
+  }
   if (!hasGmail && !process.env.EMAIL_FROM) productionIssues.push("EMAIL_FROM is required in production");
-  if (!hasGmail && !process.env.RESEND_API_KEY) {
+  if (!hasGmail && !hasApiKey) {
     productionIssues.push(
-      "GMAIL_USER + GMAIL_APP_PASSWORD, or RESEND_API_KEY, is required in production (password reset would otherwise silently fail to send)"
+      "BREVO_API_KEY, GMAIL_USER + GMAIL_APP_PASSWORD, or RESEND_API_KEY is required in production (password reset would otherwise silently fail to send)"
     );
   }
   if (productionIssues.length > 0) {
@@ -82,6 +86,10 @@ export const ENV = {
     // without a real API key. (Unreachable in production — enforced above.)
     // Backend-only: never exposed to the frontend, never NEXT_PUBLIC_*.
     RESEND_API_KEY: process.env.RESEND_API_KEY,
+    // Brevo's HTTPS API — takes priority over Gmail and Resend. Free tier,
+    // no domain needed (EMAIL_FROM just has to be a verified Brevo sender),
+    // and works on hosts that block SMTP (Render). Backend-only.
+    BREVO_API_KEY: process.env.BREVO_API_KEY,
     // Gmail via Nodemailer (SMTP) — takes priority over Resend when both
     // are set. GMAIL_APP_PASSWORD is a 16-character Google App Password,
     // never the account's real password. Backend-only.

@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma.js";
-import { Prisma, AttendanceStatus } from "../../generated/prisma/client.js";
+import { Prisma, AttendanceStatus, Role } from "../../generated/prisma/client.js";
 
 type PrismaClientOrTx = typeof prisma | Prisma.TransactionClient;
 
@@ -38,10 +38,26 @@ export class AttendanceRepository {
     });
   }
 
+  // One Attendance row per user per business date (@@unique([userId, date])).
+  async findForUserOnDate(userId: string, date: Date, tx: PrismaClientOrTx = prisma) {
+    return tx.attendance.findUnique({ where: { userId_date: { userId, date } } });
+  }
+
   async findActiveForUser(userId: string, tx: PrismaClientOrTx = prisma) {
     return tx.attendance.findFirst({
       where: { userId, timeOut: null },
       orderBy: { date: "desc" },
+    });
+  }
+
+  // Clock-in handoff gate: another Staff member's session that is still
+  // open (never clocked out). Admin sessions don't count — only Staff hold
+  // the shop's single shift.
+  async findOpenStaffSessionForOtherUser(userId: string, tx: PrismaClientOrTx = prisma) {
+    return tx.attendance.findFirst({
+      where: { timeOut: null, userId: { not: userId }, user: { role: Role.STAFF } },
+      include: { user: { select: { id: true, name: true } } },
+      orderBy: { timeIn: "asc" },
     });
   }
 

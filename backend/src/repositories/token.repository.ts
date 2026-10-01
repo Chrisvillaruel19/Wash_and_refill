@@ -31,6 +31,17 @@ export class TokenRepository {
     });
   }
 
+  // Forgot Password cooldown: the most recently issued reset token for this
+  // user (expiresAt is always issue time + a fixed lifetime, so the latest
+  // expiresAt is the latest issue).
+  async findLatestResetTokenForUser(userId: string, tx: PrismaClientOrTx = prisma) {
+    return tx.token.findFirst({
+      where: { userId, type: TokenType.RESET_PASSWORD },
+      orderBy: { expiresAt: "desc" },
+      select: { expiresAt: true },
+    });
+  }
+
   async createResetToken(
     params: {
       userId: string;

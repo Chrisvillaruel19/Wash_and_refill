@@ -111,6 +111,12 @@ export class UserRepository {
     return tx.user.findUnique({ where: { id }, select: employeeSelect });
   }
 
+  // Employee archive gate: an account with no recorded activity yet counts
+  // as active since the day it was created.
+  async findCreatedAt(id: string, tx: PrismaClientOrTx = prisma) {
+    return tx.user.findUnique({ where: { id }, select: { createdAt: true } });
+  }
+
   async updateEmployee(
     id: string,
     data: Partial<{

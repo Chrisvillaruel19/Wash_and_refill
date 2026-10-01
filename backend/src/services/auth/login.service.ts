@@ -1,5 +1,8 @@
 import { UserRepository } from "../../repositories/user.repository.js";
 import { TokenRepository } from "../../repositories/token.repository.js";
+import { AttendanceRepository } from "../../repositories/attendance.repository.js";
+import { sweepStaleAttendance } from "../attendance/auto-close.util.js";
+import { Role } from "../../../generated/prisma/client.js";
 import { verifyPassword } from "../../utils/password.js";
 import { 
   signAccessToken, 
@@ -9,6 +12,7 @@ import {
 
 const userRepository = new UserRepository();
 const tokenRepository = new TokenRepository();
+const attendanceRepository = new AttendanceRepository();
 
 // A syntactically valid (but unusable — no real user has this salt/hash)
 // PBKDF2 record, used only to make the "unknown username" path pay the same
@@ -54,6 +58,25 @@ export async function LoginService(
         status: "error",
         message: "Account is not active"
       };
+    }
+
+
+    // Handoff rule, enforced at the door: a Staff member can't log in while
+    // another Staff member's shift is still open (not clocked out). Checked
+    // only after the password is verified, so it never reveals who's on
+    // duty to someone without valid credentials. Admin is never blocked.
+    // clockInService re-checks the same rule under a lock, covering two
+    // Staff logging in at the same moment.
+    if (user.role === Role.STAFF) {
+      await sweepStaleAttendance();
+      const onDuty = await attendanceRepository.findOpenStaffSessionForOtherUser(user.id);
+      if (onDuty) {
+        return {
+          code: 409,
+          status: "error",
+          message: `${onDuty.user.name} is currently on duty and has not clocked out yet. You can log in once they clock out.`
+        };
+      }
     }
 
 

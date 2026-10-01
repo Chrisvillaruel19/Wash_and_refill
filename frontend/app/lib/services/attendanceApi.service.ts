@@ -71,3 +71,9 @@ export async function clockIn(): Promise<void> {
 export async function clockOut(id: string): Promise<void> {
   await apiClient.post(`/attendance/${id}/clock-out`);
 }
+
+// Admin only — closes a Staff member's stuck open shift so the next Staff
+// member can clock in.
+export async function forceClockOut(id: string): Promise<void> {
+  await apiClient.post(`/attendance/${id}/force-clock-out`);
+}

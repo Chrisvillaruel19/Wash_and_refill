@@ -2,12 +2,18 @@ import crypto from "crypto";
 
 import { UserRepository } from "../../repositories/user.repository.js";
 import { TokenRepository } from "../../repositories/token.repository.js";
-import { sendMail } from "../../lib/mailer.js";
+import { sendMail, isMailRateLimitError } from "../../lib/mailer.js";
 import { ENV } from "../../config/env.js";
 import { AccountStatus } from "../../../generated/prisma/client.js";
 
 const userRepository = new UserRepository();
 const tokenRepository = new TokenRepository();
+
+const RESET_TOKEN_LIFETIME_MS = 15 * 60 * 1000;
+// At most one reset email per account per this window. Double-clicks and
+// impatient retries were each sending a real email through Gmail, which
+// both spams the inbox and runs into Gmail's own sending limits.
+const RESEND_COOLDOWN_MS = 60 * 1000;
 
 // Same response regardless of whether the email exists or which role it
 // belongs to, so this endpoint can't be used to enumerate accounts.
@@ -34,15 +40,22 @@ export async function forgotPasswordService(email: string) {
       return GENERIC_SUCCESS;
     }
 
+    // Within the cooldown, answer exactly as if a new email went out — the
+    // one just sent is still on its way. Deliberately the same generic
+    // response (not a "please wait" error), so the cooldown can't be used
+    // to learn which emails have accounts.
+    const latest = await tokenRepository.findLatestResetTokenForUser(user.id);
+    if (latest && latest.expiresAt.getTime() - RESET_TOKEN_LIFETIME_MS > Date.now() - RESEND_COOLDOWN_MS) {
+      return GENERIC_SUCCESS;
+    }
+
     const resetToken = crypto.randomBytes(32).toString("hex");
 
 
     await tokenRepository.createResetToken({
       userId: user.id,
       token: resetToken,
-      expiresAt: new Date(
-        Date.now() + 15 * 60 * 1000
-      ),
+      expiresAt: new Date(Date.now() + RESET_TOKEN_LIFETIME_MS),
     });
 
     // The token is only ever sent via email, never returned in the API
@@ -63,6 +76,14 @@ export async function forgotPasswordService(email: string) {
   } catch(error) {
 
     console.error("ForgotPasswordService error:", error);
+
+    if (isMailRateLimitError(error)) {
+      return {
+        code: 429,
+        status: "error",
+        message: "Too many reset emails were sent recently. Please wait a few minutes and try again."
+      };
+    }
 
 
     return {

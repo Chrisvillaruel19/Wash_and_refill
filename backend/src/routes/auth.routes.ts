@@ -4,7 +4,7 @@ import { AuthController } from "../controllers/auth.controller.js";
 import { validateSchema } from "../middlewares/validate-schema.js";
 import { AuthMiddleware } from "../middlewares/auth-middleware.js";
 import { requireRole } from "../middlewares/require-role.js";
-import { restockLimiter } from "../middlewares/rate-limiters.js";
+import { restockLimiter, forgotPasswordLimiter } from "../middlewares/rate-limiters.js";
 import { Role } from "../../generated/prisma/client.js";
 
 const router = Router();
@@ -31,6 +31,7 @@ router.post(
 
 router.post(
   "/forgot-password",
+  forgotPasswordLimiter,
   validateSchema(forgotPasswordSchema),
   authController.forgotPassword
 );

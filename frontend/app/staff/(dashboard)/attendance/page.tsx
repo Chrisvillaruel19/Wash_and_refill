@@ -70,8 +70,9 @@ export default function Attendance() {
     setActionError("");
     // Captured once, before either call — clockIn() and clockOut() can both
     // return a 409, but only clockOut()'s can mean Shift-Handover-required/
-    // unreported-activity. clockIn()'s own 409 ("Already clocked in today")
-    // means something else entirely and must never be shown as either modal.
+    // unreported-activity. clockIn()'s own 409s (already clocked in, or
+    // another Staff member still on duty) mean something else entirely and
+    // must never be shown as either modal.
     const isClockingOut = Boolean(activeRecord);
     try {
       if (activeRecord) {
@@ -87,9 +88,9 @@ export default function Attendance() {
       // all, then whether unreported orders/expenses remain since the last
       // one (money math, not a UX nicety — blocking outright, no "proceed
       // anyway" option). Distinguished by message text, same as Sidebar.tsx.
-      // clockIn() never triggers either gate — its only 409 is "Already
-      // clocked in today" (e.g. a same-day re-login after already logging
-      // out), which is just a plain error, not a Shift Handover requirement.
+      // clockIn() never triggers either gate — its 409s ("Already clocked in
+      // today", or the previous Staff member hasn't clocked out yet) are
+      // plain errors, not a Shift Handover requirement.
       if (isClockingOut && err instanceof ApiError && err.status === 409 && /unreported/i.test(err.message)) {
         setUnreportedModal(true);
       } else if (isClockingOut && err instanceof ApiError && err.status === 409) {

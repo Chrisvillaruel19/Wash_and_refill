@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { CalendarCheck, CalendarX, Clock, AlarmClock, Search } from "lucide-react";
 import AdminStatCard from "../../../components/admincom/AdminStatCard";
-import { getAttendanceRecords } from "../../../lib/services/attendanceApi.service";
+import { getAttendanceRecords, forceClockOut } from "../../../lib/services/attendanceApi.service";
 import { AttendanceRecord } from "../../../staff/(dashboard)/types";
+import ConfirmForceClockOutModal from "../../../components/admincom/ConfirmForceClockOutModal";
+import { ApiError } from "../../../lib/apiClient";
 import Pagination from "../../../components/staffcom/Pagination";
 import AttendanceStatusBadge from "../../../components/staffcom/AttendanceStatusBadge";
 import { usePagination } from "../../../lib/usePagination";
@@ -21,6 +23,24 @@ export default function AdminAttendancePage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [forceTarget, setForceTarget] = useState<AttendanceRecord | null>(null);
+  const [forceSubmitting, setForceSubmitting] = useState(false);
+  const [forceError, setForceError] = useState("");
+
+  async function handleForceClockOut() {
+    if (!forceTarget || forceSubmitting) return;
+    setForceSubmitting(true);
+    setForceError("");
+    try {
+      await forceClockOut(forceTarget.id);
+      setRecords(await getAttendanceRecords());
+      setForceTarget(null);
+    } catch (err) {
+      setForceError(err instanceof ApiError ? err.message : "Unable to clock out. Please try again.");
+    } finally {
+      setForceSubmitting(false);
+    }
+  }
 
   useEffect(() => {
     async function load() {
@@ -127,6 +147,7 @@ export default function AdminAttendancePage() {
                 <th className="p-3 whitespace-nowrap">Time out</th>
                 <th className="p-3 whitespace-nowrap">Total Hours</th>
                 <th className="p-3 whitespace-nowrap">Status</th>
+                <th className="p-3 whitespace-nowrap">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -148,11 +169,26 @@ export default function AdminAttendancePage() {
                         </span>
                       )}
                     </td>
+                    <td className="p-3 whitespace-nowrap">
+                      {r.status !== "Absent" && r.timeIn && !r.timeOut ? (
+                        <button
+                          onClick={() => {
+                            setForceError("");
+                            setForceTarget(r);
+                          }}
+                          className="px-3 py-1 rounded-lg border border-red-400 text-red-500 text-xs font-medium hover:bg-red-50"
+                        >
+                          Force clock out
+                        </button>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-gray-400">
+                  <td colSpan={7} className="p-8 text-center text-gray-400">
                     No attendance records yet.
                   </td>
                 </tr>
@@ -162,6 +198,16 @@ export default function AdminAttendancePage() {
         </div>
       </div>
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+
+      {forceTarget && (
+        <ConfirmForceClockOutModal
+          staffName={forceTarget.staffName}
+          onConfirm={handleForceClockOut}
+          onCancel={() => setForceTarget(null)}
+          submitting={forceSubmitting}
+          error={forceError}
+        />
+      )}
     </div>
   );
 }

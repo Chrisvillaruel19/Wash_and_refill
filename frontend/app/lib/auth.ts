@@ -53,6 +53,10 @@ export async function login(username: string, password: string): Promise<StaffUs
 
     return user;
   } catch (error) {
+    // 409 = a business refusal with its own message (another Staff member
+    // is still on duty) — rethrown so the login page can show it verbatim
+    // instead of "Invalid username or password".
+    if (error instanceof ApiError && error.status === 409) throw error;
     if (error instanceof ApiError) return null;
     throw error;
   }

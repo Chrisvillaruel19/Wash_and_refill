@@ -1,3 +1,4 @@
+import dns from "node:dns/promises";
 import nodemailer from "nodemailer";
 import { ENV } from "../config/env.js";
 
@@ -9,18 +10,45 @@ const RESEND_API_URL = "https://api.resend.com/emails";
 // at 10s so a user is never left waiting minutes on a loading spinner.
 const SEND_TIMEOUT_MS = 10_000;
 
-// Created once, on first use — only when Gmail is configured.
-let gmailTransport: ReturnType<typeof nodemailer.createTransport> | null = null;
+const GMAIL_SMTP_HOST = "smtp.gmail.com";
 
-function getGmailTransport() {
-  gmailTransport ??= nodemailer.createTransport({
-    service: "gmail",
-    auth: { user: ENV.GMAIL_USER, pass: ENV.GMAIL_APP_PASSWORD },
-    connectionTimeout: SEND_TIMEOUT_MS,
-    greetingTimeout: SEND_TIMEOUT_MS,
-    socketTimeout: SEND_TIMEOUT_MS,
-  });
-  return gmailTransport;
+// Reused while Gmail's IPv4 address stays the same.
+let gmailTransport: { address: string; transport: ReturnType<typeof nodemailer.createTransport> } | null = null;
+
+// Always connects over IPv4. Nodemailer picks a random address from BOTH
+// smtp.gmail.com's IPv4 and IPv6 records; on networks that advertise IPv6
+// but can't actually route it (verified on the shop's own network: IPv6
+// connections to Gmail hang until timeout, IPv4 connects in ~60ms), each
+// IPv6 pick burned a full SEND_TIMEOUT_MS before falling back — sends took
+// 20s+ or failed outright, which surfaced as "We couldn't send the reset
+// email right now" on nearly every Forgot Password attempt. TLS still
+// verifies the certificate against the real hostname via servername.
+async function getGmailTransport() {
+  const { address } = await dns.lookup(GMAIL_SMTP_HOST, { family: 4 });
+  if (gmailTransport?.address !== address) {
+    gmailTransport = {
+      address,
+      transport: nodemailer.createTransport({
+        host: address,
+        port: 465,
+        secure: true,
+        tls: { servername: GMAIL_SMTP_HOST },
+        auth: { user: ENV.GMAIL_USER, pass: ENV.GMAIL_APP_PASSWORD },
+        connectionTimeout: SEND_TIMEOUT_MS,
+        greetingTimeout: SEND_TIMEOUT_MS,
+        socketTimeout: SEND_TIMEOUT_MS,
+      }),
+    };
+  }
+  return gmailTransport.transport;
+}
+
+// Gmail's own sending limits ("try again later" / daily quota) — reported
+// as SMTP 421/454, or 550 with enhanced status 5.4.5.
+export function isMailRateLimitError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const { responseCode, response } = error as { responseCode?: number; response?: string };
+  return responseCode === 421 || responseCode === 454 || (typeof response === "string" && response.includes("5.4.5"));
 }
 
 // Picks the transport in this order:
@@ -34,7 +62,8 @@ function getGmailTransport() {
 export async function sendMail(to: string, subject: string, html: string): Promise<void> {
   if (ENV.GMAIL_USER && ENV.GMAIL_APP_PASSWORD) {
     // Gmail rewrites any other From address to the account itself anyway.
-    await getGmailTransport().sendMail({
+    const transport = await getGmailTransport();
+    await transport.sendMail({
       from: `"Wash & Refill Laundry" <${ENV.GMAIL_USER}>`,
       to,
       subject,

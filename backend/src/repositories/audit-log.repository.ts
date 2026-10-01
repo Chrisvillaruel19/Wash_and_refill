@@ -24,6 +24,16 @@ export class AuditLogRepository {
   // be kept out of the modules that carry genuinely sensitive data (Employee
   // PII, Withdrawal cash figures) — everything else stays visible, since
   // Staff can already see that data through its own read endpoints anyway.
+  // Employee archive gate: the most recent thing this user did anywhere in
+  // the system (clock-in, order, expense, handover, admin action, …).
+  async findLatestForUser(userId: string, tx: PrismaClientOrTx = prisma) {
+    return tx.auditLog.findFirst({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
+    });
+  }
+
   async findRecent(limit: number, excludeModules: string[] = [], tx: PrismaClientOrTx = prisma) {
     return tx.auditLog.findMany({
       where: excludeModules.length > 0 ? { module: { notIn: excludeModules } } : undefined,

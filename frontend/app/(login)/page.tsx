@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { login } from "../lib/auth";
+import { ApiError } from "../lib/apiClient";
 
 export default function Home() {
   const router = useRouter();
@@ -43,8 +44,14 @@ export default function Home() {
       } else {
         router.push("/staff");
       }
-    } catch {
-      setError("Unable to sign in right now. Please try again.");
+    } catch (err) {
+      // 409: another Staff member is still on duty — the backend's message
+      // names them, so it's shown as-is.
+      if (err instanceof ApiError && err.status === 409) {
+        setError(err.message);
+      } else {
+        setError("Unable to sign in right now. Please try again.");
+      }
     } finally {
       isSubmittingRef.current = false;
       setIsSubmitting(false);

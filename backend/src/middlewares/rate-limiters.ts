@@ -16,6 +16,22 @@ export const restockLimiter = rateLimit({
   message: { code: 429, status: "error", message: "Too many requests, please try again later." },
 });
 
+// Forgot Password sends a real email on every accepted request — capped per
+// client so repeated submissions can't flood inboxes or trip Gmail's own
+// sending limits. Generous for a real person (5 tries per 15 minutes);
+// forgot-password.service.ts also enforces a per-account 60s cooldown.
+export const forgotPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    code: 429,
+    status: "error",
+    message: "Too many password reset requests. Please wait 15 minutes and try again.",
+  },
+});
+
 // Money-affecting create endpoints (Orders, Expenses, Withdrawals) had no
 // throttle at all beyond requiring a valid auth token — a compromised or
 // careless Staff session (or a stray script hitting these in a loop) could

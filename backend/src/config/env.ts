@@ -31,6 +31,23 @@ if (!parsedEnv.success) {
 
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
+// The Gmail API transport needs all four of these together. Setting any of
+// its OAuth values (GMAIL_USER alone is also used by Gmail SMTP) means the
+// Gmail API is intended — but if one is missing, mailer.ts would quietly
+// skip it and fall through to Gmail SMTP, which hosts like Render block, so
+// password reset fails with only a vague error. Name what's missing instead.
+const GMAIL_API_VARS = ["GMAIL_USER", "GMAIL_CLIENT_ID", "GMAIL_CLIENT_SECRET", "GMAIL_REFRESH_TOKEN"] as const;
+const gmailApiStarted = Boolean(
+  process.env.GMAIL_CLIENT_ID || process.env.GMAIL_CLIENT_SECRET || process.env.GMAIL_REFRESH_TOKEN
+);
+const missingGmailApiVars = gmailApiStarted ? GMAIL_API_VARS.filter((name) => !process.env[name]) : [];
+if (missingGmailApiVars.length > 0 && !IS_PRODUCTION) {
+  // Local dev keeps working on the next configured transport (e.g. Gmail SMTP).
+  console.warn(
+    `Gmail API is partially configured (missing: ${missingGmailApiVars.join(", ")}) — using the next configured email transport instead.`
+  );
+}
+
 // FRONTEND_URL/EMAIL_FROM/RESEND_API_KEY are optional in development (safe,
 // self-documenting fallbacks — see below), but silently falling back to
 // them in a real production deployment would mean: CORS configured for
@@ -42,6 +59,11 @@ const IS_PRODUCTION = process.env.NODE_ENV === "production";
 if (IS_PRODUCTION) {
   const productionIssues: string[] = [];
   if (!process.env.FRONTEND_URL) productionIssues.push("FRONTEND_URL is required in production");
+  if (missingGmailApiVars.length > 0) {
+    productionIssues.push(
+      `Gmail API is partially configured — missing: ${missingGmailApiVars.join(", ")} (set all four, or remove the Gmail API ones to use another transport)`
+    );
+  }
   // One email transport must be configured: Gmail API, Mailjet, Brevo, Gmail (Nodemailer) or Resend.
   const hasGmailApi = Boolean(
     process.env.GMAIL_USER &&

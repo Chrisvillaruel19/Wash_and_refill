@@ -31,6 +31,23 @@ if (!parsedEnv.success) {
 
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
+// The Gmail API transport needs all four of these together. Setting any of
+// its OAuth values (GMAIL_USER alone is also used by Gmail SMTP) means the
+// Gmail API is intended — but if one is missing, mailer.ts would quietly
+// skip it and fall through to Gmail SMTP, which hosts like Render block, so
+// password reset fails with only a vague error. Name what's missing instead.
+const GMAIL_API_VARS = ["GMAIL_USER", "GMAIL_CLIENT_ID", "GMAIL_CLIENT_SECRET", "GMAIL_REFRESH_TOKEN"] as const;
+const gmailApiStarted = Boolean(
+  process.env.GMAIL_CLIENT_ID || process.env.GMAIL_CLIENT_SECRET || process.env.GMAIL_REFRESH_TOKEN
+);
+const missingGmailApiVars = gmailApiStarted ? GMAIL_API_VARS.filter((name) => !process.env[name]) : [];
+if (missingGmailApiVars.length > 0 && !IS_PRODUCTION) {
+  // Local dev keeps working on the next configured transport (e.g. Gmail SMTP).
+  console.warn(
+    `Gmail API is partially configured (missing: ${missingGmailApiVars.join(", ")}) — using the next configured email transport instead.`
+  );
+}
+
 // FRONTEND_URL/EMAIL_FROM/RESEND_API_KEY are optional in development (safe,
 // self-documenting fallbacks — see below), but silently falling back to
 // them in a real production deployment would mean: CORS configured for
@@ -42,12 +59,29 @@ const IS_PRODUCTION = process.env.NODE_ENV === "production";
 if (IS_PRODUCTION) {
   const productionIssues: string[] = [];
   if (!process.env.FRONTEND_URL) productionIssues.push("FRONTEND_URL is required in production");
-  // One email transport must be configured: Gmail (Nodemailer) or Resend.
-  const hasGmail = Boolean(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD);
-  if (!hasGmail && !process.env.EMAIL_FROM) productionIssues.push("EMAIL_FROM is required in production");
-  if (!hasGmail && !process.env.RESEND_API_KEY) {
+  if (missingGmailApiVars.length > 0) {
     productionIssues.push(
-      "GMAIL_USER + GMAIL_APP_PASSWORD, or RESEND_API_KEY, is required in production (password reset would otherwise silently fail to send)"
+      `Gmail API is partially configured — missing: ${missingGmailApiVars.join(", ")} (set all four, or remove the Gmail API ones to use another transport)`
+    );
+  }
+  // One email transport must be configured: Gmail API, Mailjet, Brevo, Gmail (Nodemailer) or Resend.
+  const hasGmailApi = Boolean(
+    process.env.GMAIL_USER &&
+      process.env.GMAIL_CLIENT_ID &&
+      process.env.GMAIL_CLIENT_SECRET &&
+      process.env.GMAIL_REFRESH_TOKEN
+  );
+  // Either Gmail option sends from GMAIL_USER, so neither needs EMAIL_FROM.
+  const hasGmail = hasGmailApi || Boolean(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD);
+  const hasMailjet = Boolean(process.env.MAILJET_API_KEY && process.env.MAILJET_SECRET_KEY);
+  const hasApiKey = Boolean(hasMailjet || process.env.BREVO_API_KEY || process.env.RESEND_API_KEY);
+  if ((hasMailjet || process.env.BREVO_API_KEY) && !process.env.EMAIL_FROM) {
+    productionIssues.push("EMAIL_FROM (a sender verified with Mailjet/Brevo) is required when using Mailjet or Brevo");
+  }
+  if (!hasGmail && !process.env.EMAIL_FROM) productionIssues.push("EMAIL_FROM is required in production");
+  if (!hasGmail && !hasApiKey) {
+    productionIssues.push(
+      "GMAIL_USER + GMAIL_CLIENT_ID + GMAIL_CLIENT_SECRET + GMAIL_REFRESH_TOKEN, MAILJET_API_KEY + MAILJET_SECRET_KEY, BREVO_API_KEY, GMAIL_USER + GMAIL_APP_PASSWORD, or RESEND_API_KEY is required in production (password reset would otherwise silently fail to send)"
     );
   }
   if (productionIssues.length > 0) {
@@ -82,10 +116,25 @@ export const ENV = {
     // without a real API key. (Unreachable in production — enforced above.)
     // Backend-only: never exposed to the frontend, never NEXT_PUBLIC_*.
     RESEND_API_KEY: process.env.RESEND_API_KEY,
+    // Brevo's HTTPS API — takes priority over Gmail and Resend. Free tier,
+    // no domain needed (EMAIL_FROM just has to be a verified Brevo sender),
+    // and works on hosts that block SMTP (Render). Backend-only.
+    BREVO_API_KEY: process.env.BREVO_API_KEY,
+    // Mailjet's HTTPS API — takes priority over Brevo, Gmail and Resend.
+    // Free tier, no domain needed (EMAIL_FROM just has to be a verified
+    // Mailjet sender), works where SMTP is blocked. Backend-only.
+    MAILJET_API_KEY: process.env.MAILJET_API_KEY,
+    MAILJET_SECRET_KEY: process.env.MAILJET_SECRET_KEY,
     // Gmail via Nodemailer (SMTP) — takes priority over Resend when both
     // are set. GMAIL_APP_PASSWORD is a 16-character Google App Password,
     // never the account's real password. Backend-only.
     GMAIL_USER: process.env.GMAIL_USER,
     GMAIL_APP_PASSWORD: process.env.GMAIL_APP_PASSWORD,
+    // Gmail API over HTTPS — takes priority over every other transport.
+    // OAuth client from Google Cloud Console plus a refresh token from
+    // scripts/gmail-refresh-token.mjs; sends as GMAIL_USER. Backend-only.
+    GMAIL_CLIENT_ID: process.env.GMAIL_CLIENT_ID,
+    GMAIL_CLIENT_SECRET: process.env.GMAIL_CLIENT_SECRET,
+    GMAIL_REFRESH_TOKEN: process.env.GMAIL_REFRESH_TOKEN,
     EMAIL_FROM: process.env.EMAIL_FROM || "no-reply@wrlms.local",
 }

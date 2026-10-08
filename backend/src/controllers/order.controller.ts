@@ -50,7 +50,8 @@ export class OrderController {
       const pageSize = Math.min(Number(req.query.pageSize) || 20, 100);
       const userId = req.query.mine === "true" ? (req as AuthenticatedRequest).user?.sub : undefined;
       const includeItems = req.query.includeItems === "true";
-      const result = await listOrdersService({ page, pageSize, userId, includeItems });
+      const excludeSelfService = req.query.excludeSelfService === "true";
+      const result = await listOrdersService({ page, pageSize, userId, includeItems, excludeSelfService });
       return res.status(result.code).json(result);
     } catch (error) {
       console.error("OrderController.list error", error);

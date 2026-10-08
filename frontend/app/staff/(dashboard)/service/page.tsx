@@ -59,7 +59,7 @@ export default function ServicePage() {
   // default use of this page is the small, naturally-bounded active queue.
   async function loadOrders() {
     try {
-      const data = await getOrders();
+      const data = await getOrders({ excludeSelfService: true });
       setOrders(data);
       return data;
     } catch {

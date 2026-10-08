@@ -1,7 +1,8 @@
 import { Request, Response } from "express";
 import { createEmployeeService } from "../services/employee/create-employee.service.js";
-import { listEmployeesService } from "../services/employee/list-employees.service.js";
+import { listEmployeesService, EmployeeListStatus } from "../services/employee/list-employees.service.js";
 import { updateEmployeeService } from "../services/employee/update-employee.service.js";
+import { deactivateEmployeeService } from "../services/employee/deactivate-employee.service.js";
 import { archiveEmployeeService } from "../services/employee/archive-employee.service.js";
 import { restoreEmployeeService } from "../services/employee/restore-employee.service.js";
 import { JwtPayload } from "../lib/jwt.js";
@@ -37,7 +38,7 @@ export class EmployeeController {
 
   public list = async (req: Request, res: Response) => {
     try {
-      const status = req.query.status as "active" | "archived" | undefined;
+      const status = req.query.status as EmployeeListStatus | undefined;
       const result = await listEmployeesService(status);
       return res.status(result.code).json(result);
     } catch (error) {
@@ -60,6 +61,21 @@ export class EmployeeController {
       return res.status(500).json({
         status: "error",
         message: "Unable to update employee",
+      });
+    }
+  };
+
+  public deactivate = async (req: Request, res: Response) => {
+    try {
+      const actorUserId = (req as AuthenticatedRequest).user?.sub as string;
+      const id = req.params.id as string;
+      const result = await deactivateEmployeeService(actorUserId, id);
+      return res.status(result.code).json(result);
+    } catch (error) {
+      console.error("EmployeeController.deactivate error:", error);
+      return res.status(500).json({
+        status: "error",
+        message: "Unable to deactivate employee",
       });
     }
   };

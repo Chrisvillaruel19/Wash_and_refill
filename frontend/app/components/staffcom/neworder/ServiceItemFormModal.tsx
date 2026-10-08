@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { ServiceCategory, ServiceItemOption, ServiceType } from "../../../staff/(dashboard)/neworder/types";
 import { useEscapeKey } from "../../../lib/useEscapeKey";
+import { SELF_SERVICE_CATEGORY_ID, kgPerPrice } from "../../../staff/(dashboard)/neworder/data";
 
 interface ServiceItemFormModalProps {
   category: ServiceCategory;
@@ -11,7 +12,8 @@ interface ServiceItemFormModalProps {
     itemId: string;
     itemName: string;
     quantityKg: number;
-    serviceType: ServiceType;
+    // Not asked for Self Service — the item itself (Wash / Dry) is the operation.
+    serviceType?: ServiceType;
     total: number;
   }) => void;
   onCancel: () => void;
@@ -30,20 +32,27 @@ export default function ServiceItemFormModal({
   const [quantityKg, setQuantityKg] = useState(0);
   const [serviceType, setServiceType] = useState<ServiceType | "">("");
 
+  const isSelfService = category.id === SELF_SERVICE_CATEGORY_ID;
+  // Catalog price covers this many kg (5 for Self Service, else 1).
+  const priceKg = kgPerPrice(category.id);
+
   const selectedItem = itemOptions.find((item) => item.id === selectedItemId);
 
   const total = useMemo(() => {
     if (!selectedItem) return 0;
-    return selectedItem.pricePerKg * (Number(quantityKg) || 0);
-  }, [selectedItem, quantityKg]);
+    // Rounded to the centavo, same as the backend's stored subtotal.
+    return Math.round((selectedItem.pricePerKg / priceKg) * (Number(quantityKg) || 0) * 100) / 100;
+  }, [selectedItem, quantityKg, priceKg]);
+
+  const canConfirm = !!selectedItem && quantityKg > 0 && (isSelfService || !!serviceType);
 
   function handleConfirm() {
-    if (!selectedItem || !serviceType || quantityKg <= 0) return;
+    if (!selectedItem || !canConfirm) return;
     onConfirm({
       itemId: selectedItem.id,
       itemName: selectedItem.name,
       quantityKg,
-      serviceType,
+      serviceType: isSelfService ? undefined : serviceType || undefined,
       total,
     });
   }
@@ -93,7 +102,7 @@ export default function ServiceItemFormModal({
           </select>
 
           <p className="text-base sm:text-lg font-medium text-gray-900">
-            Price: {(selectedItem?.pricePerKg ?? 0).toFixed(2)} / KG
+            Price: {(selectedItem?.pricePerKg ?? 0).toFixed(2)} / {priceKg > 1 ? `${priceKg}KG` : "KG"}
           </p>
         </div>
 
@@ -119,26 +128,30 @@ export default function ServiceItemFormModal({
           </p>
         </div>
 
-        <div className="mb-6">
-          <label htmlFor="service-item-type" className="block mb-1 text-sm font-medium text-gray-700">
-            Service Type:
-          </label>
-          <select
-            id="service-item-type"
-            value={serviceType}
-            onChange={(e) => setServiceType(e.target.value as ServiceType)}
-            className="border border-gray-300 rounded-lg p-2 w-full text-gray-900"
-          >
-            <option value="" disabled>
-              Select a service type
-            </option>
-            {serviceTypes.map((type) => (
-              <option key={type} value={type}>
-                {type}
+        {isSelfService ? (
+          <div className="mb-6" />
+        ) : (
+          <div className="mb-6">
+            <label htmlFor="service-item-type" className="block mb-1 text-sm font-medium text-gray-700">
+              Service Type:
+            </label>
+            <select
+              id="service-item-type"
+              value={serviceType}
+              onChange={(e) => setServiceType(e.target.value as ServiceType)}
+              className="border border-gray-300 rounded-lg p-2 w-full text-gray-900"
+            >
+              <option value="" disabled>
+                Select a service type
               </option>
-            ))}
-          </select>
-        </div>
+              {serviceTypes.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="flex gap-4">
           <button
@@ -149,7 +162,7 @@ export default function ServiceItemFormModal({
           </button>
           <button
             onClick={handleConfirm}
-            disabled={!selectedItem || !serviceType || quantityKg <= 0}
+            disabled={!canConfirm}
             className="flex-1 bg-blue-600 text-white rounded-lg py-2 font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
             CONFIRM

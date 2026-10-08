@@ -12,7 +12,7 @@ interface BackendOrderDetail {
   weight?: string | null;
   subtotal: string;
   serviceType: string | null;
-  service: { serviceName: string } | null;
+  service: { serviceName: string; itemType?: string } | null;
   package: { packageName: string } | null;
   inventory: { itemName: string } | null;
 }
@@ -91,11 +91,20 @@ const STATUS_TO_BACKEND: Record<OrderStatus, string> = {
 // shape groupItems() already expects (see lib/groupItems.ts) — self-groups
 // on render, so a plain one-string-per-line list is sufficient here.
 function mapOrderDetail(detail: BackendOrderDetail): string {
+  const label = detailLabel(detail);
+  return detail.quantity > 1 ? `${label} ×${detail.quantity}` : label;
+}
+
+// Display name for one order line, shared by Sales/Services lists and the
+// receipt: "wash only (Self Service)" for customer-operated lines so they
+// can't be mistaken for drop-off service, "testing (Dry Only)" for drop-off
+// lines with a service type, otherwise just the name.
+function detailLabel(detail: BackendOrderDetail): string {
   const name =
     detail.package?.packageName ?? detail.service?.serviceName ?? detail.inventory?.itemName ?? "Item";
+  if (detail.service?.itemType === "SELF_SERVICE") return `${name} (Self Service)`;
   const serviceTypeLabel = detail.serviceType ? SERVICE_TYPE_FROM_BACKEND[detail.serviceType] : null;
-  const label = serviceTypeLabel ? `${name} (${serviceTypeLabel})` : name;
-  return detail.quantity > 1 ? `${label} ×${detail.quantity}` : label;
+  return serviceTypeLabel ? `${name} (${serviceTypeLabel})` : name;
 }
 
 function mapOrder(order: BackendOrder): Order {
@@ -120,8 +129,16 @@ function mapOrder(order: BackendOrder): Order {
 // mine = only the logged-in user's own orders (Staff Sales page).
 // includeItems = also return each order's line items (Claim Monitoring's
 // Excel export) — heavier, so only for callers that actually need them.
-export async function getOrders(options: { mine?: boolean; includeItems?: boolean } = {}): Promise<Order[]> {
-  const params = [options.mine && "mine=true", options.includeItems && "includeItems=true"].filter(Boolean);
+// excludeSelfService = drop self-service orders, which skip the drop-off
+// workflow (Service Management / Claim Monitoring) and only count in Sales.
+export async function getOrders(
+  options: { mine?: boolean; includeItems?: boolean; excludeSelfService?: boolean } = {}
+): Promise<Order[]> {
+  const params = [
+    options.mine && "mine=true",
+    options.includeItems && "includeItems=true",
+    options.excludeSelfService && "excludeSelfService=true",
+  ].filter(Boolean);
   const orders = await fetchAllPages<BackendOrder>(
     params.length > 0 ? `/orders?${params.join("&")}` : "/orders",
     "orders"
@@ -133,11 +150,20 @@ export async function getOrders(options: { mine?: boolean; includeItems?: boolea
 // Sales) driven by useServerPage.ts, as opposed to getOrders() above, which
 // walks every page for callers that need the complete set (dashboards,
 // stat cards, shift-handover reconciliation math).
-export async function getOrdersPage(page: number, pageSize: number, mine = false): Promise<ServerPageResult<Order>> {
+export async function getOrdersPage(
+  page: number,
+  pageSize: number,
+  mine = false,
+  excludeSelfService = false
+): Promise<ServerPageResult<Order>> {
   const result = await apiClient.get<{
     orders: BackendOrder[];
     pagination: { totalPages: number };
-  }>(`/orders?page=${page}&pageSize=${pageSize}${mine ? "&mine=true" : ""}`);
+  }>(
+    `/orders?page=${page}&pageSize=${pageSize}${mine ? "&mine=true" : ""}${
+      excludeSelfService ? "&excludeSelfService=true" : ""
+    }`
+  );
   return { items: result.orders.map(mapOrder), totalPages: result.pagination.totalPages };
 }
 
@@ -267,12 +293,10 @@ function mapReceipt(order: BackendOrder): OrderReceipt {
     customer: order.customer.customerName,
     contact: order.customer.phoneNumber,
     lines: (order.orderDetails ?? []).map((d) => {
-      const name = d.package?.packageName ?? d.service?.serviceName ?? d.inventory?.itemName ?? "Item";
-      const serviceType = d.serviceType ? SERVICE_TYPE_FROM_BACKEND[d.serviceType] : null;
       const weight = d.weight != null ? Number(d.weight) : null;
       const parts = [weight !== null ? `${weight} kg` : null, d.quantity > 1 || weight === null ? `×${d.quantity}` : null];
       return {
-        label: serviceType ? `${name} (${serviceType})` : name,
+        label: detailLabel(d),
         detail: parts.filter(Boolean).join(" "),
         subtotal: Number(d.subtotal),
       };

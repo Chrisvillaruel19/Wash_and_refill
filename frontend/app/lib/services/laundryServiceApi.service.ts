@@ -6,7 +6,8 @@ type BackendItemType =
   | "HOUSEHOLD_ITEMS"
   | "DRY_CLEAN_7_DAYS"
   | "CARPET"
-  | "RUGS_AND_FLEECE_BLANKET";
+  | "RUGS_AND_FLEECE_BLANKET"
+  | "SELF_SERVICE";
 
 // Matches the fixed categoryIds in staff/(dashboard)/neworder/data.ts's
 // serviceCategories — both sides are a closed, hand-maintained set.
@@ -16,6 +17,7 @@ const CATEGORY_TO_ITEM_TYPE: Record<string, BackendItemType> = {
   household: "HOUSEHOLD_ITEMS",
   carpet: "CARPET",
   dryclean: "DRY_CLEAN_7_DAYS",
+  selfservice: "SELF_SERVICE",
 };
 
 const ITEM_TYPE_TO_CATEGORY: Record<BackendItemType, string> = {
@@ -24,6 +26,7 @@ const ITEM_TYPE_TO_CATEGORY: Record<BackendItemType, string> = {
   HOUSEHOLD_ITEMS: "household",
   CARPET: "carpet",
   DRY_CLEAN_7_DAYS: "dryclean",
+  SELF_SERVICE: "selfservice",
 };
 
 type BackendLaundryService = {

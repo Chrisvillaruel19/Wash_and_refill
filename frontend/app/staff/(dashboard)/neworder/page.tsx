@@ -141,11 +141,12 @@ export default function NewOrderPage() {
     itemId: string;
     itemName: string;
     quantityKg: number;
-    serviceType: ServiceType;
+    serviceType?: ServiceType;
     total: number;
   }) {
+    // Self Service lines have no service type (the item is Wash or Dry itself).
     addItemToCart(
-      `${result.itemName} (${result.serviceType}, ${result.quantityKg}kg)`,
+      `${result.itemName} (${result.serviceType ?? "Self Service"}, ${result.quantityKg}kg)`,
       result.total,
       "SERVICE",
       result.itemId,

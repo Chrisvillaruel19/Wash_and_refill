@@ -45,6 +45,14 @@ router.patch(
 );
 
 router.patch(
+  "/:id/deactivate",
+  authMiddleware.execute,
+  requireRole(Role.ADMIN),
+  validateSchema(idParamSchema),
+  employeeController.deactivate
+);
+
+router.patch(
   "/:id/archive",
   authMiddleware.execute,
   requireRole(Role.ADMIN),

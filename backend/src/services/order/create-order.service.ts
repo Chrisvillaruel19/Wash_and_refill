@@ -8,7 +8,7 @@ import { AttendanceRepository } from "../../repositories/attendance.repository.j
 import { ShiftHandoverRepository } from "../../repositories/shift-handover.repository.js";
 import { refreshStockStatus } from "../inventory/stock-status.util.js";
 import { OrderValidationError, InsufficientStockError, NoActiveShiftError } from "./order-errors.js";
-import { OrderStatus, PaymentMethod, PaymentStatus, ServiceType, AuditAction, Role, Prisma } from "../../../generated/prisma/client.js";
+import { OrderStatus, PaymentMethod, PaymentStatus, ServiceType, AuditAction, Role, Prisma, ItemType } from "../../../generated/prisma/client.js";
 import type { OrderItemInput } from "../../schema/order/order-item.schema.js";
 import { writeAuditLog } from "../../lib/audit-log.js";
 
@@ -19,6 +19,11 @@ const laundryServiceRepository = new LaundryServiceRepository();
 const inventoryRepository = new InventoryRepository();
 const attendanceRepository = new AttendanceRepository();
 const shiftHandoverRepository = new ShiftHandoverRepository();
+
+// Self Service catalog prices are per 5 kg load (e.g. Wash ₱70 / 5 kg) and
+// charged proportionally to the exact weight: 7 kg Wash = 70 / 5 × 7 = ₱98.
+// Must match SELF_SERVICE_KG_PER_PRICE in the frontend's neworder/data.ts.
+const SELF_SERVICE_KG_PER_PRICE = 5;
 
 // Real cash transactions legitimately overpay (customer hands over a bigger
 // bill, expects change) — this is a sanity ceiling against data-entry
@@ -101,6 +106,11 @@ export async function createOrderService(input: {
         subtotal: number;
       }[] = [];
       const consumptionDeltas = new Map<string, number>();
+      // Self-service order = at least one Self Service line and no drop-off
+      // service lines (Clothes, Dry Clean…). Packages/supplies don't change
+      // it — they're the detergent etc. the customer uses at the machine.
+      let selfServiceLines = 0;
+      let dropOffServiceLines = 0;
 
       for (const item of input.items) {
         if (item.type === "PACKAGE") {
@@ -135,7 +145,22 @@ export async function createOrderService(input: {
           // verified against the frontend's real checkout logic, which
           // ties inventory deduction only to Packages and direct supply
           // sales, never to a Laundry Service line.
-          const subtotal = Number(service.price) * item.weight * item.quantity;
+          if (service.itemType === ItemType.SELF_SERVICE) selfServiceLines++;
+          else dropOffServiceLines++;
+
+          // Computed exactly like the New Order cart total the staff member is
+          // shown (calculateCartTotal in neworder/page.tsx): one line rounded
+          // to whole centavos, THEN multiplied by quantity (the cart merges
+          // identical lines into quantity 2+). Unrounded, an odd-centavo price
+          // × fractional kg (₱299.89 × 37.25 kg = ₱11,170.9025) made the shown
+          // total fail the "less than the order total" check below; rounding
+          // after multiplying was still a centavo off for merged lines.
+          // Self Service prices are per 5 kg.
+          const unitCents =
+            service.itemType === ItemType.SELF_SERVICE
+              ? Math.round((Number(service.price) / SELF_SERVICE_KG_PER_PRICE) * item.weight * 100)
+              : Math.round(Number(service.price) * item.weight * 100);
+          const subtotal = (unitCents * item.quantity) / 100;
           totalAmount += subtotal;
           orderDetailsToCreate.push({
             serviceId: service.id,
@@ -176,6 +201,12 @@ export async function createOrderService(input: {
         await refreshStockStatus(inventoryId, tx);
       }
 
+      // Adding centavo amounts as floats can drift (0.1 + 0.2 =
+      // 0.30000000000000004), which would push the total a hair above the
+      // cart total the frontend sums in whole centavos — round it the same way
+      // before any payment check uses it.
+      totalAmount = Math.round(totalAmount * 100) / 100;
+
       // 4. Payment status/date computed server-side only — never trusted
       // from the client, same principle already applied to Inventory's
       // stockStatus. amountPaid itself is sanity-checked against the
@@ -200,14 +231,28 @@ export async function createOrderService(input: {
       const paymentStatus = input.amountPaid >= totalAmount ? PaymentStatus.PAID : PaymentStatus.UNPAID;
       const paymentDate = paymentStatus === PaymentStatus.PAID ? new Date() : null;
 
-      // 5. Create the order and its children. Every order starts PENDING —
-      // that's a business rule, so it's decided here in the service, not
-      // hardcoded inside the repository's create() method.
+      // Self-service orders never enter the Service Management queue (the
+      // customer runs the machines themselves), so there is no later step
+      // where an unpaid one could be collected — they must be paid now.
+      const isSelfService = selfServiceLines > 0 && dropOffServiceLines === 0;
+      if (isSelfService && paymentStatus !== PaymentStatus.PAID) {
+        throw new OrderValidationError(
+          `Self service orders must be paid in full now (₱${totalAmount.toFixed(2)}).`
+        );
+      }
+
+      // 5. Create the order and its children. Drop-off orders start PENDING
+      // and move through Service Management; self-service orders are
+      // complete the moment they're paid, so they're created CLAIMED and
+      // only show up in Sales. That's a business rule, so it's decided here
+      // in the service, not hardcoded inside the repository's create().
       const createdOrder = await orderRepository.create(
         {
           customerId: customer.id,
           userId: input.userId,
-          status: OrderStatus.PENDING,
+          status: isSelfService ? OrderStatus.CLAIMED : OrderStatus.PENDING,
+          claimedDate: isSelfService ? paymentDate : null,
+          isSelfService,
           paymentMethod: input.paymentMethod,
           paymentStatus,
           amountPaid: input.amountPaid,
@@ -230,7 +275,7 @@ export async function createOrderService(input: {
         action: AuditAction.CREATE,
         module: "Order",
         description: `Created order for ${input.customerName} (₱${totalAmount.toFixed(2)})`,
-        newValue: { customerName: input.customerName, totalAmount, paymentStatus },
+        newValue: { customerName: input.customerName, totalAmount, paymentStatus, isSelfService },
       });
 
       return orderRepository.findById(createdOrder.id, tx);

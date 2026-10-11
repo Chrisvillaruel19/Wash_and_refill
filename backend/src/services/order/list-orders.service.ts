@@ -2,11 +2,17 @@ import { OrderRepository } from "../../repositories/order.repository.js";
 
 const orderRepository = new OrderRepository();
 
-export async function listOrdersService(params: { page: number; pageSize: number; userId?: string; includeItems?: boolean }) {
+export async function listOrdersService(params: {
+  page: number;
+  pageSize: number;
+  userId?: string;
+  includeItems?: boolean;
+  excludeSelfService?: boolean;
+}) {
   try {
     const [orders, total] = await Promise.all([
       orderRepository.findAll(params),
-      orderRepository.count(params.userId),
+      orderRepository.count(params),
     ]);
 
     return {

@@ -10,5 +10,8 @@ export const listOrdersSchema = z.object({
     // "true" = include each order's line items (Claim Monitoring's Excel
     // export); otherwise the list stays lean, see OrderRepository.
     includeItems: z.enum(["true", "false"]).optional(),
+    // "true" = leave out self-service orders (Service Management and Claim
+    // Monitoring track drop-off laundry only).
+    excludeSelfService: z.enum(["true", "false"]).optional(),
   }),
 });

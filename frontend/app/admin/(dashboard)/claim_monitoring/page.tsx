@@ -20,6 +20,10 @@ import { Order, OrderStatus } from "../../../staff/(dashboard)/types";
 
 const PAGE_SIZE = 8;
 
+// Claim Monitoring tracks drop-off laundry only — self-service orders are
+// complete at checkout and only belong in Sales.
+const getDropOffOrdersPage = (page: number, pageSize: number) => getOrdersPage(page, pageSize, false, true);
+
 type MonitoringFilter = "All" | "Claimed" | "Unclaimed";
 
 const filters: MonitoringFilter[] = ["All", "Claimed", "Unclaimed"];
@@ -82,7 +86,7 @@ export default function ClaimMonitoringPage() {
     totalPages: serverTotalPages,
     items: serverItems,
     loading: serverLoading,
-  } = useServerPage(getOrdersPage, PAGE_SIZE, !isFiltering, reloadKey);
+  } = useServerPage(getDropOffOrdersPage, PAGE_SIZE, !isFiltering, reloadKey);
 
   // The filter tabs and date search need to reach every historical order,
   // not just whatever page is currently loaded — the backend's page/pageSize
@@ -97,7 +101,7 @@ export default function ClaimMonitoringPage() {
     let cancelled = false;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setFullOrdersLoading(true);
-    getOrders()
+    getOrders({ excludeSelfService: true })
       .then((data) => {
         if (!cancelled) setFullOrders(data);
       })
@@ -126,7 +130,7 @@ export default function ClaimMonitoringPage() {
     setExporting(true);
     setExportError("");
     try {
-      const orders = await getOrders({ includeItems: true });
+      const orders = await getOrders({ includeItems: true, excludeSelfService: true });
       const matching = orders.filter((order) => matchesMonitoringFilter(order, activeFilter, searchDate));
       const today = new Date().toISOString().slice(0, 10);
       await exportOrdersToExcel(matching, `customer-records-${activeFilter.toLowerCase()}-${today}.xlsx`);

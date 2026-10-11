@@ -15,6 +15,17 @@ export async function reverseOrderPaymentService(userId: string, id: string) {
       const existing = await orderRepository.findById(id, tx);
       if (!existing) return { notFound: true } as const;
 
+      // Self-service orders are created already CLAIMED and must be paid in
+      // full at checkout (create-order.service.ts), and they never appear in
+      // Claim Monitoring or Service Management. Reversing one would leave it
+      // CLAIMED but unpaid with no screen that can fix it.
+      if (existing.isSelfService) {
+        return {
+          selfService: true as const,
+          message: "Self service orders are paid in full at checkout and cannot have their payment reversed.",
+        };
+      }
+
       if (existing.paymentStatus !== PaymentStatus.PAID) {
         return {
           notPaid: true as const,
@@ -64,6 +75,9 @@ export async function reverseOrderPaymentService(userId: string, id: string) {
 
     if ("notFound" in result) {
       return { code: 404, status: "error", message: "Order not found" };
+    }
+    if ("selfService" in result) {
+      return { code: 409, status: "error", message: result.message };
     }
     if ("notPaid" in result) {
       return { code: 409, status: "error", message: result.message };

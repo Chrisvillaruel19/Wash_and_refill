@@ -22,7 +22,7 @@ interface NewOrderModalsProps {
     itemId: string;
     itemName: string;
     quantityKg: number;
-    serviceType: ServiceType;
+    serviceType?: ServiceType;
     total: number;
   }) => void;
   onServiceCancel: () => void;

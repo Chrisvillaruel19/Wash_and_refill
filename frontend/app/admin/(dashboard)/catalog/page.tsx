@@ -26,7 +26,7 @@ import {
   deleteService,
 } from "../../../lib/services/laundryServiceApi.service";
 import { Package, ServiceItem } from "../../../staff/(dashboard)/neworder/types";
-import { serviceCategories } from "../../../staff/(dashboard)/neworder/data";
+import { serviceCategories, SELF_SERVICE_CATEGORY_ID, SELF_SERVICE_KG_PER_PRICE } from "../../../staff/(dashboard)/neworder/data";
 import AdminInventoryFormModal, {
   InventoryFormData,
 } from "../../../components/admincom/AdminInventoryFormModal";
@@ -453,6 +453,7 @@ export default function AdminCatalogPage() {
                           </td>
                           <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">
                             ₱{svc.pricePerKg.toFixed(2)}
+                            {svc.categoryId === SELF_SERVICE_CATEGORY_ID && ` / ${SELF_SERVICE_KG_PER_PRICE}kg`}
                           </td>
                           <td className="p-3 sm:p-4 whitespace-nowrap">
                             <div className="flex items-center gap-3">

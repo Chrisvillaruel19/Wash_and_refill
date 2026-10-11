@@ -17,12 +17,14 @@ function formatDate(d: Date) {
   return d.toLocaleDateString("en-PH", { timeZone: "Asia/Manila", year: "numeric", month: "short", day: "numeric" });
 }
 
+// INACTIVE -> ARCHIVED. Archiving is the second step after deactivation:
+// an account must first be deactivated (moved to the Employee page's
+// "Inactive" tab) before it can be archived, at which point it leaves the
+// Employee page entirely and only shows on the Archive page.
 export async function archiveEmployeeService(actorUserId: string, id: string) {
   try {
     // An admin archiving their own account would lock themselves out with
-    // no one able to undo it from the UI (Employee Management is Admin-only,
-    // and login itself checks accountStatus === ACTIVE) — blocked outright,
-    // not just discouraged.
+    // no one able to undo it from the UI — blocked outright.
     if (actorUserId === id) {
       return { code: 400, status: "error", message: "You cannot archive your own account" };
     }
@@ -33,10 +35,13 @@ export async function archiveEmployeeService(actorUserId: string, id: string) {
       if (existing.accountStatus === AccountStatus.ARCHIVED) {
         return { alreadyArchived: true } as const;
       }
+      if (existing.accountStatus !== AccountStatus.INACTIVE) {
+        return { notInactive: true } as const;
+      }
 
-      // Never archive someone mid-shift: an archived account can't log in
-      // to hand over and clock out, and their open shift would block every
-      // other Staff member from logging in (see login.service.ts).
+      // Defensive: deactivation already refuses clocked-in employees, but an
+      // open shift on an archived account would block every other Staff
+      // member from logging in (see login.service.ts).
       const openShift = await attendanceRepository.findActiveForUser(id, tx);
       if (openShift) return { clockedIn: true } as const;
 
@@ -44,6 +49,8 @@ export async function archiveEmployeeService(actorUserId: string, id: string) {
       // archived. "Activity" is the user's latest audit log entry (every
       // clock-in, order, expense, handover and admin action writes one);
       // an account that has never done anything counts from its creation.
+      // Deactivation is logged under the acting Admin, so it doesn't reset
+      // this clock.
       const latestLog = await auditLogRepository.findLatestForUser(id, tx);
       const created = await userRepository.findCreatedAt(id, tx);
       const lastActive = latestLog?.createdAt ?? created?.createdAt ?? new Date();
@@ -73,6 +80,13 @@ export async function archiveEmployeeService(actorUserId: string, id: string) {
     }
     if ("alreadyArchived" in result) {
       return { code: 400, status: "error", message: "Employee is already archived" };
+    }
+    if ("notInactive" in result) {
+      return {
+        code: 409,
+        status: "error",
+        message: "Only inactive employees can be archived. Deactivate this employee first.",
+      };
     }
     if ("clockedIn" in result) {
       return {

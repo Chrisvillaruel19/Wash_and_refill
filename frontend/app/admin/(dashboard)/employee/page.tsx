@@ -7,6 +7,8 @@ import {
   getEmployees,
   createEmployee,
   updateEmployee,
+  deactivateEmployee,
+  restoreEmployee,
   archiveEmployee,
 } from "../../../lib/services/employeeApi.service";
 import { ApiError } from "../../../lib/apiClient";
@@ -21,10 +23,11 @@ type FilterTab = "All" | "Active" | "Inactive";
 
 // Maps the tab to the backend's ?status= filter — server-side, not a
 // frontend array slice. "All" omits the param, which the backend treats
-// as "everyone" (its pre-existing default behavior).
-function statusForTab(tab: FilterTab): "active" | "archived" | undefined {
+// as "everyone except archived" — archived employees only appear on the
+// Archive page.
+function statusForTab(tab: FilterTab): "active" | "inactive" | undefined {
   if (tab === "Active") return "active";
-  if (tab === "Inactive") return "archived";
+  if (tab === "Inactive") return "inactive";
   return undefined;
 }
 
@@ -34,12 +37,16 @@ export default function EmployeePage() {
   // unfiltered fetch so the stat cards always show true totals regardless
   // of which tab is currently selected.
   const [counts, setCounts] = useState({ total: 0, active: 0, inactive: 0 });
-  const [activeFilter, setActiveFilter] = useState<FilterTab>("Active");
+  const [activeFilter, setActiveFilter] = useState<FilterTab>("All");
   const [search, setSearch] = useState("");
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [editTarget, setEditTarget] = useState<Employee | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<Employee | null>(null);
+  const [deactivateTarget, setDeactivateTarget] = useState<Employee | null>(null);
+  const [activatingId, setActivatingId] = useState<string | null>(null);
+  // Errors from row actions that have no modal of their own (Activate).
+  const [rowError, setRowError] = useState("");
   const [loading, setLoading] = useState(true);
   const [tableLoading, setTableLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -147,6 +154,41 @@ export default function EmployeePage() {
     }
   }
 
+  async function handleDeactivateConfirm() {
+    if (!deactivateTarget) return;
+    setActionSubmitting(true);
+    setActionError("");
+    try {
+      await deactivateEmployee(deactivateTarget.id);
+      setReloadKey((k) => k + 1);
+      setDeactivateTarget(null);
+    } catch (err) {
+      setActionError(
+        err instanceof ApiError ? err.message : "Unable to deactivate employee. Please try again."
+      );
+    } finally {
+      setActionSubmitting(false);
+    }
+  }
+
+  async function handleActivate(id: string) {
+    if (activatingId) return;
+    setActivatingId(id);
+    setRowError("");
+    try {
+      await restoreEmployee(id);
+      setReloadKey((k) => k + 1);
+    } catch (err) {
+      setRowError(
+        err instanceof ApiError ? err.message : "Unable to activate employee. Please try again."
+      );
+    } finally {
+      setActivatingId(null);
+    }
+  }
+
+  // Archiving moves the record off this page entirely — it disappears from
+  // the Inactive tab on reload and shows up on the Archive page.
   async function handleArchiveConfirm() {
     if (!archiveTarget) return;
     setActionSubmitting(true);
@@ -240,6 +282,12 @@ export default function EmployeePage() {
         </div>
       </div>
 
+      {rowError && (
+        <p className="text-red-600 text-sm mb-4 bg-red-50 border border-red-200 rounded-lg py-2 px-3">
+          {rowError}
+        </p>
+      )}
+
       <div className="bg-white rounded-xl shadow-md overflow-x-auto">
         <table className="w-full text-sm text-left">
           <thead>
@@ -283,16 +331,39 @@ export default function EmployeePage() {
                       >
                         <Pencil size={18} />
                       </button>
-                      <button
-                        onClick={() => {
-                          setActionError("");
-                          setArchiveTarget(emp);
-                        }}
-                        className="text-gray-600 hover:text-red-600"
-                        title="Archive"
-                      >
-                        <ArchiveIcon size={18} />
-                      </button>
+                      {emp.status === "Active" ? (
+                        <button
+                          onClick={() => {
+                            setActionError("");
+                            setDeactivateTarget(emp);
+                          }}
+                          className="text-gray-600 hover:text-red-600"
+                          title="Deactivate"
+                        >
+                          <UserX size={18} />
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => handleActivate(emp.id)}
+                            disabled={activatingId === emp.id}
+                            className="text-gray-600 hover:text-green-600 disabled:opacity-50"
+                            title="Activate"
+                          >
+                            <UserCheck size={18} />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setActionError("");
+                              setArchiveTarget(emp);
+                            }}
+                            className="text-gray-600 hover:text-red-600"
+                            title="Archive"
+                          >
+                            <ArchiveIcon size={18} />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -325,6 +396,17 @@ export default function EmployeePage() {
           onCancel={() => setEditTarget(null)}
           submitting={actionSubmitting}
           submitError={actionError}
+        />
+      )}
+
+      {deactivateTarget && (
+        <ConfirmArchiveModal
+          variant="deactivate"
+          employeeName={deactivateTarget.name}
+          onConfirm={handleDeactivateConfirm}
+          onCancel={() => setDeactivateTarget(null)}
+          submitting={actionSubmitting}
+          error={actionError}
         />
       )}
 

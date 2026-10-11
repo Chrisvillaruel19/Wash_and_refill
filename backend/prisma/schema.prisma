@@ -120,6 +120,11 @@ model Order {
   paymentDate     DateTime?
   claimedDate     DateTime?
 
+  // Customer-operated (Self Service Wash/Dry only, plus any supplies).
+  // Created already CLAIMED and paid; never shown in Service Management or
+  // Claim Monitoring — it only counts in Sales (see create-order.service.ts).
+  isSelfService   Boolean @default(false)
+
   // Client-generated per-submission-attempt token (New Order's "Finish
   // Transaction"). Nullable so existing rows are unaffected — Postgres
   // treats every NULL as distinct under a unique index, so legacy rows
@@ -240,6 +245,9 @@ enum ItemType {
   DRY_CLEAN_7_DAYS
   CARPET
   RUGS_AND_FLEECE_BLANKET
+  // Customer-operated machines (Wash / Dry). price is per 5 kg and charged
+  // proportionally to the exact weight (see create-order.service.ts).
+  SELF_SERVICE
 }
 
 // Package catalog

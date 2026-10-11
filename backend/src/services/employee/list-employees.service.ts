@@ -1,20 +1,23 @@
 import { UserRepository } from "../../repositories/user.repository.js";
-import { AccountStatus } from "../../../generated/prisma/client.js";
+import { AccountStatus, Prisma } from "../../../generated/prisma/client.js";
 
 const userRepository = new UserRepository();
 
-// No status = preserve the original "everyone" behavior (used by the
-// Employee page's own "All" tab). "active"/"archived" map directly onto
-// the enum; AccountStatus.INACTIVE stays unused/reserved, same as elsewhere.
-function toAccountStatus(status?: "active" | "archived"): AccountStatus | undefined {
+export type EmployeeListStatus = "active" | "inactive" | "archived";
+
+// Each status maps 1:1 onto the enum. No status = the Employee page's "All"
+// tab: everyone still on the roster (ACTIVE + INACTIVE). ARCHIVED accounts
+// are deliberately excluded — they only appear on the Archive page.
+function toStatusFilter(status?: EmployeeListStatus): Prisma.UserWhereInput["accountStatus"] {
   if (status === "active") return AccountStatus.ACTIVE;
+  if (status === "inactive") return AccountStatus.INACTIVE;
   if (status === "archived") return AccountStatus.ARCHIVED;
-  return undefined;
+  return { not: AccountStatus.ARCHIVED };
 }
 
-export async function listEmployeesService(status?: "active" | "archived") {
+export async function listEmployeesService(status?: EmployeeListStatus) {
   try {
-    const employees = await userRepository.findAllStaff(toAccountStatus(status));
+    const employees = await userRepository.findAllStaff(toStatusFilter(status));
 
     return {
       code: 200,

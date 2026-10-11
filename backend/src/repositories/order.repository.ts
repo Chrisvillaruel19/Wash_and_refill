@@ -20,18 +20,27 @@ const detailInclude = {
   },
 } as const;
 
+function listWhere(params: { userId?: string; excludeSelfService?: boolean }): Prisma.OrderWhereInput {
+  return {
+    ...(params.userId ? { userId: params.userId } : {}),
+    ...(params.excludeSelfService ? { isSelfService: false } : {}),
+  };
+}
+
 export class OrderRepository {
   // Paginated, newest first — matches AuditLogRepository.findAll's shape.
   // userId (optional) narrows to one staff member's own orders — the Staff
   // Sales page; omitted = every order (Services, Claim Monitoring, etc.).
   // includeItems opts into line items for bulk export (still paginated,
   // and without the consumptions tree getById carries).
+  // excludeSelfService drops self-service orders (Service Management and
+  // Claim Monitoring only track drop-off laundry; Sales still sees them).
   async findAll(
-    params: { page: number; pageSize: number; userId?: string; includeItems?: boolean },
+    params: { page: number; pageSize: number; userId?: string; includeItems?: boolean; excludeSelfService?: boolean },
     tx: PrismaClientOrTx = prisma
   ) {
     return tx.order.findMany({
-      where: params.userId ? { userId: params.userId } : undefined,
+      where: listWhere(params),
       include: params.includeItems ? { ...listInclude, orderDetails: detailInclude.orderDetails } : listInclude,
       orderBy: { createdAt: "desc" },
       skip: (params.page - 1) * params.pageSize,
@@ -39,8 +48,8 @@ export class OrderRepository {
     });
   }
 
-  async count(userId?: string, tx: PrismaClientOrTx = prisma) {
-    return tx.order.count({ where: userId ? { userId } : undefined });
+  async count(params: { userId?: string; excludeSelfService?: boolean } = {}, tx: PrismaClientOrTx = prisma) {
+    return tx.order.count({ where: listWhere(params) });
   }
 
   async findById(id: string, tx: PrismaClientOrTx = prisma) {
@@ -52,6 +61,8 @@ export class OrderRepository {
       customerId: string;
       userId: string;
       status: OrderStatus;
+      claimedDate?: Date | null;
+      isSelfService?: boolean;
       paymentMethod?: PaymentMethod;
       paymentStatus: PaymentStatus;
       amountPaid: number;
@@ -279,7 +290,7 @@ export class OrderRepository {
   // month's) total displayed as "Claimed today."
   async countClaimedInRange(range: { start: Date; end: Date }, tx: PrismaClientOrTx = prisma): Promise<number> {
     return tx.order.count({
-      where: { status: OrderStatus.CLAIMED, claimedDate: { gte: range.start, lt: range.end } },
+      where: { status: OrderStatus.CLAIMED, isSelfService: false, claimedDate: { gte: range.start, lt: range.end } },
     });
   }
 
@@ -295,7 +306,7 @@ export class OrderRepository {
     tx: PrismaClientOrTx = prisma
   ): Promise<number> {
     return tx.order.count({
-      where: { userId, status: OrderStatus.CLAIMED, claimedDate: { gte: range.start, lt: range.end } },
+      where: { userId, status: OrderStatus.CLAIMED, isSelfService: false, claimedDate: { gte: range.start, lt: range.end } },
     });
   }
 
@@ -308,7 +319,7 @@ export class OrderRepository {
     tx: PrismaClientOrTx = prisma
   ) {
     return tx.order.findMany({
-      where: { userId, status: OrderStatus.CLAIMED, claimedDate: { gte: range.start, lt: range.end } },
+      where: { userId, status: OrderStatus.CLAIMED, isSelfService: false, claimedDate: { gte: range.start, lt: range.end } },
       include: listInclude,
       orderBy: { claimedDate: "desc" },
     });
@@ -354,7 +365,13 @@ export class OrderRepository {
   // Dashboard: order counts by status, for the status-count cards and the
   // "unclaimed orders" figure (everything except CLAIMED/CANCELLED).
   async countByStatus(tx: PrismaClientOrTx = prisma): Promise<Record<OrderStatus, number>> {
-    const grouped = await tx.order.groupBy({ by: ["status"], _count: { _all: true } });
+    // Workflow counts (Pending/In progress/…) — self-service orders never
+    // enter that workflow, so they are left out.
+    const grouped = await tx.order.groupBy({
+      by: ["status"],
+      where: { isSelfService: false },
+      _count: { _all: true },
+    });
     const counts: Record<OrderStatus, number> = {
       PENDING: 0,
       IN_PROGRESS: 0,

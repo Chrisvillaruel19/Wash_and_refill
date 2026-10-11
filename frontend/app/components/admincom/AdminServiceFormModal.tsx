@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ServiceItem, ServiceCategory } from "../../staff/(dashboard)/neworder/types";
 import { useEscapeKey } from "../../lib/useEscapeKey";
+import { SELF_SERVICE_CATEGORY_ID, SELF_SERVICE_KG_PER_PRICE } from "../../staff/(dashboard)/neworder/data";
 
 export interface ServiceFormData {
   categoryId: string;
@@ -114,7 +115,9 @@ export default function AdminServiceFormModal({
           </div>
 
           <div>
-            <label htmlFor="service-price-per-kg" className="block text-sm text-gray-500 mb-1">Price per Kg</label>
+            <label htmlFor="service-price-per-kg" className="block text-sm text-gray-500 mb-1">
+              {categoryId === SELF_SERVICE_CATEGORY_ID ? `Price per ${SELF_SERVICE_KG_PER_PRICE} Kg` : "Price per Kg"}
+            </label>
             <input
               id="service-price-per-kg"
               type="number"

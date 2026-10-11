@@ -40,6 +40,16 @@ function buildDropOffSummary(lines: OrderDetailLine[]): DropOffRow[] {
   }));
 }
 
+// difference = actual - expected: negative is a shortage, positive is an overage.
+// Rounded to the centavo first, same as the backend's cashStatus rule
+// (create-shift-handover.service.ts), so float noise never reads as "Over ₱0.00".
+function describeCashDifference(difference: number) {
+  const rounded = Math.round(difference * 100) / 100;
+  if (rounded < 0) return { label: "Shortage", className: "text-red-600" };
+  if (rounded > 0) return { label: "Over", className: "text-green-600" };
+  return { label: "Balanced", className: "text-gray-500" };
+}
+
 export default function ShiftHandover() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
@@ -56,7 +66,10 @@ export default function ShiftHandover() {
   // getMostRecentShiftHandover).
   const [defaultStartingCash, setDefaultStartingCash] = useState(0);
   const [unclaimedOrderLines, setUnclaimedOrderLines] = useState<Record<string, OrderDetailLine[]>>({});
-  const [actualCashCounted, setActualCashCounted] = useState(0);
+  // Raw text, not a number: an empty field must stay distinguishable from a
+  // genuinely counted ₱0 so a blank count can't be submitted as zero.
+  const [actualCashInput, setActualCashInput] = useState("");
+  const [actualCashMissing, setActualCashMissing] = useState(false);
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -210,11 +223,22 @@ export default function ShiftHandover() {
   // submission is still fully correct: the backend recomputes this figure
   // itself from real data, including any pending withdrawals.
   const expectedCash = drawerStart + cashSalesTotal - expenseTotal;
+  const hasActualCash = actualCashInput.trim() !== "";
+  const actualCashCounted = hasActualCash ? Number(actualCashInput) : 0;
   const shortage = actualCashCounted - expectedCash;
 
   async function handleSubmit() {
     if (isSubmittingRef.current) return;
 
+    if (!hasActualCash) {
+      setActualCashMissing(true);
+      setSubmitError("Please enter the Actual Cash Counted before submitting.");
+      return;
+    }
+    if (!Number.isFinite(actualCashCounted)) {
+      setSubmitError("Actual cash counted must be a valid amount.");
+      return;
+    }
     if (actualCashCounted < 0) {
       setSubmitError("Actual cash counted cannot be negative.");
       return;
@@ -244,7 +268,7 @@ export default function ShiftHandover() {
       setMostRecentHandover(recentHandover.record);
       setDefaultStartingCash(recentHandover.defaultStartingCash);
       setReloadKey((k) => k + 1);
-      setActualCashCounted(0);
+      setActualCashInput("");
       setNotes("");
       setHandoverSubmittedThisShift(true);
     } catch (err) {
@@ -395,21 +419,44 @@ export default function ShiftHandover() {
             <p className="text-xl font-bold text-gray-900">₱{expectedCash.toFixed(2)}</p>
           </div>
           <div>
-            <label htmlFor="shift-actual-cash" className="block text-sm text-gray-500 mb-1">Actual Cash Counted</label>
+            <label htmlFor="shift-actual-cash" className="block text-sm text-gray-500 mb-1">
+              Actual Cash Counted <span className="text-red-500">*</span>
+            </label>
             <input
               id="shift-actual-cash"
               type="number"
               min={0}
-              value={actualCashCounted || ""}
-              onChange={(e) => setActualCashCounted(parseFloat(e.target.value) || 0)}
-              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
+              step={0.01}
+              placeholder="0.00"
+              required
+              aria-invalid={actualCashMissing}
+              value={actualCashInput}
+              onChange={(e) => {
+                setActualCashInput(e.target.value);
+                if (e.target.value.trim() !== "") {
+                  setActualCashMissing(false);
+                  setSubmitError("");
+                }
+              }}
+              className={`w-full border rounded-lg p-2 text-gray-900 ${
+                actualCashMissing ? "border-red-500 ring-1 ring-red-500" : "border-gray-300"
+              }`}
             />
+            {actualCashMissing && (
+              <p className="text-red-600 text-xs mt-1">Required — enter the cash you counted.</p>
+            )}
           </div>
           <div>
-            <p className="text-sm text-gray-500">Shortage</p>
-            <p className={`text-xl font-bold ${shortage < 0 ? "text-red-600" : "text-green-600"}`}>
-              ₱{shortage.toFixed(2)}
+            <p className="text-sm text-gray-500">
+              {hasActualCash ? describeCashDifference(shortage).label : "Shortage / Over"}
             </p>
+            {hasActualCash ? (
+              <p className={`text-xl font-bold ${describeCashDifference(shortage).className}`}>
+                ₱{Math.abs(shortage).toFixed(2)}
+              </p>
+            ) : (
+              <p className="text-xl font-bold text-gray-400">—</p>
+            )}
           </div>
           <div>
             <p className="text-sm text-gray-500">GCash / digital (excluded above)</p>
@@ -466,7 +513,7 @@ export default function ShiftHandover() {
                   <th className="p-2 whitespace-nowrap">Staff</th>
                   <th className="p-2 whitespace-nowrap">Expected Cash</th>
                   <th className="p-2 whitespace-nowrap">Actual Counted</th>
-                  <th className="p-2 whitespace-nowrap">Shortage</th>
+                  <th className="p-2 whitespace-nowrap">Shortage / Over</th>
                 </tr>
               </thead>
               <tbody className={historyLoading ? "opacity-50" : undefined}>
@@ -487,10 +534,10 @@ export default function ShiftHandover() {
                     </td>
                     <td
                       className={`p-2 whitespace-nowrap font-medium ${
-                        h.shortage < 0 ? "text-red-600" : "text-green-600"
+                        describeCashDifference(h.shortage).className
                       }`}
                     >
-                      ₱{h.shortage.toFixed(2)}
+                      {describeCashDifference(h.shortage).label} ₱{Math.abs(h.shortage).toFixed(2)}
                     </td>
                   </tr>
                 ))}

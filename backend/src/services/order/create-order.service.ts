@@ -148,11 +148,19 @@ export async function createOrderService(input: {
           if (service.itemType === ItemType.SELF_SERVICE) selfServiceLines++;
           else dropOffServiceLines++;
 
-          // Self Service prices are per 5 kg, rounded to the centavo.
-          const subtotal =
+          // Computed exactly like the New Order cart total the staff member is
+          // shown (calculateCartTotal in neworder/page.tsx): one line rounded
+          // to whole centavos, THEN multiplied by quantity (the cart merges
+          // identical lines into quantity 2+). Unrounded, an odd-centavo price
+          // × fractional kg (₱299.89 × 37.25 kg = ₱11,170.9025) made the shown
+          // total fail the "less than the order total" check below; rounding
+          // after multiplying was still a centavo off for merged lines.
+          // Self Service prices are per 5 kg.
+          const unitCents =
             service.itemType === ItemType.SELF_SERVICE
-              ? Math.round((Number(service.price) / SELF_SERVICE_KG_PER_PRICE) * item.weight * item.quantity * 100) / 100
-              : Number(service.price) * item.weight * item.quantity;
+              ? Math.round((Number(service.price) / SELF_SERVICE_KG_PER_PRICE) * item.weight * 100)
+              : Math.round(Number(service.price) * item.weight * 100);
+          const subtotal = (unitCents * item.quantity) / 100;
           totalAmount += subtotal;
           orderDetailsToCreate.push({
             serviceId: service.id,
@@ -192,6 +200,12 @@ export async function createOrderService(input: {
 
         await refreshStockStatus(inventoryId, tx);
       }
+
+      // Adding centavo amounts as floats can drift (0.1 + 0.2 =
+      // 0.30000000000000004), which would push the total a hair above the
+      // cart total the frontend sums in whole centavos — round it the same way
+      // before any payment check uses it.
+      totalAmount = Math.round(totalAmount * 100) / 100;
 
       // 4. Payment status/date computed server-side only — never trusted
       // from the client, same principle already applied to Inventory's

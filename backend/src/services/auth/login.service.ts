@@ -52,11 +52,14 @@ export async function LoginService(
     }
 
 
+    // Only reached once the password is verified, so the account's status is
+    // never revealed to someone who merely guessed a username — wrong or
+    // unknown credentials still get the generic 401 above. No token issued.
     if (user.accountStatus !== "ACTIVE") {
       return {
         code: 403,
         status: "error",
-        message: "Account is not active"
+        message: "Your account is inactive or archived. Please contact the administrator."
       };
     }
 

@@ -173,8 +173,9 @@ export default function NewOrderPage() {
       setSubmitError(NAME_ERROR_MESSAGE);
       return;
     }
+    // Contact number is optional; if one is entered it must be valid.
     const trimmedPhone = phoneNumber.trim();
-    if (!isValidPhone(trimmedPhone)) {
+    if (trimmedPhone && !isValidPhone(trimmedPhone)) {
       setSubmitError(PHONE_ERROR_MESSAGE);
       return;
     }
@@ -215,7 +216,7 @@ export default function NewOrderPage() {
     try {
       const created = await createOrder({
         customerName: trimmedName,
-        phoneNumber: trimmedPhone,
+        phoneNumber: trimmedPhone || undefined,
         paymentMethod: paymentMethod || undefined,
         amountPaid,
         items,

@@ -45,7 +45,11 @@ export async function exportOrdersToExcel(orders: Order[], fileName: string): Pr
     { customer: string; contact: string; orders: number; spent: number; first?: Date; last?: Date }
   >();
   for (const order of orders) {
-    const key = `${order.customer.trim().toLowerCase()}|${order.contact.trim()}`;
+    // A customer without a contact number is its own customer record, so
+    // never merge it with another number-less customer who shares the name.
+    const key = order.contact.trim()
+      ? `${order.customer.trim().toLowerCase()}|${order.contact.trim()}`
+      : `no-contact|${order.id}`;
     const entry = customers.get(key) ?? { customer: order.customer, contact: order.contact, orders: 0, spent: 0 };
     entry.orders += 1;
     // Cancelled orders never became sales, so they don't count as spend.

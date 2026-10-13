@@ -45,9 +45,9 @@ export default function Home() {
         router.push("/staff");
       }
     } catch (err) {
-      // 409: another Staff member is still on duty — the backend's message
-      // names them, so it's shown as-is.
-      if (err instanceof ApiError && err.status === 409) {
+      // 409: another Staff member is still on duty (the message names them);
+      // 403: inactive/archived account. Both shown as the backend wrote them.
+      if (err instanceof ApiError && (err.status === 409 || err.status === 403)) {
         setError(err.message);
       } else {
         setError("Unable to sign in right now. Please try again.");

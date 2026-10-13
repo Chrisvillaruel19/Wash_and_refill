@@ -9,7 +9,7 @@ export const createEmployeeSchema = z.object({
       .string({ message: "Email is required" })
       .trim()
       .max(254, "Email must be at most 254 characters")
-      .email("Invalid email format"),
+      .email("Please enter a valid email address."),
 
     name: nameRule,
 

@@ -5,8 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { forgotPassword } from "../lib/auth";
 import { ApiError } from "../lib/apiClient";
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import { isValidEmail, EMAIL_ERROR_MESSAGE } from "../lib/validation";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -25,8 +24,8 @@ export default function ForgotPassword() {
       setError("Email is required.");
       return;
     }
-    if (!EMAIL_PATTERN.test(trimmedEmail)) {
-      setError("Please enter a valid email address.");
+    if (!isValidEmail(trimmedEmail)) {
+      setError(EMAIL_ERROR_MESSAGE);
       return;
     }
 

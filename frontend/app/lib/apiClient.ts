@@ -1,6 +1,8 @@
 // Real backend API client. Centralizes: base URL, attaching the access
 // token, unwrapping the response body, and one silent refresh-and-retry on
 // a 401 — so individual pages never have to reimplement any of this.
+import { notifyShiftChanged, NO_ACTIVE_SHIFT_REASON } from "./shiftEvents";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
 // M9 (reviewed, accepted MVP tradeoff — not an oversight): the access
@@ -89,6 +91,9 @@ type ApiEnvelope<T> = {
   // exists here. Read by request() below so callers see the real reason,
   // not just "Validation failed".
   errors?: { path: string; message: string }[];
+  // Machine-readable cause on some errors, e.g. NO_ACTIVE_SHIFT from the
+  // backend's requireActiveShift guard.
+  reason?: string;
 };
 
 function formatErrorMessage(body: ApiEnvelope<unknown>): string {
@@ -145,6 +150,10 @@ async function requestEnvelope<T>(
   }
 
   if (!res.ok) {
+    // The server says this user isn't on an active shift (clocked out in
+    // another tab, auto-closed, handed over…) — refresh the Staff portal's
+    // shift state so every page shows it, not just this one error.
+    if (body.reason === NO_ACTIVE_SHIFT_REASON) notifyShiftChanged();
     throw new ApiError(formatErrorMessage(body), res.status);
   }
 

@@ -1,4 +1,5 @@
 import { apiClient, fetchAllPages } from "../apiClient";
+import { notifyShiftChanged } from "../shiftEvents";
 import { ShiftHandoverRecord, ShiftHandoverInventoryRow } from "../../staff/(dashboard)/types";
 import type { ServerPageResult } from "../useServerPage";
 
@@ -130,4 +131,6 @@ export async function createShiftHandover(data: {
   notes?: string;
 }): Promise<void> {
   await apiClient.post("/shift-handover", data);
+  // A submitted handover ends operational work for this shift.
+  notifyShiftChanged();
 }

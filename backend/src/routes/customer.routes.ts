@@ -2,6 +2,7 @@ import { Router } from "express";
 import { CustomerController } from "../controllers/customer.controller.js";
 import { validateSchema } from "../middlewares/validate-schema.js";
 import { AuthMiddleware } from "../middlewares/auth-middleware.js";
+import { requireActiveShift } from "../middlewares/require-active-shift.js";
 import { requireRole } from "../middlewares/require-role.js";
 import { Role } from "../../generated/prisma/client.js";
 import {
@@ -22,6 +23,7 @@ const authMiddleware = new AuthMiddleware();
 router.post(
   "/",
   authMiddleware.execute,
+  requireActiveShift,
   validateSchema(findOrCreateCustomerSchema),
   customerController.findOrCreate
 );
@@ -46,6 +48,7 @@ router.get(
 router.patch(
   "/:id",
   authMiddleware.execute,
+  requireActiveShift,
   validateSchema(updateCustomerSchema),
   customerController.update
 );

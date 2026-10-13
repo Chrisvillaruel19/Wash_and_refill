@@ -2,6 +2,7 @@ import { Router } from "express";
 import { OrderController } from "../controllers/order.controller.js";
 import { validateSchema } from "../middlewares/validate-schema.js";
 import { AuthMiddleware } from "../middlewares/auth-middleware.js";
+import { requireActiveShift } from "../middlewares/require-active-shift.js";
 import { requireRole } from "../middlewares/require-role.js";
 import { mutationLimiter } from "../middlewares/rate-limiters.js";
 import {
@@ -26,6 +27,7 @@ const authMiddleware = new AuthMiddleware();
 router.post(
   "/",
   authMiddleware.execute,
+  requireActiveShift,
   mutationLimiter,
   validateSchema(createOrderSchema),
   orderController.create
@@ -61,6 +63,7 @@ router.get(
 router.patch(
   "/:id/status",
   authMiddleware.execute,
+  requireActiveShift,
   validateSchema(updateOrderStatusSchema),
   orderController.updateStatus
 );
@@ -72,6 +75,7 @@ router.patch(
 router.patch(
   "/:id/cancel",
   authMiddleware.execute,
+  requireActiveShift,
   validateSchema(idParamSchema),
   orderController.cancel
 );
@@ -81,6 +85,7 @@ router.patch(
 router.patch(
   "/:id/mark-paid",
   authMiddleware.execute,
+  requireActiveShift,
   validateSchema(markOrderPaidSchema),
   orderController.markAsPaid
 );

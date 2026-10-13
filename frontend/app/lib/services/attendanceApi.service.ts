@@ -1,6 +1,7 @@
 // Real backend source for Attendance data — the single source both the
 // Staff and Admin Attendance pages read from.
 import { apiClient } from "../apiClient";
+import { notifyShiftChanged } from "../shiftEvents";
 import { AttendanceRecord, AttendanceStatus } from "../../staff/(dashboard)/types";
 
 const STATUS_MAP: Record<string, AttendanceStatus> = {
@@ -66,8 +67,21 @@ export async function getAttendanceRecords(): Promise<AttendanceRecord[]> {
 // a successful call instead of mapping these responses directly.
 export async function clockIn(): Promise<void> {
   await apiClient.post("/attendance/clock-in");
+  notifyShiftChanged();
 }
 
 export async function clockOut(id: string): Promise<void> {
   await apiClient.post(`/attendance/${id}/clock-out`);
+  notifyShiftChanged();
+}
+
+// The logged-in user's own shift right now, straight from the database:
+// onShift = clocked in with an open session; handoverSubmitted = that shift
+// was already handed over (no more operational work, same as the backend's
+// requireActiveShift guard).
+export async function getActiveShift(): Promise<{ onShift: boolean; handoverSubmitted: boolean }> {
+  const result = await apiClient.get<{ attendance: unknown | null; handoverSubmitted?: boolean }>(
+    "/attendance/active"
+  );
+  return { onShift: result.attendance != null, handoverSubmitted: result.handoverSubmitted === true };
 }

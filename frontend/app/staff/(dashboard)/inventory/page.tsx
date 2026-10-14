@@ -7,6 +7,8 @@ import InventoryTable from "../../../components/staffcom/inventory/InventoryTabl
 import RestockModal from "../../../components/staffcom/inventory/RestockModal";
 import AuthModal from "../../../components/staffcom/inventory/AuthModal";
 import Pagination from "../../../components/staffcom/Pagination";
+import { useActiveShift } from "../../../lib/useActiveShift";
+import ShiftRequiredNotice from "../../../components/staffcom/ShiftRequiredNotice";
 import { usePagination } from "../../../lib/usePagination";
 import { getInventory, restockInventoryItem } from "../../../lib/services/inventoryApi.service";
 import { getMostRecentShiftHandover } from "../../../lib/services/shiftHandoverApi.service";
@@ -16,6 +18,7 @@ import { InventoryItem } from "../types";
 const PAGE_SIZE = 8;
 
 function InventoryPageContent() {
+  const { ensureCanWork } = useActiveShift();
   const searchParams = useSearchParams();
   const lowStockOnly = searchParams.get("filter") === "lowStock";
 
@@ -101,6 +104,7 @@ function InventoryPageContent() {
   }, []);
 
   function requestRestock(item: InventoryItem) {
+    if (!ensureCanWork()) return;
     setAuthTarget(item);
   }
 
@@ -174,6 +178,7 @@ function InventoryPageContent() {
   return (
     <div className="p-4 sm:p-6">
       <h1 className="text-2xl font-bold text-gray-800 mb-1">Laundry Supplies</h1>
+      <ShiftRequiredNotice />
       <div className="flex items-center gap-2 mb-6">
         <p className="text-gray-500">
           {lowStockOnly ? "Showing low stock items only" : "Manage your inventory items"}

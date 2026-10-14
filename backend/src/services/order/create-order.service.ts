@@ -39,7 +39,7 @@ const AMOUNT_PAID_TOLERANCE = 2000;
 
 export async function createOrderService(input: {
   customerName: string;
-  phoneNumber: string;
+  phoneNumber?: string;
   paymentMethod?: PaymentMethod;
   amountPaid: number;
   items: OrderItemInput[];
@@ -84,10 +84,14 @@ export async function createOrderService(input: {
       // constraint violation, so catching it here and continuing on the
       // same tx would break every subsequent query in this transaction.
       // upsert does the whole find-or-create as one atomic query instead.
-      const customer = await customerRepository.findOrCreateByPhone(
-        { customerName: input.customerName, phoneNumber: input.phoneNumber },
-        tx
-      );
+      // No contact number: always a new customer row — matching on a
+      // missing phone would merge unrelated people into one customer.
+      const customer = input.phoneNumber
+        ? await customerRepository.findOrCreateByPhone(
+            { customerName: input.customerName, phoneNumber: input.phoneNumber },
+            tx
+          )
+        : await customerRepository.create({ customerName: input.customerName, phoneNumber: null }, tx);
 
       // 2. Validate every referenced Package/LaundryService/Inventory row,
       // compute each line's subtotal from its CURRENT price (frozen into

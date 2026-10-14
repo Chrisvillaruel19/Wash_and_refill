@@ -2,6 +2,7 @@ import { Router } from "express";
 import { ExpenseController } from "../controllers/expense.controller.js";
 import { validateSchema } from "../middlewares/validate-schema.js";
 import { AuthMiddleware } from "../middlewares/auth-middleware.js";
+import { requireActiveShift } from "../middlewares/require-active-shift.js";
 import { mutationLimiter } from "../middlewares/rate-limiters.js";
 import {
   createExpenseSchema,
@@ -21,6 +22,7 @@ const authMiddleware = new AuthMiddleware();
 router.post(
   "/",
   authMiddleware.execute,
+  requireActiveShift,
   mutationLimiter,
   validateSchema(createExpenseSchema),
   expenseController.create
@@ -31,6 +33,7 @@ router.get("/", authMiddleware.execute, validateSchema(listExpensesSchema), expe
 router.patch(
   "/:id",
   authMiddleware.execute,
+  requireActiveShift,
   validateSchema(updateExpenseSchema),
   expenseController.update
 );

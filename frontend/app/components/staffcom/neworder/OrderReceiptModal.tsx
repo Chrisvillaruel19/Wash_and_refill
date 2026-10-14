@@ -55,7 +55,7 @@ export default function OrderReceiptModal({ receipt, onClose }: OrderReceiptModa
             />
             {receipt.staffName && <Row label="Staff" value={receipt.staffName} />}
             <Row label="Customer" value={receipt.customer} />
-            <Row label="Phone" value={receipt.contact} />
+            <Row label="Phone" value={receipt.contact || "—"} />
           </div>
 
           <div className="border-t border-dashed border-gray-400 py-2 space-y-2">

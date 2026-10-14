@@ -19,6 +19,12 @@ model User {
 
   username        String @unique
   email           String @unique
+  // Set only when the owner proves they control `email` by opening a
+  // verification link (or, for accounts that existed before this column,
+  // by having completed an emailed password reset — see the migration).
+  // Cleared whenever the email changes. Password reset is only issued to
+  // verified addresses; login never depends on it.
+  emailVerifiedAt DateTime?
   password        String
 
   name            String
@@ -90,10 +96,13 @@ model Customer {
   id            String @id @default(uuid())
 
   customerName  String
-  // Required + unique so order creation can always find-or-create a
-  // customer by phone number without ever producing duplicate rows for
-  // the same real person.
-  phoneNumber   String @unique
+  // Optional — some customers have no contact number. When given it stays
+  // unique, so order creation can find-or-create the customer by phone
+  // without duplicate rows for the same real person. A customer without a
+  // number is always created as their own new row (never matched to another
+  // number-less customer); Postgres allows any number of NULLs in a unique
+  // column.
+  phoneNumber   String? @unique
 
   orders        Order[]
 

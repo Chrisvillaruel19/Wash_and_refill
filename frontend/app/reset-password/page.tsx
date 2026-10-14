@@ -27,6 +27,10 @@ function ResetPasswordForm() {
       setError(PASSWORD_ERROR_MESSAGE);
       return;
     }
+    if (!confirmPassword) {
+      setError("Please confirm your new password.");
+      return;
+    }
     if (newPassword !== confirmPassword) {
       setError("Passwords do not match.");
       return;

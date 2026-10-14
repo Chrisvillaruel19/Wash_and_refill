@@ -56,7 +56,7 @@ interface BackendOrder {
   totalAmount: string;
   createdAt: string;
   shiftHandoverId: string | null;
-  customer: { customerName: string; phoneNumber: string };
+  customer: { customerName: string; phoneNumber: string | null };
   user?: { id: string; name: string };
   orderDetails?: BackendOrderDetail[];
 }
@@ -112,7 +112,7 @@ function mapOrder(order: BackendOrder): Order {
   return {
     id: order.id,
     customer: order.customer.customerName,
-    contact: order.customer.phoneNumber,
+    contact: order.customer.phoneNumber ?? "",
     time: created.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     date: created.toLocaleDateString(),
     amount: Number(order.totalAmount),
@@ -291,7 +291,7 @@ function mapReceipt(order: BackendOrder): OrderReceipt {
     createdAt: order.createdAt,
     staffName: order.user?.name,
     customer: order.customer.customerName,
-    contact: order.customer.phoneNumber,
+    contact: order.customer.phoneNumber ?? "",
     lines: (order.orderDetails ?? []).map((d) => {
       const weight = d.weight != null ? Number(d.weight) : null;
       const parts = [weight !== null ? `${weight} kg` : null, d.quantity > 1 || weight === null ? `×${d.quantity}` : null];
@@ -311,7 +311,8 @@ function mapReceipt(order: BackendOrder): OrderReceipt {
 
 export async function createOrder(data: {
   customerName: string;
-  phoneNumber: string;
+  // Optional — empty when the customer has no contact number.
+  phoneNumber?: string;
   // Optional for Unpaid orders (no amount entered yet).
   paymentMethod?: PaymentMethod;
   amountPaid: number;
@@ -325,7 +326,7 @@ export async function createOrder(data: {
   );
   const { order } = await apiClient.post<{ order: BackendOrder }>("/orders", {
     customerName: data.customerName,
-    phoneNumber: data.phoneNumber,
+    phoneNumber: data.phoneNumber || undefined,
     paymentMethod: data.paymentMethod ? PAYMENT_METHOD_MAP_TO_BACKEND[data.paymentMethod] : undefined,
     amountPaid: data.amountPaid,
     items,

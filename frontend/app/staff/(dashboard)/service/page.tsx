@@ -8,6 +8,8 @@ import ConfirmClaimModal from "../../../components/staffcom/service/ConfirmClaim
 import ConfirmCancelModal from "../../../components/staffcom/service/ConfirmCancelModal";
 import ConfirmMarkPaidModal from "../../../components/staffcom/service/ConfirmMarkPaidModal";
 import Pagination from "../../../components/staffcom/Pagination";
+import { useActiveShift } from "../../../lib/useActiveShift";
+import ShiftRequiredNotice from "../../../components/staffcom/ShiftRequiredNotice";
 import { usePagination } from "../../../lib/usePagination";
 import { ApiError } from "../../../lib/apiClient";
 import {
@@ -33,6 +35,7 @@ const filters: ("All" | OrderStatus)[] = [
 ];
 
 export default function ServicePage() {
+  const { ensureCanWork } = useActiveShift();
   const [orders, setOrders] = useState<Order[]>([]);
   const [activeFilter, setActiveFilter] = useState<"All" | OrderStatus>("All");
   const [search, setSearch] = useState("");
@@ -79,6 +82,7 @@ export default function ServicePage() {
   // Forward only, one step at a time — the only move the backend allows.
   function advanceStatus(orderId: string) {
     if (actionSubmitting) return;
+    if (!ensureCanWork()) return;
     const order = orders.find((o) => o.id === orderId);
     if (!order) return;
 
@@ -115,11 +119,13 @@ export default function ServicePage() {
   }
 
   function openCancel(orderId: string) {
+    if (!ensureCanWork()) return;
     setActionError("");
     setPendingCancelId(orderId);
   }
 
   function openMarkPaid(orderId: string) {
+    if (!ensureCanWork()) return;
     setActionError("");
     setPendingMarkPaidId(orderId);
   }
@@ -202,6 +208,7 @@ export default function ServicePage() {
   return (
     <div className="p-4 sm:p-6">
       <h1 className="text-2xl font-bold text-gray-800 mb-6">Service Management</h1>
+      <ShiftRequiredNotice />
 
       {actionError && !pendingClaimId && !pendingCancelId && !pendingMarkPaidId && (
         <p className="text-red-600 text-sm mb-4 bg-red-50 border border-red-200 rounded-lg py-2 px-3">

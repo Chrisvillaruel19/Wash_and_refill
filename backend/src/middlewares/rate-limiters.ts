@@ -1,5 +1,18 @@
 import rateLimit from "express-rate-limit";
 
+// Brute-force/enumeration limiter for the auth endpoints that take a
+// guessable secret (login, forgot/reset password, verify password, verify
+// restock PIN). Deliberately NOT on /auth/me, /auth/refresh-token or
+// /auth/logout: those already require a valid signed token, and every page
+// load calls them, so sharing this budget locked real users out of login.
+export const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { code: 429, status: "error", message: "Too many requests, please try again later." },
+});
+
 // Restock Authorization PINs are 4-6 digits — a much smaller keyspace than
 // the rest of this app, deliberately, so a Staff member can type one
 // quickly. This limiter is the mitigation for that tradeoff: it caps how

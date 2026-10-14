@@ -1,10 +1,10 @@
 import { Router } from "express";
-import { loginSchema, refreshTokenSchema, forgotPasswordSchema, resetPasswordSchema, verifyPasswordSchema, setRestockPinSchema, verifyRestockPinSchema } from "../schema/auth/index.js";
+import { verifyEmailSchema, loginSchema, refreshTokenSchema, forgotPasswordSchema, resetPasswordSchema, verifyPasswordSchema, setRestockPinSchema, verifyRestockPinSchema } from "../schema/auth/index.js";
 import { AuthController } from "../controllers/auth.controller.js";
 import { validateSchema } from "../middlewares/validate-schema.js";
 import { AuthMiddleware } from "../middlewares/auth-middleware.js";
 import { requireRole } from "../middlewares/require-role.js";
-import { restockLimiter, forgotPasswordLimiter } from "../middlewares/rate-limiters.js";
+import { restockLimiter, forgotPasswordLimiter, authLimiter } from "../middlewares/rate-limiters.js";
 import { Role } from "../../generated/prisma/client.js";
 
 const router = Router();
@@ -14,6 +14,7 @@ const authMiddleware = new AuthMiddleware();
 
 router.post(
   "/login",
+  authLimiter,
   validateSchema(loginSchema),
   authController.login
 );
@@ -31,6 +32,7 @@ router.post(
 
 router.post(
   "/forgot-password",
+  authLimiter,
   forgotPasswordLimiter,
   validateSchema(forgotPasswordSchema),
   authController.forgotPassword
@@ -38,6 +40,7 @@ router.post(
 
 router.post(
   "/reset-password",
+  authLimiter,
   validateSchema(resetPasswordSchema),
   authController.resetPassword
 );
@@ -46,6 +49,7 @@ router.post(
 // already be logged in as someone to call this at all.
 router.post(
   "/verify-password",
+  authLimiter,
   authMiddleware.execute,
   validateSchema(verifyPasswordSchema),
   authController.verifyPassword
@@ -67,6 +71,7 @@ router.patch(
 router.post(
   "/verify-restock-pin",
   authMiddleware.execute,
+  authLimiter,
   restockLimiter,
   validateSchema(verifyRestockPinSchema),
   authController.verifyRestockPin
@@ -74,6 +79,24 @@ router.post(
 
 // Server-verified identity for frontend route guards (M8) — see
 // AuthController.me for the full rationale.
+// Email ownership verification. /verify-email takes the secret from the
+// emailed link (limited like the other secret-taking routes); the request
+// endpoint sends a link to the signed-in user's own address (limited like
+// forgot-password, since it sends real email).
+router.post(
+  "/verify-email",
+  authLimiter,
+  validateSchema(verifyEmailSchema),
+  authController.verifyEmail
+);
+
+router.post(
+  "/email-verification/request",
+  authMiddleware.execute,
+  forgotPasswordLimiter,
+  authController.requestEmailVerification
+);
+
 router.get(
   "/me",
   authMiddleware.execute,

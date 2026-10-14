@@ -60,6 +60,14 @@ router.patch(
   employeeController.archive
 );
 
+router.post(
+  "/:id/send-verification",
+  authMiddleware.execute,
+  requireRole(Role.ADMIN),
+  validateSchema(idParamSchema),
+  employeeController.sendVerification
+);
+
 router.patch(
   "/:id/restore",
   authMiddleware.execute,

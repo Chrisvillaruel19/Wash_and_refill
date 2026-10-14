@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { UserRepository } from "../../repositories/user.repository.js";
 import { TokenRepository } from "../../repositories/token.repository.js";
 import { sendMail, isMailRateLimitError } from "../../lib/mailer.js";
+import { sendEmailVerification } from "./email-verification.service.js";
 import { ENV } from "../../config/env.js";
 import { AccountStatus } from "../../../generated/prisma/client.js";
 
@@ -15,12 +16,35 @@ const RESET_TOKEN_LIFETIME_MS = 15 * 60 * 1000;
 // both spams the inbox and runs into Gmail's own sending limits.
 const RESEND_COOLDOWN_MS = 60 * 1000;
 
-// Same response regardless of whether the email exists or which role it
-// belongs to, so this endpoint can't be used to enumerate accounts.
+// Business decision: the page tells the user when an email isn't registered
+// (instead of one generic answer). This deliberately reveals whether an
+// address has an account — accepted trade-off, mitigated by the per-IP
+// limits on this route (authLimiter + forgotPasswordLimiter).
+const NOT_REGISTERED = {
+  code: 404,
+  status: "error",
+  message: "This email address is not registered.",
+};
+
+// Registered, but inactive/archived: no email is sent (they can't log in),
+// and the answer stays neutral rather than claiming "not registered".
 const GENERIC_SUCCESS = {
   code: 200,
   status: "success",
   message: "If an account with that email exists, a password reset link has been sent.",
+};
+
+const RESET_LINK_SENT = {
+  code: 200,
+  status: "success",
+  message: "A password reset link has been sent to your email. Check your Spam folder if you don't see it.",
+};
+
+const VERIFY_FIRST = {
+  code: 200,
+  status: "success",
+  message:
+    "Your email address isn't verified yet. We've sent you a verification link — verify your email, then request the password reset again.",
 };
 
 // Self-service for Admin and Staff alike — every account has its own
@@ -34,10 +58,23 @@ export async function forgotPasswordService(email: string) {
     // capitalization, and Gmail itself ignores case.
     const user = await userRepository.findByEmailInsensitive(email.trim());
 
+    // Unregistered: answered before any token or email exists.
+    if (!user) return NOT_REGISTERED;
+
     // Archived/inactive accounts can't log in (login.service.ts), so a reset
-    // link would be useless — silently answer the same as "no account".
-    if (!user || user.accountStatus !== AccountStatus.ACTIVE) {
+    // link would be useless — no email, neutral answer.
+    if (user.accountStatus !== AccountStatus.ACTIVE) {
       return GENERIC_SUCCESS;
+    }
+
+    // Never send a usable reset link to an address nobody has proven they
+    // own. Instead the address gets a verification link (proving ownership
+    // is also the recovery path for unverified accounts, Admins included);
+    // after verifying, the user requests the reset again.
+    if (!user.emailVerifiedAt) {
+      const sent = await sendEmailVerification(user.id, { forPasswordReset: true });
+      if (sent.reason === "send_failed") throw new Error("Verification email delivery failed");
+      return VERIFY_FIRST;
     }
 
     // Within the cooldown, answer exactly as if a new email went out — the
@@ -46,7 +83,7 @@ export async function forgotPasswordService(email: string) {
     // to learn which emails have accounts.
     const latest = await tokenRepository.findLatestResetTokenForUser(user.id);
     if (latest && latest.expiresAt.getTime() - RESET_TOKEN_LIFETIME_MS > Date.now() - RESEND_COOLDOWN_MS) {
-      return GENERIC_SUCCESS;
+      return RESET_LINK_SENT;
     }
 
     const resetToken = crypto.randomBytes(32).toString("hex");
@@ -70,7 +107,7 @@ export async function forgotPasswordService(email: string) {
        <p>If you didn't request this, you can safely ignore this email.</p>`
     );
 
-    return GENERIC_SUCCESS;
+    return RESET_LINK_SENT;
 
 
   } catch(error) {

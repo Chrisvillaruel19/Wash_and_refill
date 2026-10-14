@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 
 import { logout } from "../../lib/auth";
+import { ApiError } from "../../lib/apiClient";
+import { alertError } from "../../lib/alerts";
 
 const menuItems = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
@@ -44,9 +46,22 @@ export default function AdminSidebar() {
     setIsOpen(false);
   }, [pathname]);
 
-  function handleLogout() {
-    logout();
-    router.push("/");
+  // Waits for the server: leaving the page while the logout request was
+  // still in flight let the login page find the still-valid session and
+  // bounce back into /admin, and a refused logout (e.g. 409 — an open
+  // attendance shift) was silently ignored, leaving a half-logged-out state.
+  const [loggingOut, setLoggingOut] = useState(false);
+  async function handleLogout() {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await logout();
+      router.replace("/");
+    } catch (err) {
+      alertError("Unable to log out", err instanceof ApiError ? err.message : "Please check your connection and try again.");
+    } finally {
+      setLoggingOut(false);
+    }
   }
 
   return (
@@ -115,10 +130,11 @@ export default function AdminSidebar() {
         <div className="p-5 border-t border-blue-500 shrink-0">
           <button
             onClick={handleLogout}
-            className="flex items-center justify-center gap-2 w-full bg-sky-700 hover:bg-sky-800 py-3 rounded-lg transition"
+            disabled={loggingOut}
+            className="flex items-center justify-center gap-2 w-full bg-sky-700 hover:bg-sky-800 py-3 rounded-lg transition disabled:opacity-60"
           >
             <LogOut size={18} />
-            Logout
+            {loggingOut ? "Logging out..." : "Logout"}
           </button>
         </div>
       </aside>

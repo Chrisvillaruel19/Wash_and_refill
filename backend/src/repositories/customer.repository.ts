@@ -17,7 +17,7 @@ export class CustomerRepository {
   }
 
   async create(
-    data: { customerName: string; phoneNumber: string },
+    data: { customerName: string; phoneNumber: string | null },
     tx: PrismaClientOrTx = prisma
   ) {
     return tx.customer.create({ data });

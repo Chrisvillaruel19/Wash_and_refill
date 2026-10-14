@@ -5,12 +5,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { forgotPassword } from "../lib/auth";
 import { ApiError } from "../lib/apiClient";
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import { isValidEmail, EMAIL_ERROR_MESSAGE } from "../lib/validation";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
+  // Problems with the email itself (empty, bad format, not registered) are
+  // shown under the field; anything else uses the banner above the form.
+  const [emailError, setEmailError] = useState("");
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Same re-entrancy guard pattern used on the login page.
@@ -21,28 +23,34 @@ export default function ForgotPassword() {
     if (isSubmittingRef.current) return;
 
     const trimmedEmail = email.trim();
+    setError("");
     if (!trimmedEmail) {
-      setError("Email is required.");
+      setEmailError("Email is required.");
       return;
     }
-    if (!EMAIL_PATTERN.test(trimmedEmail)) {
-      setError("Please enter a valid email address.");
+    if (!isValidEmail(trimmedEmail)) {
+      setEmailError(EMAIL_ERROR_MESSAGE);
       return;
     }
 
     isSubmittingRef.current = true;
     setIsSubmitting(true);
-    setError("");
+    setEmailError("");
     setMessage("");
 
     try {
+      // The server says which case applied: reset link sent, or verify the
+      // email first (unverified accounts).
       const responseMessage = await forgotPassword(trimmedEmail);
-      // Deliberately the same message whether or not the email exists, so
-      // this page can't be used to find out which emails have accounts.
-      setMessage(responseMessage || "If an account with that email exists, a password reset link has been sent.");
+      setMessage(responseMessage || "A password reset link has been sent to your email.");
       setEmail("");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Unable to process your request right now. Please try again.");
+      if (err instanceof ApiError && err.status === 404) {
+        // "This email address is not registered." — from the server's lookup.
+        setEmailError(err.message);
+      } else {
+        setError(err instanceof ApiError ? err.message : "Unable to process your request right now. Please try again.");
+      }
     } finally {
       isSubmittingRef.current = false;
       setIsSubmitting(false);
@@ -97,10 +105,22 @@ export default function ForgotPassword() {
                   type="email"
                   placeholder="Enter your account email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (emailError) setEmailError("");
+                  }}
                   autoComplete="email"
-                  className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                  aria-invalid={!!emailError}
+                  aria-describedby={emailError ? "email-error" : undefined}
+                  className={`w-full border rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 ${
+                    emailError ? "border-red-500" : "border-gray-300"
+                  }`}
                 />
+                {emailError && (
+                  <p id="email-error" className="text-red-600 text-sm mt-1">
+                    {emailError}
+                  </p>
+                )}
               </div>
 
               <button

@@ -1,5 +1,4 @@
 import { Router } from "express";
-import rateLimit from "express-rate-limit";
 import authRoutes from "./auth.routes.js";
 import employeeRoutes from "./employee.routes.js";
 import inventoryRoutes from "./inventory.routes.js";
@@ -16,17 +15,11 @@ import auditLogRoutes from "./audit-log.routes.js";
 
 const router = Router();
 
-// Auth routes are the highest-value brute-force/enumeration target
-// (login, forgot-password especially) — rate limit the whole group.
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { code: 429, status: "error", message: "Too many requests, please try again later." },
-});
-
-router.use("/auth", authLimiter, authRoutes);
+// The brute-force limiter (authLimiter) is applied per route in
+// auth.routes.ts to the endpoints that take a guessable secret — not to the
+// whole group, where every session check/refresh/logout spent the same
+// 20-per-15-minutes budget as login and normal browsing locked users out.
+router.use("/auth", authRoutes);
 router.use("/employee", employeeRoutes);
 router.use("/inventory", inventoryRoutes);
 router.use("/customers", customerRoutes);

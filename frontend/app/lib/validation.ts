@@ -57,6 +57,20 @@ export function isValidUsername(value: string): boolean {
   return trimmed.length >= 3 && trimmed.length <= 30 && /^[a-zA-Z0-9_]+$/.test(trimmed);
 }
 
+export const EMAIL_ERROR_MESSAGE = "Please enter a valid email address.";
+
+// Same pattern the backend's z.string().email() uses (zod 4's built-in email
+// regex), so an address the form accepts is never then refused by the server
+// with a different message. Checks FORMAT only: random123@email.com is a
+// correctly formatted address even if no such mailbox exists — only sending
+// it an email can prove that.
+const EMAIL_PATTERN =
+  /^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9-]*\.)+[A-Za-z]{2,}$/;
+
+export function isValidEmail(value: string): boolean {
+  return EMAIL_PATTERN.test(value.trim());
+}
+
 export const PASSWORD_ERROR_MESSAGE = "Password must be at least 8 characters.";
 
 export function isValidPassword(value: string): boolean {

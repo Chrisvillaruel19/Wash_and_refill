@@ -8,8 +8,11 @@ export const createEmployeeSchema = z.object({
     email: z
       .string({ message: "Email is required" })
       .trim()
+      // Stored lowercase (as every existing account already is) so the same
+      // address can never register twice with different capitalization.
+      .toLowerCase()
       .max(254, "Email must be at most 254 characters")
-      .email("Invalid email format"),
+      .email("Please enter a valid email address."),
 
     name: nameRule,
 

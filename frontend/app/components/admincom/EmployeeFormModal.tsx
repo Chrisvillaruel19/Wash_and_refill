@@ -14,9 +14,9 @@ import {
   sanitizePhoneInput,
   isValidPassword,
   PASSWORD_ERROR_MESSAGE,
+  isValidEmail,
+  EMAIL_ERROR_MESSAGE,
 } from "../../lib/validation";
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export interface EmployeeFormData {
   username: string;
@@ -78,8 +78,8 @@ export default function EmployeeFormModal({
       return;
     }
 
-    if (!EMAIL_PATTERN.test(trimmedEmail)) {
-      setError("Please enter a valid email address.");
+    if (!isValidEmail(trimmedEmail)) {
+      setError(EMAIL_ERROR_MESSAGE);
       return;
     }
 

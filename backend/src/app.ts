@@ -60,15 +60,34 @@ app.get("/health", async (req, res) => {
   }
 });
 
+// Unknown routes get the same JSON error shape as everything else, not
+// Express's default HTML page.
+app.use((req: Request, res: Response) => {
+  res.status(404).json({ code: 404, status: "error", message: "Not found" });
+});
+
 // Catch-all safety net for anything that slips past a controller's own
 // try/catch (middleware errors, routing failures) — without this, Express's
 // default handler would return an HTML error page instead of JSON.
 app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
-  console.error("Unhandled error:", err);
-
   if (res.headersSent) {
     return next(err);
   }
+
+  // Client mistakes from the JSON body parser are not server errors.
+  const type = (err as { type?: string } | null)?.type;
+  if (type === "entity.parse.failed") {
+    return res.status(400).json({ code: 400, status: "error", message: "Malformed JSON in request body" });
+  }
+  if (type === "entity.too.large") {
+    return res.status(413).json({ code: 413, status: "error", message: "Request body is too large" });
+  }
+  // Raised by the CORS origin check above — a refused origin, not a crash.
+  if (err instanceof Error && err.message === "Not allowed by CORS") {
+    return res.status(403).json({ code: 403, status: "error", message: "Origin not allowed" });
+  }
+
+  console.error("Unhandled error:", err);
 
   res.status(500).json({
     code: 500,

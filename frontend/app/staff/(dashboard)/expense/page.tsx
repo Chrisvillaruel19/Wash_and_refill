@@ -6,6 +6,8 @@ import { getExpenses, getExpensesPage, createExpense } from "../../../lib/servic
 import { ExpenseRecord, ExpenseCategory } from "../types";
 import ExpandableText from "../../../components/staffcom/ExpandableText";
 import Pagination from "../../../components/staffcom/Pagination";
+import { useActiveShift } from "../../../lib/useActiveShift";
+import ShiftRequiredNotice from "../../../components/staffcom/ShiftRequiredNotice";
 import ReceiptViewerModal from "../../../components/ReceiptViewerModal";
 import { usePagination } from "../../../lib/usePagination";
 import { useServerPage } from "../../../lib/useServerPage";
@@ -21,6 +23,7 @@ const categories: ExpenseCategory[] = [
 ];
 
 export default function Expense() {
+  const { canWork, ensureCanWork } = useActiveShift();
   const [search, setSearch] = useState("");
   const [amount, setAmount] = useState(0);
   const [category, setCategory] = useState<ExpenseCategory | "">("");
@@ -82,6 +85,7 @@ export default function Expense() {
 
   async function handleSubmit() {
     if (isSubmittingRef.current) return;
+    if (!ensureCanWork()) return;
 
     if (amount <= 0) {
       setSubmitError("Amount must be greater than zero.");
@@ -147,6 +151,7 @@ export default function Expense() {
 
   return (
     <div className="p-4 sm:p-6">
+      <ShiftRequiredNotice />
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3">
         <h2 className="text-lg font-bold text-gray-900">Expense History</h2>
         <div className="relative w-full sm:w-auto sm:max-w-xs">
@@ -199,7 +204,7 @@ export default function Expense() {
           </div>
           <button
             onClick={handleSubmit}
-            disabled={amount <= 0 || !category || isSubmitting}
+            disabled={amount <= 0 || !category || isSubmitting || !canWork}
             className="flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
             <CheckCircle2 size={18} /> {isSubmitting ? "Submitting..." : "Submit Expense"}

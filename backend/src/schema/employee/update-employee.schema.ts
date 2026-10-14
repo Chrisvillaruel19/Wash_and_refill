@@ -9,7 +9,7 @@ export const updateEmployeeSchema = z.object({
     .object({
       username: usernameRule.optional(),
       name: nameRule.optional(),
-      email: z.string().trim().max(254, "Email must be at most 254 characters").email("Please enter a valid email address.").optional(),
+      email: z.string().trim().toLowerCase().max(254, "Email must be at most 254 characters").email("Please enter a valid email address.").optional(),
       phone: optionalPhoneNumberRule(),
       hiredDate: z.coerce.date().optional(),
       // Omitted = keep current password. Present = reset to this value.

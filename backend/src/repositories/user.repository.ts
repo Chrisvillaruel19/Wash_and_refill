@@ -16,6 +16,7 @@ const employeeSelect = {
   hiredDate: true,
   role: true,
   accountStatus: true,
+  emailVerifiedAt: true,
 } as const;
 
 export class UserRepository {
@@ -46,17 +47,24 @@ export class UserRepository {
       select: {
         id: true,
         username: true,
+        name: true,
+        email: true,
         role: true,
         accountStatus: true,
+        emailVerifiedAt: true,
       },
     });
+  }
+
+  async setEmailVerifiedAt(id: string, emailVerifiedAt: Date | null, tx: PrismaClientOrTx = prisma) {
+    return tx.user.update({ where: { id }, data: { emailVerifiedAt }, select: { id: true } });
   }
 
   // Forgot Password only — ignores capitalization of what the user typed.
   async findByEmailInsensitive(email: string, tx: PrismaClientOrTx = prisma) {
     return await tx.user.findFirst({
       where: { email: { equals: email, mode: "insensitive" } },
-      select: { id: true, email: true, accountStatus: true },
+      select: { id: true, email: true, accountStatus: true, emailVerifiedAt: true },
     });
   }
 
@@ -111,8 +119,11 @@ export class UserRepository {
     });
   }
 
+  // Employee Management manages STAFF accounts only — an Admin account is
+  // never found here, so no crafted request to the employee endpoints can
+  // edit, deactivate, archive or reset another Admin.
   async findByIdForEmployee(id: string, tx: PrismaClientOrTx = prisma) {
-    return tx.user.findUnique({ where: { id }, select: employeeSelect });
+    return tx.user.findFirst({ where: { id, role: Role.STAFF }, select: employeeSelect });
   }
 
   // Employee archive gate: an account with no recorded activity yet counts

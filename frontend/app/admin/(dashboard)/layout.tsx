@@ -3,13 +3,14 @@
 import { useRequireAdmin } from "../../lib/useRequireAdmin";
 import AdminSidebar from "../../components/admincom/AdminSidebar";
 import AdminPageHeader from "../../components/admincom/AdminPageHeader";
+import EmailVerificationNotice from "../../components/EmailVerificationNotice";
 
 export default function AdminDashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { checking } = useRequireAdmin();
+  const { checking, user } = useRequireAdmin();
 
   if (checking) {
     return <p className="p-6 text-gray-400">Checking access...</p>;
@@ -21,6 +22,7 @@ export default function AdminDashboardLayout({
       <main className="flex-1 flex flex-col min-w-0">
         <AdminPageHeader />
         <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-x-hidden">
+          <EmailVerificationNotice emailVerified={user?.emailVerified} />
           {children}
         </div>
       </main>

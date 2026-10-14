@@ -11,6 +11,14 @@ import {
 } from "../services/auth/index.js";
 import { toMilliseconds, TokenExpiry, JwtPayload } from "../lib/jwt.js";
 import { ENV } from "../config/env.js";
+import { UserRepository } from "../repositories/user.repository.js";
+import {
+  sendEmailVerification,
+  verifyEmailService,
+  verificationRequestResponse,
+} from "../services/auth/email-verification.service.js";
+
+const userRepository = new UserRepository();
 
 type AuthenticatedRequest = Request & { user?: JwtPayload };
 
@@ -76,7 +84,13 @@ export class AuthController {
         return res.status(result.code ?? 400).json(result);
       }
 
-      res.clearCookie("refreshToken");
+      // Same attributes the cookie was set with — browsers can ignore a
+      // clear for a SameSite=None; Secure cookie that doesn't match them.
+      res.clearCookie("refreshToken", {
+        httpOnly: REFRESH_COOKIE_OPTIONS.httpOnly,
+        secure: REFRESH_COOKIE_OPTIONS.secure,
+        sameSite: REFRESH_COOKIE_OPTIONS.sameSite,
+      });
 
       return res.status(200).json({
         message: "Logout successful",
@@ -188,16 +202,44 @@ export class AuthController {
 // time. Never the source of a real authorization decision itself — every
 // actual Admin-only action is still independently enforced by
 // requireRole() on its own route, unchanged by this endpoint's existence.
+  // Also the Staff/Admin portals' session restore after a reload or a
+  // reopened browser: identity and role come from the database for the
+  // verified token's user (not the token's possibly stale role claim), and
+  // an account deactivated since login is refused here rather than restored.
+  // Opened from the emailed link (via the /verify-email page).
+  public verifyEmail = async (req: Request, res: Response) => {
+    const result = await verifyEmailService(req.body.token);
+    return res.status(result.code).json(result);
+  };
+
+  // A signed-in user (Admin or Staff) asking for a link to their own email.
+  public requestEmailVerification = async (req: Request, res: Response) => {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      const result = verificationRequestResponse(await sendEmailVerification(authReq.user?.sub as string));
+      return res.status(result.code).json(result);
+    } catch (error) {
+      console.error("AuthController.requestEmailVerification error", error instanceof Error ? error.message : "unknown error");
+      return res.status(500).json({ code: 500, status: "error", message: "Unable to send verification email" });
+    }
+  };
+
   public me = async (req: Request, res: Response) => {
-    const authReq = req as AuthenticatedRequest;
-    return res.status(200).json({
-      code: 200,
-      status: "success",
-      data: {
-        id: authReq.user?.sub,
-        role: authReq.user?.role,
-      },
-    });
+    try {
+      const authReq = req as AuthenticatedRequest;
+      const user = await userRepository.findById(authReq.user?.sub as string);
+      if (!user || user.accountStatus !== "ACTIVE") {
+        return res.status(403).json({ code: 403, status: "error", message: "Account is not active" });
+      }
+      return res.status(200).json({
+        code: 200,
+        status: "success",
+        data: { id: user.id, username: user.username, name: user.name, role: user.role, emailVerified: !!user.emailVerifiedAt },
+      });
+    } catch (error) {
+      console.error("AuthController.me error", error);
+      return res.status(500).json({ code: 500, status: "error", message: "Unable to verify session" });
+    }
   };
 
 //refresh method

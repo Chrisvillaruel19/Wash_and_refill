@@ -15,6 +15,8 @@ import { getInventory } from "../../../lib/services/inventoryApi.service";
 import { createOrder, NewOrderItemInput, OrderReceipt } from "../../../lib/services/ordersApi.service";
 import { ApiError } from "../../../lib/apiClient";
 import OrderReceiptModal from "../../../components/staffcom/neworder/OrderReceiptModal";
+import { useActiveShift } from "../../../lib/useActiveShift";
+import ShiftRequiredNotice from "../../../components/staffcom/ShiftRequiredNotice";
 import { isValidPhone, PHONE_ERROR_MESSAGE, isValidName, NAME_ERROR_MESSAGE } from "../../../lib/validation";
 
 function calculateCartTotal(items: CartItem[]) {
@@ -36,6 +38,7 @@ function buildSupplyMenu(inventory: InventoryItem[]): SupplyItem[] {
 }
 
 export default function NewOrderPage() {
+  const { ensureCanWork } = useActiveShift();
   const [customerName, setCustomerName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -167,6 +170,7 @@ export default function NewOrderPage() {
 
   async function handleFinishTransaction() {
     if (cartItems.length === 0 || isSubmittingRef.current) return;
+    if (!ensureCanWork()) return;
 
     const trimmedName = customerName.trim();
     if (!isValidName(trimmedName)) {
@@ -261,6 +265,7 @@ export default function NewOrderPage() {
 
   return (
     <div className="p-4 sm:p-6">
+      <ShiftRequiredNotice />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <CustomerInfoForm

@@ -1,4 +1,4 @@
-import { apiClient, setAccessToken, ApiError, CURRENT_USER_KEY } from "./apiClient";
+import { apiClient, setAccessToken, ApiError, CURRENT_USER_KEY, hasAccessToken, refreshSession } from "./apiClient";
 import { clockIn } from "./services/attendanceApi.service";
 
 export interface StaffUser {
@@ -6,6 +6,8 @@ export interface StaffUser {
   password: string;
   name: string;
   role: "staff" | "admin";
+  // From the server (/auth/me); undefined until a session check has run.
+  emailVerified?: boolean;
 }
 
 // Backend's Role enum is "STAFF" | "ADMIN"; every existing page/hook reads
@@ -61,6 +63,74 @@ export async function login(username: string, password: string): Promise<StaffUs
     if (error instanceof ApiError) return null;
     throw error;
   }
+}
+
+// Restores the logged-in user from the real session (the httpOnly refresh
+// cookie) — used on every page load by the login page and the Admin/Staff
+// route guards, so reopening the browser or refreshing keeps the user signed
+// in for as long as the session is valid. Identity and role come from the
+// server (/auth/me), never from the localStorage snapshot, which is only
+// rewritten here as a display cache (name/role — no token, no password).
+// Returns null when there is no valid session (never logged in, logged out,
+// expired, revoked, or the account was deactivated); rethrows anything else
+// (e.g. the backend is unreachable) so callers don't mistake an outage for
+// a logout.
+//
+// Kept cheap, since it runs on every page load: concurrent callers (React
+// runs effects twice in development) share one check; a browser with no
+// signed-in record (never logged in here, or logged out) makes no request at
+// all; and with no in-memory token it refreshes directly instead of first
+// collecting a guaranteed 401 from /auth/me.
+let restoring: Promise<StaffUser | null> | null = null;
+
+export function restoreSession(): Promise<StaffUser | null> {
+  if (!restoring) {
+    restoring = doRestoreSession().finally(() => {
+      restoring = null;
+    });
+  }
+  return restoring;
+}
+
+function clearLocalSession() {
+  if (typeof window !== "undefined") localStorage.removeItem(CURRENT_USER_KEY);
+  setAccessToken(null);
+}
+
+async function doRestoreSession(): Promise<StaffUser | null> {
+  if (!getCurrentUser()) return null;
+
+  if (!hasAccessToken()) {
+    const refreshed = await refreshSession();
+    if (refreshed === "rejected") {
+      clearLocalSession();
+      return null;
+    }
+    if (refreshed === "unreachable") throw new Error("Unable to reach the server to verify the session.");
+  }
+
+  try {
+    const me = await apiClient.get<{ username: string; name: string; role: string; emailVerified?: boolean }>("/auth/me");
+    const user: StaffUser = { username: me.username, password: "", name: me.name, role: mapRole(me.role), emailVerified: me.emailVerified };
+    if (typeof window !== "undefined") localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+    return user;
+  } catch (error) {
+    if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+      clearLocalSession();
+      return null;
+    }
+    throw error;
+  }
+}
+
+// Email ownership verification — the token comes from the emailed link.
+export async function verifyEmail(token: string): Promise<string> {
+  return apiClient.postMessage("/auth/verify-email", { token });
+}
+
+// Sends a verification link to the signed-in user's own email.
+export async function requestMyEmailVerification(): Promise<string> {
+  return apiClient.postMessage("/auth/email-verification/request");
 }
 
 // Synchronous by design, matching every existing call site

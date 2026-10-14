@@ -1,10 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { login } from "../lib/auth";
+import { login, restoreSession } from "../lib/auth";
 import { ApiError } from "../lib/apiClient";
 
 export default function Home() {
@@ -17,6 +17,27 @@ export default function Home() {
   // guaranteed to re-render before a second click event fires, so the real
   // guard is this ref, set synchronously.
   const isSubmittingRef = useRef(false);
+  // Still signed in from before (reopened browser, refreshed tab)? Then go
+  // straight to the right dashboard instead of showing the login form. The
+  // form stays hidden until the server has answered, so it never flashes.
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    restoreSession()
+      .then((user) => {
+        if (cancelled) return;
+        if (user) router.replace(user.role === "admin" ? "/admin" : "/staff");
+        else setCheckingSession(false);
+      })
+      .catch(() => {
+        // Couldn't reach the server — let the user try signing in normally.
+        if (!cancelled) setCheckingSession(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -56,6 +77,10 @@ export default function Home() {
       isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
+  }
+
+  if (checkingSession) {
+    return <p className="p-6 text-gray-400">Checking session...</p>;
   }
 
   return (

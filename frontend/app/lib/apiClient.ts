@@ -5,24 +5,23 @@ import { notifyShiftChanged, NO_ACTIVE_SHIFT_REASON } from "./shiftEvents";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
-// M9 (reviewed, accepted MVP tradeoff — not an oversight): the access
-// token lives in localStorage rather than JS-memory-only. Threat model:
-// any XSS on this origin can read it, so its blast radius is real but
-// bounded to its own 15-minute lifetime — the actually valuable, 7-day
-// credential (the refresh token) is already httpOnly and never touchable
-// by JS at all, regardless of this choice. Moving the access token to
-// memory-only was considered and rejected: it would (a) require an async
-// bootstrap/silent-refresh on every page load instead of the current
-// synchronous localStorage read, adding a loading-flash to every reload,
-// and (b) introduce a genuine multi-tab race — two tabs opened at once
-// would both start with no in-memory token and both fire a silent refresh
-// against the same single-use, rotating refresh cookie; only one can win,
-// so the other would fail with no in-memory fallback to recover from.
-// localStorage avoids both: it already survives reloads and is shared
-// across tabs, so a silent refresh is only ever needed on genuine
-// expiry/401, not on every tab open. Revisit if this app ever needs to
-// defend against a realistic XSS threat this doesn't already mitigate.
-const ACCESS_TOKEN_KEY = "wrlms_access_token";
+// The 15-minute access token lives in memory only — never localStorage or
+// sessionStorage, where any script on the page could read it. The session
+// itself is the 7-day httpOnly refresh-token cookie (unreadable by JS), so a
+// reload or a reopened browser restores access with one silent refresh
+// (see refreshAccessToken, which serializes refreshes across tabs so two
+// tabs can't both spend the same single-use refresh token).
+let accessToken: string | null = null;
+// Older builds kept the token in localStorage — removed on load so no copy
+// is left behind.
+const LEGACY_ACCESS_TOKEN_KEY = "wrlms_access_token";
+if (typeof window !== "undefined") {
+  try {
+    localStorage.removeItem(LEGACY_ACCESS_TOKEN_KEY);
+  } catch {
+    // Storage unavailable — nothing to clean up.
+  }
+}
 // Owned here (not in auth.ts) so this file can clear it directly on an
 // unrecoverable session, without importing from auth.ts and creating a
 // circular dependency (auth.ts already imports apiClient/setAccessToken/
@@ -33,8 +32,7 @@ export const CURRENT_USER_KEY = "wrlms_current_user";
 // Not exported — only request() below needs it. Every other file goes
 // through apiClient.get/post/patch/delete, which attach the token itself.
 function getAccessToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(ACCESS_TOKEN_KEY);
+  return accessToken;
 }
 
 // Set true once a refresh attempt has genuinely failed (session is
@@ -44,13 +42,8 @@ function getAccessToken(): string | null {
 let isSessionExpired = false;
 
 export function setAccessToken(token: string | null): void {
-  if (typeof window === "undefined") return;
-  if (token) {
-    localStorage.setItem(ACCESS_TOKEN_KEY, token);
-    isSessionExpired = false;
-  } else {
-    localStorage.removeItem(ACCESS_TOKEN_KEY);
-  }
+  accessToken = token;
+  if (token) isSessionExpired = false;
 }
 
 // Clears both pieces of client-side auth state and sends the user back to
@@ -60,8 +53,8 @@ export function setAccessToken(token: string | null): void {
 // torn down by this. No token is ever placed in the URL — this is a plain
 // path navigation, nothing appended.
 function clearStaleAuthState(): void {
+  accessToken = null;
   if (typeof window === "undefined") return;
-  localStorage.removeItem(ACCESS_TOKEN_KEY);
   localStorage.removeItem(CURRENT_USER_KEY);
   if (window.location.pathname !== "/") {
     window.location.href = "/";
@@ -177,34 +170,64 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 // being traced to this cause. The fix: only ever have one refresh in
 // flight — every concurrent caller awaits that same promise instead of
 // starting its own.
-let refreshPromise: Promise<boolean> | null = null;
+// "rejected" = the server refused the refresh (no/expired/revoked session);
+// "unreachable" = no answer at all (network/server down) — not a logout.
+export type RefreshResult = "ok" | "rejected" | "unreachable";
+let refreshPromise: Promise<RefreshResult> | null = null;
 
 async function refreshAccessToken(): Promise<boolean> {
+  return (await refreshSession()) === "ok";
+}
+
+// Whether this tab already holds an access token (it lives in memory only,
+// so it's gone after a reload or a reopened browser).
+export function hasAccessToken(): boolean {
+  return accessToken !== null;
+}
+
+// Gets a fresh access token from the httpOnly refresh cookie. One refresh
+// at a time per tab (concurrent callers share it) and across tabs (lock).
+export function refreshSession(): Promise<RefreshResult> {
   if (refreshPromise) return refreshPromise;
 
-  refreshPromise = (async () => {
-    try {
-      const res = await fetch(`${API_BASE}/auth/refresh-token`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({}),
-      });
-      if (!res.ok) return false;
+  // The refresh token is single-use (rotated on every refresh, and replaying
+  // a used one revokes the whole session), and the cookie is shared by every
+  // tab — so two tabs opened together must not refresh at the same moment.
+  // A cross-tab Web Lock queues them: the second tab refreshes only after
+  // the first has received (and the browser stored) the rotated cookie.
+  const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
+  // LockManager.request resolves with the callback's own resolved value;
+  // its TS signature just doesn't unwrap the inner promise.
+  const run: Promise<RefreshResult> = locks
+    ? (locks.request("wrlms-auth-refresh", () => doRefresh()) as unknown as Promise<RefreshResult>)
+    : doRefresh();
+  const pending = run.finally(() => {
+    refreshPromise = null;
+  });
+  refreshPromise = pending;
+  return pending;
+}
 
-      const body: ApiEnvelope<{ accessToken: string }> = await res.json().catch(() => ({}));
-      if (!body.data?.accessToken) return false;
+async function doRefresh(): Promise<RefreshResult> {
+  try {
+    const res = await fetch(`${API_BASE}/auth/refresh-token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({}),
+    });
+    // 5xx/429 = the server couldn't decide, not "your session is invalid".
+    if (res.status >= 500 || res.status === 429) return "unreachable";
+    if (!res.ok) return "rejected";
 
-      setAccessToken(body.data.accessToken);
-      return true;
-    } catch {
-      return false;
-    } finally {
-      refreshPromise = null;
-    }
-  })();
+    const body: ApiEnvelope<{ accessToken: string }> = await res.json().catch(() => ({}));
+    if (!body.data?.accessToken) return "rejected";
 
-  return refreshPromise;
+    setAccessToken(body.data.accessToken);
+    return "ok";
+  } catch {
+    return "unreachable";
+  }
 }
 
 // Orders/Expenses/Shift Handovers are now server-paginated (bounded query

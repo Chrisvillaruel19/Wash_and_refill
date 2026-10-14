@@ -19,6 +19,12 @@ model User {
 
   username        String @unique
   email           String @unique
+  // Set only when the owner proves they control `email` by opening a
+  // verification link (or, for accounts that existed before this column,
+  // by having completed an emailed password reset — see the migration).
+  // Cleared whenever the email changes. Password reset is only issued to
+  // verified addresses; login never depends on it.
+  emailVerifiedAt DateTime?
   password        String
 
   name            String

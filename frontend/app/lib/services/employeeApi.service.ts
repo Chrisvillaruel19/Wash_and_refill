@@ -8,6 +8,7 @@ export interface Employee {
   phone: string;
   hiredDate: string; // ISO date, yyyy-mm-dd for the <input type="date"> form field
   status: EmployeeStatus;
+  emailVerified: boolean;
 }
 
 export type EmployeeStatus = "Active" | "Inactive" | "Archived";
@@ -22,6 +23,7 @@ type BackendEmployee = {
   phone: string | null;
   hiredDate: string | null;
   accountStatus: BackendAccountStatus;
+  emailVerifiedAt?: string | null;
 };
 
 const STATUS_LABEL: Record<BackendAccountStatus, EmployeeStatus> = {
@@ -42,6 +44,7 @@ function mapEmployee(e: BackendEmployee): Employee {
     phone: e.phone ?? "",
     hiredDate: e.hiredDate ? e.hiredDate.slice(0, 10) : "",
     status: STATUS_LABEL[e.accountStatus],
+    emailVerified: !!e.emailVerifiedAt,
   };
 }
 
@@ -59,15 +62,20 @@ export async function createEmployee(data: {
   phone: string;
   hiredDate: string;
   password: string;
-}): Promise<void> {
-  await apiClient.post("/employee/create", data);
+}): Promise<{ verificationEmailSent?: boolean }> {
+  return apiClient.post<{ verificationEmailSent?: boolean }>("/employee/create", data);
 }
 
 export async function updateEmployee(
   id: string,
   data: { username: string; name: string; email: string; phone: string; hiredDate: string; password?: string }
-): Promise<void> {
-  await apiClient.patch(`/employee/${id}`, data);
+): Promise<{ verificationEmailSent?: boolean }> {
+  return apiClient.patch<{ verificationEmailSent?: boolean }>(`/employee/${id}`, data);
+}
+
+// Resends the verification link to a Staff member's current email.
+export async function sendEmployeeVerification(id: string): Promise<string> {
+  return apiClient.postMessage(`/employee/${id}/send-verification`);
 }
 
 export async function deactivateEmployee(id: string): Promise<void> {

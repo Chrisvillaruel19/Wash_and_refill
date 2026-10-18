@@ -28,16 +28,18 @@ export async function cancelOrderService(userId: string, id: string, actorRole?:
           message:
             existing.status === OrderStatus.CLAIMED
               ? "A claimed order can never be cancelled."
-              : `Order is already ${existing.status} and cannot be cancelled.`,
+              : existing.status === OrderStatus.CANCELLED
+                ? "Order is already cancelled."
+                : "Only pending orders can be cancelled. This order's laundry has already started.",
         };
       }
 
       // A paid order becomes claimable into a Shift Handover as soon as it's
       // PAID and non-CANCELLED (see lockUnclaimedPaidIds) — independent of
-      // its own status, so a PENDING/IN_PROGRESS/READY order can already be
+      // its own status, so a paid PENDING order can already be
       // sitting inside an already-submitted (and thus frozen-total) handover
       // by the time someone tries to cancel it here. Same reasoning as
-      // reverse-order-payment.service.ts and update-expense.service.ts:
+      // update-expense.service.ts:
       // cancelling now would restore inventory and change the order's status
       // while the closed handover's revenue total silently keeps counting it.
       if (existing.shiftHandoverId !== null) {

@@ -29,7 +29,9 @@ export interface OrderActionState {
 }
 
 export function getOrderActionState(order: Order): OrderActionState {
-  const canCancel = order.status === "Pending" || order.status === "In progress" || order.status === "Ready";
+  // Only orders whose laundry hasn't started yet can be cancelled
+  // (mirrors isCancellable on the backend).
+  const canCancel = order.status === "Pending";
   const isUnpaid = order.payStatus === "UnPaid" && order.status !== "Cancelled";
   const needsPaymentToRelease = order.status === "Ready" && isUnpaid;
   const label = advanceLabel[order.status];

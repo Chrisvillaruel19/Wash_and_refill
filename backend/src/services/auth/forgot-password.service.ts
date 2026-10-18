@@ -3,7 +3,6 @@ import crypto from "crypto";
 import { UserRepository } from "../../repositories/user.repository.js";
 import { TokenRepository } from "../../repositories/token.repository.js";
 import { sendMail, isMailRateLimitError } from "../../lib/mailer.js";
-import { sendEmailVerification } from "./email-verification.service.js";
 import { ENV } from "../../config/env.js";
 import { AccountStatus } from "../../../generated/prisma/client.js";
 
@@ -40,13 +39,6 @@ const RESET_LINK_SENT = {
   message: "A password reset link has been sent to your email. Check your Spam folder if you don't see it.",
 };
 
-const VERIFY_FIRST = {
-  code: 200,
-  status: "success",
-  message:
-    "Your email address isn't verified yet. We've sent you a verification link — verify your email, then request the password reset again.",
-};
-
 // Self-service for Admin and Staff alike — every account has its own
 // required, unique email. An Admin can still set a Staff password directly
 // from Employee Management (e.g. staff who lost access to their inbox).
@@ -65,16 +57,6 @@ export async function forgotPasswordService(email: string) {
     // link would be useless — no email, neutral answer.
     if (user.accountStatus !== AccountStatus.ACTIVE) {
       return GENERIC_SUCCESS;
-    }
-
-    // Never send a usable reset link to an address nobody has proven they
-    // own. Instead the address gets a verification link (proving ownership
-    // is also the recovery path for unverified accounts, Admins included);
-    // after verifying, the user requests the reset again.
-    if (!user.emailVerifiedAt) {
-      const sent = await sendEmailVerification(user.id, { forPasswordReset: true });
-      if (sent.reason === "send_failed") throw new Error("Verification email delivery failed");
-      return VERIFY_FIRST;
     }
 
     // Within the cooldown, answer exactly as if a new email went out — the

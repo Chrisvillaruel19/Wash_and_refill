@@ -90,14 +90,15 @@ router.patch(
   orderController.markAsPaid
 );
 
-// Reverse Payment: Admin only — the one Order mutation that IS role-gated,
-// since undoing a payment is a correction action, not routine staff work.
+// Refund: Admin only — the one Order mutation that IS role-gated, since
+// handing money back for a cancelled paid order is an Admin decision, not
+// routine staff work.
 router.patch(
-  "/:id/reverse-payment",
+  "/:id/refund",
   authMiddleware.execute,
   requireRole(Role.ADMIN),
   validateSchema(idParamSchema),
-  orderController.reversePayment
+  orderController.refund
 );
 
 export default router;

@@ -33,7 +33,7 @@ export async function exportOrdersToExcel(orders: Order[], fileName: string): Pr
       items: order.items && order.items.length > 0 ? formatGroupedItems(order.items) : "",
       total: order.amount,
       status: order.status,
-      payStatus: order.payStatus === "Paid" ? "Paid" : "Unpaid",
+      payStatus: order.payStatus === "UnPaid" ? "Unpaid" : order.payStatus,
       // Never blank: unpaid orders have no method yet, and orders settled
       // via Mark as Paid (which doesn't capture a method) say so explicitly.
       paymentMethod: order.paymentMethod ?? (order.payStatus === "Paid" ? "Not recorded" : "—"),

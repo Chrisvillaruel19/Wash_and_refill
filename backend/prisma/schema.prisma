@@ -19,12 +19,6 @@ model User {
 
   username        String @unique
   email           String @unique
-  // Set only when the owner proves they control `email` by opening a
-  // verification link (or, for accounts that existed before this column,
-  // by having completed an emailed password reset — see the migration).
-  // Cleared whenever the email changes. Password reset is only issued to
-  // verified addresses; login never depends on it.
-  emailVerifiedAt DateTime?
   password        String
 
   name            String
@@ -80,7 +74,6 @@ model Token {
 }
 enum TokenType {
   REFRESH
-  VERIFY_EMAIL
   RESET_PASSWORD
   // Short-lived, single-use proof that an Admin approved a specific Staff
   // restock action (see restock-inventory.service.ts). Reuses this table's
@@ -189,6 +182,9 @@ enum OrderStatus {
 enum PaymentStatus {
   UNPAID
   PAID
+  // A paid order that was cancelled and whose money was handed back
+  // (set by an Admin via Refund in Laundry Monitoring).
+  REFUNDED
 }
 
 enum PaymentMethod {
@@ -600,4 +596,6 @@ enum AuditAction {
   LOGIN
   LOGOUT
   RESET_PASSWORD
+  // Admin handing a paid order's money back (Laundry Monitoring > Refund).
+  REFUND
 }

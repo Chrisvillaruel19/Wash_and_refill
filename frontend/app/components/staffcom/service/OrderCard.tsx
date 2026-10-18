@@ -1,6 +1,6 @@
 "use client";
 
-import { Order } from "../../../staff/(dashboard)/types";
+import { Order, PayStatus } from "../../../staff/(dashboard)/types";
 import GroupedItemsList from "../GroupedItemsList";
 import { getOrderActionState, primaryButtonClass, statusBadgeStyles } from "./orderActions";
 
@@ -50,7 +50,7 @@ export default function OrderCard({ order, onAdvance, onCancel, onMarkAsPaid }: 
               Mark as Paid
             </button>
           )}
-          <PayBadge paid={order.payStatus === "Paid"} />
+          <PayBadge status={order.payStatus} />
         </div>
       </div>
 
@@ -74,14 +74,16 @@ export default function OrderCard({ order, onAdvance, onCancel, onMarkAsPaid }: 
   );
 }
 
-export function PayBadge({ paid }: { paid: boolean }) {
+const PAY_BADGE_STYLES: Record<PayStatus, string> = {
+  Paid: "text-blue-600 border-blue-300 bg-blue-50",
+  UnPaid: "text-red-500 border-red-300 bg-red-50",
+  Refunded: "text-gray-500 border-gray-300 bg-gray-50",
+};
+
+export function PayBadge({ status }: { status: PayStatus }) {
   return (
-    <span
-      className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-        paid ? "text-blue-600 border-blue-300 bg-blue-50" : "text-red-500 border-red-300 bg-red-50"
-      }`}
-    >
-      {paid ? "PAID" : "UNPAID"}
+    <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold border ${PAY_BADGE_STYLES[status]}`}>
+      {status.toUpperCase()}
     </span>
   );
 }

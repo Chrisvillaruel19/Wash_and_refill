@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useEscapeKey } from "../../lib/useEscapeKey";
+import { useFieldErrors } from "../../lib/useFieldErrors";
+import FieldError from "../FieldError";
 import {
   AvailableToWithdraw,
   getAvailableToWithdraw,
@@ -59,7 +61,7 @@ export default function AdminWithdrawalFormModal({
   const [source, setSource] = useState<WithdrawalSource>("Cash");
   const [amount, setAmount] = useState(0);
   const [reason, setReason] = useState("");
-  const [error, setError] = useState("");
+  const fields = useFieldErrors<"amount" | "reason">("withdrawal");
 
   useEffect(() => {
     getAvailableToWithdraw()
@@ -76,27 +78,25 @@ export default function AdminWithdrawalFormModal({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (total <= 0) {
-      setError(`There is no ${source} to withdraw right now.`);
-      return;
-    }
-    if (!amount || amount <= 0) {
-      setError("Enter an amount greater than zero.");
-      return;
-    }
-    if (Math.round(amount * 100) > Math.round(total * 100)) {
-      setError(`Only ${peso(total)} ${source} is available.`);
-      return;
-    }
     const trimmedReason = reason.trim();
-    if (!trimmedReason) {
-      setError("A reason is required.");
-      return;
-    }
-    if (trimmedReason.length > 500) {
-      setError("Reason must be at most 500 characters.");
-      return;
-    }
+    const valid = fields.setErrors({
+      amount:
+        total <= 0
+          ? `There is no ${source} to withdraw right now.`
+          : !amount || amount <= 0
+            ? "Enter an amount greater than zero."
+            : Math.round(amount * 100) > Math.round(total * 100)
+              ? `Only ${peso(total)} ${source} is available.`
+              : "",
+      reason: !reason
+        ? "A reason is required."
+        : !trimmedReason
+          ? "Invalid reason."
+          : trimmedReason.length > 500
+            ? "Reason must be at most 500 characters."
+            : "",
+    });
+    if (!valid) return;
 
     onSave({ amount, reason: trimmedReason, source });
   }
@@ -119,13 +119,13 @@ export default function AdminWithdrawalFormModal({
           {available && <> The {peso(available.startingCash)} starting cash always stays in the drawer.</>}
         </p>
 
-        {(loadError || error || submitError) && (
+        {(loadError || submitError) && (
           <p className="text-red-600 text-sm mb-4 bg-red-50 border border-red-200 rounded-lg py-2 px-3">
-            {loadError || error || submitError}
+            {loadError || submitError}
           </p>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <fieldset>
             <legend className="block text-sm text-gray-500 mb-2">Withdraw from</legend>
             {!available && !loadError && <p className="text-sm text-gray-400">Loading available amounts...</p>}
@@ -149,7 +149,7 @@ export default function AdminWithdrawalFormModal({
                           onChange={() => {
                             setSource(c.key);
                             setAmount(0);
-                            setError("");
+                            fields.clear("amount");
                           }}
                           className="shrink-0"
                         />
@@ -234,7 +234,7 @@ export default function AdminWithdrawalFormModal({
                   type="button"
                   onClick={() => {
                     setAmount(total);
-                    setError("");
+                    fields.clear("amount");
                   }}
                   className="text-xs font-medium text-blue-600 hover:underline min-h-[32px] px-1"
                 >
@@ -250,9 +250,13 @@ export default function AdminWithdrawalFormModal({
               placeholder="0.00"
               value={amount || ""}
               disabled={total <= 0}
-              onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
-              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900 disabled:bg-gray-50"
+              onChange={(e) => {
+                setAmount(parseFloat(e.target.value) || 0);
+                fields.clear("amount");
+              }}
+              {...fields.inputProps("amount", "w-full border rounded-lg p-2 text-gray-900 disabled:bg-gray-50")}
             />
+            <FieldError id={fields.errorId("amount")} message={fields.errors.amount} />
           </div>
 
           <div>
@@ -260,11 +264,15 @@ export default function AdminWithdrawalFormModal({
             <textarea
               id="withdrawal-reason"
               value={reason}
-              onChange={(e) => setReason(e.target.value)}
+              onChange={(e) => {
+                setReason(e.target.value);
+                fields.clear("reason");
+              }}
               rows={2}
               maxLength={500}
-              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900 resize-none"
+              {...fields.inputProps("reason", "w-full border rounded-lg p-2 text-gray-900 resize-none")}
             />
+            <FieldError id={fields.errorId("reason")} message={fields.errors.reason} />
           </div>
 
           <div className="flex justify-end gap-3 pt-2">

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Clock, RefreshCw, CheckCircle2, Search, Download } from "lucide-react";
 import AdminStatCard from "../../../components/admincom/AdminStatCard";
-import ConfirmReversePaymentModal from "../../../components/admincom/ConfirmReversePaymentModal";
+import ConfirmRefundModal from "../../../components/admincom/ConfirmRefundModal";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
 import { useServerPage } from "../../../lib/useServerPage";
@@ -11,11 +11,12 @@ import {
   getOrders,
   getOrdersPage,
   getOrderDetail,
-  reverseOrderPayment,
+  refundOrder,
 } from "../../../lib/services/ordersApi.service";
 import { getAdminDashboard } from "../../../lib/services/dashboard.service";
 import { formatGroupedItems } from "../../../lib/groupItems";
 import { exportOrdersToExcel } from "../../../lib/exportOrdersToExcel";
+import { ApiError } from "../../../lib/apiClient";
 import { Order, OrderStatus } from "../../../staff/(dashboard)/types";
 
 const PAGE_SIZE = 8;
@@ -53,10 +54,10 @@ export default function ClaimMonitoringPage() {
   // bounded to whatever page is currently visible, via GET /orders/:id.
   // Same pattern as Staff Service/Sales.
   const [itemsByOrderId, setItemsByOrderId] = useState<Record<string, string[]>>({});
-  const [pendingReverseId, setPendingReverseId] = useState<string | null>(null);
+  const [refundTarget, setRefundTarget] = useState<Order | null>(null);
   const [actionSubmitting, setActionSubmitting] = useState(false);
   const [actionError, setActionError] = useState("");
-  // Bumped after a payment reversal to force a refetch of whichever data
+  // Bumped after a refund to force a refetch of whichever data
   // source (server page or the lazily-loaded full set below) is active.
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -156,16 +157,16 @@ export default function ClaimMonitoringPage() {
   const paginatedItems = isFiltering ? clientPaginatedItems : serverItems;
   const tableLoading = isFiltering ? fullOrdersLoading : serverLoading;
 
-  async function confirmReversePayment() {
-    if (!pendingReverseId) return;
+  async function confirmRefund() {
+    if (!refundTarget) return;
     setActionSubmitting(true);
     setActionError("");
     try {
-      await reverseOrderPayment(pendingReverseId);
+      await refundOrder(refundTarget.id);
       setReloadKey((k) => k + 1);
-      setPendingReverseId(null);
-    } catch {
-      setActionError("Unable to reverse this payment. Please try again.");
+      setRefundTarget(null);
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "Unable to refund this order. Please try again.");
     } finally {
       setActionSubmitting(false);
     }
@@ -279,6 +280,7 @@ export default function ClaimMonitoringPage() {
                 <th className="p-3 sm:p-4 whitespace-nowrap">Total</th>
                 <th className="p-3 sm:p-4 whitespace-nowrap">Status</th>
                 <th className="p-3 sm:p-4 whitespace-nowrap">Payment</th>
+                <th className="p-3 sm:p-4 whitespace-nowrap">Action</th>
               </tr>
             </thead>
             <tbody className={tableLoading ? "opacity-50" : undefined}>
@@ -303,27 +305,39 @@ export default function ClaimMonitoringPage() {
                     </td>
                     <td className="p-3 sm:p-4 whitespace-nowrap">
                       <span
-                        className={`font-semibold ${order.payStatus === "Paid" ? "text-blue-600" : "text-red-500"}`}
+                        className={`font-semibold ${
+                          order.payStatus === "Paid"
+                            ? "text-blue-600"
+                            : order.payStatus === "Refunded"
+                              ? "text-gray-500"
+                              : "text-red-500"
+                        }`}
                       >
-                        {order.payStatus === "Paid" ? "Paid" : "Unpaid"}
+                        {order.payStatus === "UnPaid" ? "Unpaid" : order.payStatus}
                       </span>
-                      {order.payStatus === "Paid" && (
+                    </td>
+                    <td className="p-3 sm:p-4 whitespace-nowrap">
+                      {/* Cancelled after paying, or claimed but needing a refund
+                          (situational, e.g. damaged items). */}
+                      {order.payStatus === "Paid" && (order.status === "Cancelled" || order.status === "Claimed") ? (
                         <button
                           onClick={() => {
                             setActionError("");
-                            setPendingReverseId(order.id);
+                            setRefundTarget(order);
                           }}
-                          className="ml-3 text-xs font-medium text-red-500 border border-red-300 rounded-lg px-3 py-1 hover:bg-red-50"
+                          className="text-xs font-medium text-red-500 border border-red-300 rounded-lg px-3 py-1 hover:bg-red-50"
                         >
-                          Reverse Payment
+                          Refund
                         </button>
+                      ) : (
+                        <span className="text-gray-400">—</span>
                       )}
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-gray-400">
+                  <td colSpan={9} className="p-8 text-center text-gray-400">
                     No orders found.
                   </td>
                 </tr>
@@ -334,10 +348,12 @@ export default function ClaimMonitoringPage() {
       </div>
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
 
-      {pendingReverseId && (
-        <ConfirmReversePaymentModal
-          onConfirm={confirmReversePayment}
-          onCancel={() => setPendingReverseId(null)}
+      {refundTarget && (
+        <ConfirmRefundModal
+          amount={refundTarget.amount}
+          claimed={refundTarget.status === "Claimed"}
+          onConfirm={confirmRefund}
+          onCancel={() => setRefundTarget(null)}
           submitting={actionSubmitting}
           error={actionError}
         />

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { X, KeyRound } from "lucide-react";
 import { useEscapeKey } from "../../lib/useEscapeKey";
+import FieldError from "../FieldError";
 
 interface SetRestockPinModalProps {
   loading: boolean;
@@ -26,7 +27,8 @@ export default function SetRestockPinModal({
   useEscapeKey(onClose);
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
-  const [localError, setLocalError] = useState("");
+  const [pinError, setPinError] = useState("");
+  const [confirmPinError, setConfirmPinError] = useState("");
 
   // Clear both fields once a save succeeds so the PIN doesn't linger on
   // screen. The parent resets `success` to "" before every save, so each
@@ -41,19 +43,17 @@ export default function SetRestockPinModal({
   }
 
   function handleSave() {
-    if (!/^\d{4,6}$/.test(pin)) {
-      setLocalError("PIN must be 4-6 digits.");
-      return;
-    }
-    if (pin !== confirmPin) {
-      setLocalError("PINs do not match.");
-      return;
-    }
-    setLocalError("");
+    const nextPinError = !pin ? "PIN is required." : !/^\d{4,6}$/.test(pin) ? "PIN must be 4-6 digits." : "";
+    const nextConfirmPinError = !confirmPin
+      ? "Please confirm the PIN."
+      : pin !== confirmPin
+        ? "PINs do not match."
+        : "";
+    setPinError(nextPinError);
+    setConfirmPinError(nextConfirmPinError);
+    if (nextPinError || nextConfirmPinError) return;
     onSave(pin, confirmPin);
   }
-
-  const displayedError = localError || error;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -67,7 +67,7 @@ export default function SetRestockPinModal({
           <h2 className="text-base sm:text-lg font-bold text-gray-900">Restock Authorization PIN</h2>
         </div>
         <p className="text-gray-500 text-xs sm:text-sm mb-4">
-          Set the PIN Staff will enter on the Inventory page to authorize a restock. This is not
+          Set the PIN Staff will enter on the Supplies page to authorize a restock. This is not
           your login password — share it only with people you trust to approve restocks.
         </p>
 
@@ -80,12 +80,17 @@ export default function SetRestockPinModal({
           value={pin}
           onChange={(e) => {
             setPin(e.target.value.replace(/\D/g, "").slice(0, 6));
-            setLocalError("");
+            setPinError("");
           }}
           autoComplete="off"
           maxLength={6}
-          className="w-full border border-gray-300 rounded-lg p-2 text-center text-lg tracking-[0.3em] mb-2 text-gray-900"
+          aria-invalid={!!pinError}
+          aria-describedby={pinError ? "new-restock-pin-error" : undefined}
+          className={`w-full border rounded-lg p-2 text-center text-lg tracking-[0.3em] text-gray-900 ${pinError ? "border-red-500" : "border-gray-300"}`}
         />
+        <div className="mb-2">
+          <FieldError id="new-restock-pin-error" message={pinError} />
+        </div>
 
         <label htmlFor="confirm-restock-pin" className="sr-only">Confirm PIN</label>
         <input
@@ -96,17 +101,22 @@ export default function SetRestockPinModal({
           value={confirmPin}
           onChange={(e) => {
             setConfirmPin(e.target.value.replace(/\D/g, "").slice(0, 6));
-            setLocalError("");
+            setConfirmPinError("");
           }}
           onKeyDown={(e) => e.key === "Enter" && handleSave()}
           autoComplete="off"
           maxLength={6}
-          className="w-full border border-gray-300 rounded-lg p-2 text-center text-lg tracking-[0.3em] mb-2 text-gray-900"
+          aria-invalid={!!confirmPinError}
+          aria-describedby={confirmPinError ? "confirm-restock-pin-error" : undefined}
+          className={`w-full border rounded-lg p-2 text-center text-lg tracking-[0.3em] text-gray-900 ${confirmPinError ? "border-red-500" : "border-gray-300"}`}
         />
+        <div className="mb-2">
+          <FieldError id="confirm-restock-pin-error" message={confirmPinError} />
+        </div>
 
-        {displayedError && (
+        {error && (
           <p className="text-red-600 text-sm mb-3 bg-red-50 border border-red-200 rounded-lg py-2 px-3">
-            {displayedError}
+            {error}
           </p>
         )}
         {success && (

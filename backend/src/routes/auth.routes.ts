@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { verifyEmailSchema, loginSchema, refreshTokenSchema, forgotPasswordSchema, resetPasswordSchema, verifyPasswordSchema, setRestockPinSchema, verifyRestockPinSchema } from "../schema/auth/index.js";
+import { loginSchema, refreshTokenSchema, forgotPasswordSchema, resetPasswordSchema, verifyPasswordSchema, setRestockPinSchema, verifyRestockPinSchema } from "../schema/auth/index.js";
 import { AuthController } from "../controllers/auth.controller.js";
 import { validateSchema } from "../middlewares/validate-schema.js";
 import { AuthMiddleware } from "../middlewares/auth-middleware.js";
@@ -79,24 +79,6 @@ router.post(
 
 // Server-verified identity for frontend route guards (M8) — see
 // AuthController.me for the full rationale.
-// Email ownership verification. /verify-email takes the secret from the
-// emailed link (limited like the other secret-taking routes); the request
-// endpoint sends a link to the signed-in user's own address (limited like
-// forgot-password, since it sends real email).
-router.post(
-  "/verify-email",
-  authLimiter,
-  validateSchema(verifyEmailSchema),
-  authController.verifyEmail
-);
-
-router.post(
-  "/email-verification/request",
-  authMiddleware.execute,
-  forgotPasswordLimiter,
-  authController.requestEmailVerification
-);
-
 router.get(
   "/me",
   authMiddleware.execute,

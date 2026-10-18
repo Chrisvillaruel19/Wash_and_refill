@@ -38,6 +38,13 @@ export async function markOrderPaidService(
         };
       }
 
+      if (existing.paymentStatus === PaymentStatus.REFUNDED) {
+        return {
+          notEligible: true as const,
+          message: "This order was refunded and cannot be marked as paid again.",
+        };
+      }
+
       const paymentDate = new Date();
       const totalAmount = Number(existing.totalAmount);
 

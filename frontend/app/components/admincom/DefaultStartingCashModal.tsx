@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { X, Wallet } from "lucide-react";
 import { useEscapeKey } from "../../lib/useEscapeKey";
+import FieldError from "../FieldError";
 
 interface DefaultStartingCashModalProps {
   currentValue: number;
@@ -40,6 +41,10 @@ export default function DefaultStartingCashModal({
 
   function handleSave() {
     const parsed = Number(value);
+    if (value === "") {
+      setLocalError("Amount is required.");
+      return;
+    }
     if (!Number.isFinite(parsed) || value.trim() === "") {
       setLocalError("Enter a valid amount.");
       return;
@@ -56,7 +61,6 @@ export default function DefaultStartingCashModal({
     onSave(parsed);
   }
 
-  const displayedError = localError || error;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -97,13 +101,18 @@ export default function DefaultStartingCashModal({
             }}
             onKeyDown={(e) => e.key === "Enter" && handleSave()}
             autoComplete="off"
-            className="w-full border border-gray-300 rounded-lg p-2 pl-7 text-gray-900"
+            aria-invalid={!!localError}
+            aria-describedby={localError ? "default-starting-cash-error" : undefined}
+            className={`w-full border rounded-lg p-2 pl-7 text-gray-900 ${localError ? "border-red-500" : "border-gray-300"}`}
           />
         </div>
+        <div className="mb-2">
+          <FieldError id="default-starting-cash-error" message={localError} />
+        </div>
 
-        {displayedError && (
+        {error && (
           <p className="text-red-600 text-sm mb-3 bg-red-50 border border-red-200 rounded-lg py-2 px-3">
-            {displayedError}
+            {error}
           </p>
         )}
         {success && (

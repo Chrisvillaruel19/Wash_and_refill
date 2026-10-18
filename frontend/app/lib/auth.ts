@@ -6,8 +6,6 @@ export interface StaffUser {
   password: string;
   name: string;
   role: "staff" | "admin";
-  // From the server (/auth/me); undefined until a session check has run.
-  emailVerified?: boolean;
 }
 
 // Backend's Role enum is "STAFF" | "ADMIN"; every existing page/hook reads
@@ -110,8 +108,8 @@ async function doRestoreSession(): Promise<StaffUser | null> {
   }
 
   try {
-    const me = await apiClient.get<{ username: string; name: string; role: string; emailVerified?: boolean }>("/auth/me");
-    const user: StaffUser = { username: me.username, password: "", name: me.name, role: mapRole(me.role), emailVerified: me.emailVerified };
+    const me = await apiClient.get<{ username: string; name: string; role: string }>("/auth/me");
+    const user: StaffUser = { username: me.username, password: "", name: me.name, role: mapRole(me.role) };
     if (typeof window !== "undefined") localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
     return user;
   } catch (error) {
@@ -121,16 +119,6 @@ async function doRestoreSession(): Promise<StaffUser | null> {
     }
     throw error;
   }
-}
-
-// Email ownership verification — the token comes from the emailed link.
-export async function verifyEmail(token: string): Promise<string> {
-  return apiClient.postMessage("/auth/verify-email", { token });
-}
-
-// Sends a verification link to the signed-in user's own email.
-export async function requestMyEmailVerification(): Promise<string> {
-  return apiClient.postMessage("/auth/email-verification/request");
 }
 
 // Synchronous by design, matching every existing call site

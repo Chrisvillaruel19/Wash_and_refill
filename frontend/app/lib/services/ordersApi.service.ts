@@ -72,6 +72,7 @@ const STATUS_MAP: Record<string, OrderStatus> = {
 const PAY_STATUS_MAP: Record<string, PayStatus> = {
   PAID: "Paid",
   UNPAID: "UnPaid",
+  REFUNDED: "Refunded",
 };
 
 const PAYMENT_METHOD_MAP: Record<string, PaymentMethod> = {
@@ -215,8 +216,9 @@ export async function markOrderAsPaid(id: string, paymentMethod: PaymentMethod):
   });
 }
 
-export async function reverseOrderPayment(id: string): Promise<void> {
-  await apiClient.patch(`/orders/${id}/reverse-payment`);
+// Admin only: marks a cancelled, paid order's money as handed back.
+export async function refundOrder(id: string): Promise<void> {
+  await apiClient.patch(`/orders/${id}/refund`);
 }
 
 export interface SalesBreakdownRow {

@@ -5,6 +5,8 @@ import { Plus, X } from "lucide-react";
 import { Package } from "../../staff/(dashboard)/neworder/types";
 import { InventoryItem } from "../../staff/(dashboard)/types";
 import { useEscapeKey } from "../../lib/useEscapeKey";
+import { useFieldErrors } from "../../lib/useFieldErrors";
+import FieldError from "../FieldError";
 import ColorPicker from "./ColorPicker";
 
 export interface PackageFormData {
@@ -69,7 +71,19 @@ export default function AdminPackageFormModal({
         quantity: d.quantity,
       })) ?? []
   );
-  const [error, setError] = useState("");
+  const fields = useFieldErrors<"name" | "price">("package");
+  const base = "w-full border rounded-lg p-2 text-gray-900";
+  // One message per supply row, shown under that row.
+  const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
+
+  function clearRowError(rowId: number) {
+    setRowErrors((prev) => {
+      if (!prev[rowId]) return prev;
+      const next = { ...prev };
+      delete next[rowId];
+      return next;
+    });
+  }
 
   const nameCounts = new Map<string, number>();
   inventoryOptions.forEach((i) => nameCounts.set(i.name, (nameCounts.get(i.name) || 0) + 1));
@@ -94,60 +108,54 @@ export default function AdminPackageFormModal({
 
   function removeRow(rowId: number) {
     setRows((prev) => prev.filter((r) => r.rowId !== rowId));
+    clearRowError(rowId);
   }
 
   function updateRowInventory(rowId: number, inventoryId: string) {
     setRows((prev) => prev.map((r) => (r.rowId === rowId ? { ...r, inventoryId } : r)));
+    clearRowError(rowId);
   }
 
   function updateRowQuantity(rowId: number, quantity: number) {
     setRows((prev) => prev.map((r) => (r.rowId === rowId ? { ...r, quantity } : r)));
+    clearRowError(rowId);
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
     const trimmedName = name.trim();
-
-    if (!trimmedName) {
-      setError("Package name is required.");
-      return;
-    }
-    if (trimmedName.length > 100) {
-      setError("Package name must be at most 100 characters.");
-      return;
-    }
     const parsedPrice = Number(price);
-    if (!price.trim() || parsedPrice <= 0) {
-      setError("Price must be greater than zero.");
-      return;
-    }
 
-    for (const row of rows) {
-      if (!row.inventoryId) {
-        setError("Every supply row must have an item selected.");
-        return;
-      }
-      if (staleIngredientsById.has(row.inventoryId)) {
-        setError(
-          `${staleIngredientsById.get(row.inventoryId)?.itemName} is no longer active — remove or replace this supply before saving.`
-        );
-        return;
-      }
-      if (!Number.isInteger(row.quantity) || row.quantity <= 0) {
-        setError("Every supply quantity must be a whole number greater than zero.");
-        return;
-      }
-    }
+    const fieldsValid = fields.setErrors({
+      name: !name
+        ? "Package name is required."
+        : !trimmedName
+          ? "Invalid package name."
+          : trimmedName.length > 100
+          ? "Package name must be at most 100 characters."
+          : "",
+      price: !price.trim() || parsedPrice <= 0 ? "Price must be greater than zero." : "",
+    });
 
+    const nextRowErrors: Record<number, string> = {};
     const seen = new Set<string>();
     for (const row of rows) {
-      if (seen.has(row.inventoryId)) {
-        setError("The same supply is selected more than once — each supply can only appear once per package.");
-        return;
+      if (!row.inventoryId) {
+        nextRowErrors[row.rowId] = "Select a supply for this row.";
+      } else if (staleIngredientsById.has(row.inventoryId)) {
+        nextRowErrors[row.rowId] =
+          `${staleIngredientsById.get(row.inventoryId)?.itemName} is no longer active — remove or replace this supply.`;
+      } else if (seen.has(row.inventoryId)) {
+        nextRowErrors[row.rowId] = "This supply is already in the package — each supply can only appear once.";
+      } else if (!Number.isInteger(row.quantity) || row.quantity <= 0) {
+        nextRowErrors[row.rowId] = "Quantity must be a whole number greater than zero.";
       }
-      seen.add(row.inventoryId);
+      if (row.inventoryId) seen.add(row.inventoryId);
     }
+    setRowErrors(nextRowErrors);
+
+    if (!fieldsValid || Object.keys(nextRowErrors).length > 0) return;
 
     onSave({
       name: trimmedName,
@@ -170,25 +178,29 @@ export default function AdminPackageFormModal({
           </p>
         )}
 
-        {(error || submitError) && (
+        {submitError && (
           <p className="text-red-600 text-sm mb-4 bg-red-50 border border-red-200 rounded-lg py-2 px-3">
-            {error || submitError}
+            {submitError}
           </p>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <div>
             <label htmlFor="package-name" className="block text-sm text-gray-500 mb-1">Package Name</label>
             <input
               id="package-name"
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                fields.clear("name");
+              }}
               name="package-name"
               autoComplete="off"
               maxLength={100}
-              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
+              {...fields.inputProps("name", base)}
             />
+            <FieldError id={fields.errorId("name")} message={fields.errors.name} />
           </div>
 
           <div>
@@ -200,9 +212,13 @@ export default function AdminPackageFormModal({
               step={0.01}
               placeholder="0.00"
               value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
+              onChange={(e) => {
+                setPrice(e.target.value);
+                fields.clear("price");
+              }}
+              {...fields.inputProps("price", base)}
             />
+            <FieldError id={fields.errorId("price")} message={fields.errors.price} />
           </div>
 
           <div>
@@ -225,12 +241,19 @@ export default function AdminPackageFormModal({
             <div className="space-y-2">
               {rows.map((row) => {
                 const stale = staleIngredientsById.get(row.inventoryId);
+                const rowError = rowErrors[row.rowId];
+                const rowBorder = rowError ? "border-red-500" : "border-gray-300";
+                const rowErrorId = `package-row-${row.rowId}-error`;
                 return (
-                <div key={row.rowId} className="flex items-center gap-2">
+                <div key={row.rowId}>
+                <div className="flex items-center gap-2">
                   <select
                     value={row.inventoryId}
                     onChange={(e) => updateRowInventory(row.rowId, e.target.value)}
-                    className="flex-1 min-w-0 border border-gray-300 rounded-lg p-2 text-gray-900 text-sm"
+                    aria-label="Supply"
+                    aria-invalid={!!rowError}
+                    aria-describedby={rowError ? rowErrorId : undefined}
+                    className={`flex-1 min-w-0 border rounded-lg p-2 text-gray-900 text-sm ${rowBorder}`}
                   >
                     <option value="" disabled>
                       Select a supply
@@ -252,7 +275,10 @@ export default function AdminPackageFormModal({
                     placeholder="0"
                     value={row.quantity || ""}
                     onChange={(e) => updateRowQuantity(row.rowId, parseInt(e.target.value) || 0)}
-                    className="w-20 shrink-0 border border-gray-300 rounded-lg p-2 text-gray-900 text-sm"
+                    aria-label="Quantity"
+                    aria-invalid={!!rowError}
+                    aria-describedby={rowError ? rowErrorId : undefined}
+                    className={`w-20 shrink-0 border rounded-lg p-2 text-gray-900 text-sm ${rowBorder}`}
                   />
                   <button
                     type="button"
@@ -262,6 +288,8 @@ export default function AdminPackageFormModal({
                   >
                     <X size={16} />
                   </button>
+                </div>
+                <FieldError id={rowErrorId} message={rowError} />
                 </div>
                 );
               })}

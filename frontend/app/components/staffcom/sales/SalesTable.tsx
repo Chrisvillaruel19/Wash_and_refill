@@ -53,7 +53,9 @@ export default function SalesTable({ orders, loading }: SalesTableProps) {
                       className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
                         order.payStatus === "Paid"
                           ? "text-green-600 border-green-300 bg-green-50"
-                          : "text-red-600 border-red-300 bg-red-50"
+                          : order.payStatus === "Refunded"
+                            ? "text-gray-500 border-gray-300 bg-gray-50"
+                            : "text-red-600 border-red-300 bg-red-50"
                       }`}
                     >
                       {order.payStatus}

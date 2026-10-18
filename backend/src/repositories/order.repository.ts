@@ -124,8 +124,8 @@ export class OrderRepository {
     return tx.order.update({ where: { id }, data: { status, ...extra } });
   }
 
-  // Backs both Mark as Paid and Reverse Payment — amountPaid is only ever
-  // passed on the Mark as Paid path; omitting it here (Reverse Payment)
+  // Backs both Mark as Paid and Refund — amountPaid is only ever
+  // passed on the Mark as Paid path; omitting it here (Refund)
   // leaves the existing figure untouched rather than zeroing it out.
   async updatePaymentStatus(
     id: string,
@@ -146,7 +146,7 @@ export class OrderRepository {
   // the order's paymentStatus is still what the caller last observed —
   // mirrors inventory.repository.ts's decrementIfSufficient (atomic
   // conditional UPDATE, not read-then-write). Two concurrent mark-paid/
-  // reverse-payment requests on the same order can no longer both succeed:
+  // refund requests on the same order can no longer both succeed:
   // the second one's updateMany matches 0 rows, which the caller treats as
   // a lost race rather than silently double-writing.
   async updatePaymentStatusIfCurrentlyIs(

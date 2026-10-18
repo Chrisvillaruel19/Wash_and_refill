@@ -39,8 +39,16 @@ export default function MyClaimedTodayCard({ orders }: MyClaimedTodayCardProps) 
               </div>
               <div className="text-right shrink-0">
                 <p className="text-sm font-semibold text-gray-900 tabular-nums">{peso(order.amount)}</p>
-                <p className={`text-xs ${order.payStatus === "Paid" ? "text-green-600" : "text-red-500"}`}>
-                  {order.payStatus === "Paid" ? "Paid" : "Unpaid"}
+                <p
+                  className={`text-xs ${
+                    order.payStatus === "Paid"
+                      ? "text-green-600"
+                      : order.payStatus === "Refunded"
+                        ? "text-gray-500"
+                        : "text-red-500"
+                  }`}
+                >
+                  {order.payStatus === "UnPaid" ? "Unpaid" : order.payStatus}
                 </p>
               </div>
             </li>

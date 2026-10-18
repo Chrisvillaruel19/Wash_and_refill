@@ -6,7 +6,7 @@ import {
   updateOrderStatusService,
   cancelOrderService,
   markOrderPaidService,
-  reverseOrderPaymentService,
+  refundOrderService,
   getSalesBreakdownService,
   getMyClaimedTodayService,
 } from "../services/order/index.js";
@@ -173,18 +173,18 @@ export class OrderController {
     }
   };
 
-  public reversePayment = async (req: Request, res: Response) => {
+  public refund = async (req: Request, res: Response) => {
     try {
       const userId = (req as AuthenticatedRequest).user?.sub as string;
       const id = req.params.id as string;
-      const result = await reverseOrderPaymentService(userId, id);
+      const result = await refundOrderService(userId, id);
       return res.status(result.code).json(result);
     } catch (error) {
-      console.error("OrderController.reversePayment error", error);
+      console.error("OrderController.refund error", error);
       return res.status(500).json({
         code: 500,
         status: "error",
-        message: "Unable to reverse payment",
+        message: "Unable to refund order",
       });
     }
   };

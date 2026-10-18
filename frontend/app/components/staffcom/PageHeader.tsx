@@ -19,7 +19,7 @@ export default function PageHeader() {
     "/staff/neworder": "New Order",
     "/staff/service": "Service",
     "/staff/sales": "Sales",
-    "/staff/inventory": "Inventory",
+    "/staff/inventory": "Supplies",
     "/staff/expense": "Expense",
     "/staff/attendance": "Attendance",
     "/staff/shifthandover": "Shift Handover",

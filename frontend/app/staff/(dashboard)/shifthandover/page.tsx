@@ -13,6 +13,7 @@ import { ApiError } from "../../../lib/apiClient";
 import { Order, ExpenseRecord, InventoryItem, ShiftHandoverRecord } from "../types";
 import Pagination from "../../../components/staffcom/Pagination";
 import { useServerPage } from "../../../lib/useServerPage";
+import FieldError from "../../../components/FieldError";
 
 const PAGE_SIZE = 6;
 
@@ -69,7 +70,9 @@ export default function ShiftHandover() {
   // Raw text, not a number: an empty field must stay distinguishable from a
   // genuinely counted ₱0 so a blank count can't be submitted as zero.
   const [actualCashInput, setActualCashInput] = useState("");
-  const [actualCashMissing, setActualCashMissing] = useState(false);
+  // Shown under their own fields; submitError is only for server failures.
+  const [actualCashError, setActualCashError] = useState("");
+  const [notesError, setNotesError] = useState("");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -230,24 +233,19 @@ export default function ShiftHandover() {
   async function handleSubmit() {
     if (isSubmittingRef.current) return;
 
-    if (!hasActualCash) {
-      setActualCashMissing(true);
-      setSubmitError("Please enter the Actual Cash Counted before submitting.");
-      return;
-    }
-    if (!Number.isFinite(actualCashCounted)) {
-      setSubmitError("Actual cash counted must be a valid amount.");
-      return;
-    }
-    if (actualCashCounted < 0) {
-      setSubmitError("Actual cash counted cannot be negative.");
-      return;
-    }
+    const nextActualCashError = !actualCashInput
+      ? "Actual cash counted is required."
+      : !hasActualCash || !Number.isFinite(actualCashCounted)
+        ? "Actual cash counted must be a valid amount."
+        : actualCashCounted < 0
+          ? "Actual cash counted cannot be negative."
+          : "";
     const trimmedNotes = notes.trim();
-    if (trimmedNotes.length > 500) {
-      setSubmitError("Notes must be at most 500 characters.");
-      return;
-    }
+    const nextNotesError = trimmedNotes.length > 500 ? "Notes must be at most 500 characters." : "";
+    setActualCashError(nextActualCashError);
+    setNotesError(nextNotesError);
+    setSubmitError("");
+    if (nextActualCashError || nextNotesError) return;
 
     isSubmittingRef.current = true;
     setIsSubmitting(true);
@@ -429,22 +427,18 @@ export default function ShiftHandover() {
               step={0.01}
               placeholder="0.00"
               required
-              aria-invalid={actualCashMissing}
+              aria-invalid={!!actualCashError}
+              aria-describedby={actualCashError ? "shift-actual-cash-error" : undefined}
               value={actualCashInput}
               onChange={(e) => {
                 setActualCashInput(e.target.value);
-                if (e.target.value.trim() !== "") {
-                  setActualCashMissing(false);
-                  setSubmitError("");
-                }
+                setActualCashError("");
               }}
               className={`w-full border rounded-lg p-2 text-gray-900 ${
-                actualCashMissing ? "border-red-500 ring-1 ring-red-500" : "border-gray-300"
+                actualCashError ? "border-red-500 ring-1 ring-red-500" : "border-gray-300"
               }`}
             />
-            {actualCashMissing && (
-              <p className="text-red-600 text-xs mt-1">Required — enter the cash you counted.</p>
-            )}
+            <FieldError id="shift-actual-cash-error" message={actualCashError} />
           </div>
           <div>
             <p className="text-sm text-gray-500">
@@ -469,11 +463,17 @@ export default function ShiftHandover() {
           <textarea
             id="shift-notes"
             value={notes}
-            onChange={(e) => setNotes(e.target.value)}
+            onChange={(e) => {
+              setNotes(e.target.value);
+              setNotesError("");
+            }}
             rows={2}
             maxLength={500}
-            className="w-full border border-gray-300 rounded-lg p-2 text-gray-900 resize-none"
+            aria-invalid={!!notesError}
+            aria-describedby={notesError ? "shift-notes-error" : undefined}
+            className={`w-full border rounded-lg p-2 text-gray-900 resize-none ${notesError ? "border-red-500" : "border-gray-300"}`}
           />
+          <FieldError id="shift-notes-error" message={notesError} />
         </div>
 
         {submitError && (

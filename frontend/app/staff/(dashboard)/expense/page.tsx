@@ -11,6 +11,8 @@ import ShiftRequiredNotice from "../../../components/staffcom/ShiftRequiredNotic
 import ReceiptViewerModal from "../../../components/ReceiptViewerModal";
 import { usePagination } from "../../../lib/usePagination";
 import { useServerPage } from "../../../lib/useServerPage";
+import { useFieldErrors } from "../../../lib/useFieldErrors";
+import FieldError from "../../../components/FieldError";
 
 const PAGE_SIZE = 6;
 
@@ -32,7 +34,9 @@ export default function Expense() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isSubmittingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Server failures only; field problems show under their own field.
   const [submitError, setSubmitError] = useState("");
+  const fields = useFieldErrors<"amount" | "category" | "description" | "receipt">("expense");
   const [viewingReceipt, setViewingReceipt] = useState<(ExpenseRecord & { imageDataUrl: string }) | null>(null);
   // Bumped after a successful submit to force a refetch of whichever data
   // source (server page or the lazily-loaded full set below) is active.
@@ -79,7 +83,10 @@ export default function Expense() {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => setImageDataUrl(reader.result as string);
+    reader.onload = () => {
+      setImageDataUrl(reader.result as string);
+      fields.clear("receipt");
+    };
     reader.readAsDataURL(file);
   }
 
@@ -87,27 +94,23 @@ export default function Expense() {
     if (isSubmittingRef.current) return;
     if (!ensureCanWork()) return;
 
-    if (amount <= 0) {
-      setSubmitError("Amount must be greater than zero.");
-      return;
-    }
-    if (!category) {
-      setSubmitError("Please select a category.");
-      return;
-    }
     const trimmedDescription = description.trim();
-    if (!trimmedDescription) {
-      setSubmitError("A description is required.");
-      return;
-    }
-    if (trimmedDescription.length > 500) {
-      setSubmitError("Description must be at most 500 characters.");
-      return;
-    }
-    if (!imageDataUrl) {
-      setSubmitError("Please upload a photo of the receipt.");
-      return;
-    }
+    const valid = fields.setErrors({
+      amount: amount <= 0 ? "Amount must be greater than zero." : "",
+      category: category ? "" : "Please select a category.",
+      description: !description
+        ? "A description is required."
+        : !trimmedDescription
+          ? "Invalid description."
+          : trimmedDescription.length > 500
+            ? "Description must be at most 500 characters."
+            : "",
+      receipt: imageDataUrl ? "" : "Please upload a photo of the receipt.",
+    });
+    setSubmitError("");
+    // category/imageDataUrl are already checked above; repeated only so
+    // TypeScript knows they're set below.
+    if (!valid || !category || !imageDataUrl) return;
 
     isSubmittingRef.current = true;
     setIsSubmitting(true);
@@ -171,7 +174,7 @@ export default function Expense() {
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 mb-6">
         <h3 className="text-blue-600 font-semibold mb-4">Submit New Expense</h3>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 items-end">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 items-start">
           <div>
             <label htmlFor="expense-amount" className="block text-sm text-gray-600 mb-1">Amount</label>
             <input
@@ -180,17 +183,24 @@ export default function Expense() {
               min={0.01}
               step={0.01}
               value={amount || ""}
-              onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
-              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
+              onChange={(e) => {
+                setAmount(parseFloat(e.target.value) || 0);
+                fields.clear("amount");
+              }}
+              {...fields.inputProps("amount", "w-full border rounded-lg p-2 text-gray-900")}
             />
+            <FieldError id={fields.errorId("amount")} message={fields.errors.amount} />
           </div>
           <div>
             <label htmlFor="expense-category" className="block text-sm text-gray-600 mb-1">Category</label>
             <select
               id="expense-category"
               value={category}
-              onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
-              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
+              onChange={(e) => {
+                setCategory(e.target.value as ExpenseCategory);
+                fields.clear("category");
+              }}
+              {...fields.inputProps("category", "w-full border rounded-lg p-2 text-gray-900")}
             >
               <option value="" disabled>
                 Select a category
@@ -201,11 +211,12 @@ export default function Expense() {
                 </option>
               ))}
             </select>
+            <FieldError id={fields.errorId("category")} message={fields.errors.category} />
           </div>
           <button
             onClick={handleSubmit}
-            disabled={amount <= 0 || !category || isSubmitting || !canWork}
-            className="flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+            disabled={isSubmitting || !canWork}
+            className="sm:mt-6 flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
             <CheckCircle2 size={18} /> {isSubmitting ? "Submitting..." : "Submit Expense"}
           </button>
@@ -222,19 +233,26 @@ export default function Expense() {
             <textarea
               id="expense-description"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => {
+                setDescription(e.target.value);
+                fields.clear("description");
+              }}
               placeholder="Provide a detailed explanation of the expense (what was purchased, why it was necessary, etc.)"
               rows={3}
               maxLength={500}
-              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900 resize-none"
+              {...fields.inputProps("description", "w-full border rounded-lg p-2 text-gray-900 resize-none")}
             />
+            <FieldError id={fields.errorId("description")} message={fields.errors.description} />
           </div>
           <div>
             <label htmlFor="expense-receipt" className="block text-sm text-gray-600 mb-1">Receipt *</label>
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="w-32 h-20 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-colors overflow-hidden"
+              aria-describedby={fields.errors.receipt ? fields.errorId("receipt") : undefined}
+              className={`w-32 h-20 border-2 border-dashed rounded-lg flex flex-col items-center justify-center text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-colors overflow-hidden ${
+                fields.errors.receipt ? "border-red-500" : "border-gray-300"
+              }`}
             >
               {imageDataUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -254,6 +272,9 @@ export default function Expense() {
               onChange={handleImageChange}
               className="hidden"
             />
+            <div className="w-32">
+              <FieldError id={fields.errorId("receipt")} message={fields.errors.receipt} />
+            </div>
           </div>
         </div>
       </div>

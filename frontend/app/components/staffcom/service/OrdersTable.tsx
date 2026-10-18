@@ -47,7 +47,7 @@ export default function OrdersTable({ orders, onAdvance, onCancel, onMarkAsPaid 
                 <td className="p-3 text-right whitespace-nowrap">
                   <p className="font-bold text-gray-900">₱{order.amount.toFixed(2)}</p>
                   <div className="mt-1">
-                    <PayBadge paid={order.payStatus === "Paid"} />
+                    <PayBadge status={order.payStatus} />
                   </div>
                   {isUnpaid && !needsPaymentToRelease && (
                     <button

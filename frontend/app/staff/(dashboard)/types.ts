@@ -28,7 +28,7 @@ export interface ActivityLog {
 }
 
 export type OrderStatus = "Pending" | "In progress" | "Ready" | "Claimed" | "Cancelled";
-export type PayStatus = "Paid" | "UnPaid";
+export type PayStatus = "Paid" | "UnPaid" | "Refunded";
 export type PaymentMethod = "Cash" | "GCash";
 
 export interface Order {

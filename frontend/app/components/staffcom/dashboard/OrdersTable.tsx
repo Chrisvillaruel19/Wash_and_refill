@@ -104,10 +104,14 @@ export default function OrdersTable({ orders }: OrdersTableProps) {
                   <td className="p-3">
                     <span
                       className={`text-xs font-semibold ${
-                        order.payStatus === "Paid" ? "text-green-600" : "text-red-500"
+                        order.payStatus === "Paid"
+                          ? "text-green-600"
+                          : order.payStatus === "Refunded"
+                            ? "text-gray-500"
+                            : "text-red-500"
                       }`}
                     >
-                      {order.payStatus === "Paid" ? "Paid" : "Unpaid"}
+                      {order.payStatus === "UnPaid" ? "Unpaid" : order.payStatus}
                     </span>
                   </td>
                   <td className="p-3">

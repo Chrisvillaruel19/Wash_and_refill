@@ -2,6 +2,7 @@
 
 import { ShoppingCart, X } from "lucide-react";
 import { CartItem, PaymentMethod } from "../../../staff/(dashboard)/neworder/types";
+import FieldError from "../../FieldError";
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-PH", {
@@ -23,6 +24,8 @@ interface OrderSummaryProps {
   onFinishTransaction: () => void;
   isSubmitting: boolean;
   submitError?: string;
+  paymentMethodError?: string;
+  amountPaidError?: string;
 }
 
 export default function OrderSummary({
@@ -35,6 +38,8 @@ export default function OrderSummary({
   onFinishTransaction,
   isSubmitting,
   submitError,
+  paymentMethodError,
+  amountPaidError,
 }: OrderSummaryProps) {
   const total = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const change = amountPaid - total;
@@ -90,7 +95,7 @@ export default function OrderSummary({
       </div>
 
       <div className="p-4 sm:p-5 border-t border-gray-100">
-        <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="grid grid-cols-2 gap-3 mb-4 items-start">
           <div>
             <label htmlFor="order-payment-method" className="flex items-center min-h-5 text-xs sm:text-sm text-gray-600 mb-1 whitespace-nowrap">
               Payment Method
@@ -99,7 +104,9 @@ export default function OrderSummary({
               id="order-payment-method"
               value={paymentMethod}
               onChange={(e) => onPaymentMethodChange(e.target.value as PaymentMethod)}
-              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
+              aria-invalid={!!paymentMethodError}
+              aria-describedby={paymentMethodError ? "order-payment-method-error" : undefined}
+              className={`w-full border rounded-lg p-2 text-gray-900 ${paymentMethodError ? "border-red-500" : "border-gray-300"}`}
             >
               <option value="" disabled>
                 Select
@@ -107,6 +114,7 @@ export default function OrderSummary({
               <option value="Cash">Cash</option>
               <option value="GCash">GCash</option>
             </select>
+            <FieldError id="order-payment-method-error" message={paymentMethodError} />
           </div>
           <div>
             <label htmlFor="order-amount-paid" className="flex items-center min-h-5 text-xs sm:text-sm text-gray-600 mb-1 whitespace-nowrap">
@@ -120,8 +128,14 @@ export default function OrderSummary({
               placeholder="0"
               value={amountPaid || ""}
               onChange={(e) => onAmountPaidChange(Number(e.target.value) || 0)}
-              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
+              aria-invalid={!!amountPaidError}
+              aria-describedby={amountPaidError ? "order-amount-paid-error" : undefined}
+              className={`w-full border rounded-lg p-2 text-gray-900 ${amountPaidError ? "border-red-500" : "border-gray-300"}`}
             />
+          </div>
+          {/* Spans both columns: the amount message is too long for one. */}
+          <div className="col-span-2 -mt-2 empty:hidden">
+            {amountPaidError && <FieldError id="order-amount-paid-error" message={amountPaidError} />}
           </div>
         </div>
 
@@ -149,7 +163,7 @@ export default function OrderSummary({
         <button
           type="button"
           onClick={onFinishTransaction}
-          disabled={cartItems.length === 0 || isShort || (!isUnpaid && !paymentMethod) || isSubmitting}
+          disabled={cartItems.length === 0 || isSubmitting}
           className="w-full bg-blue-600 text-white rounded-lg py-3 font-semibold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
         >
           {isSubmitting ? "Processing..." : "Finish Transaction"}

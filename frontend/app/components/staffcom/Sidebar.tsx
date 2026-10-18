@@ -26,7 +26,7 @@ const menuItems = [
   { label: "New Order", href: "/staff/neworder", icon: ShoppingCart },
   { label: "Services", href: "/staff/service", icon: ClipboardList },
   { label: "Sales", href: "/staff/sales", icon: DollarSign },
-  { label: "inventory", href: "/staff/inventory", icon: Package },
+  { label: "Supplies", href: "/staff/inventory", icon: Package },
   { label: "Expenses", href: "/staff/expense", icon: DollarSign },
   { label: "Shift Handover", href: "/staff/shifthandover", icon: Users },
   { label: "Attendance", href: "/staff/attendance", icon: CalendarDays },

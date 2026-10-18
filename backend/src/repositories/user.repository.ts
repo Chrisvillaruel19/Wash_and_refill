@@ -16,7 +16,6 @@ const employeeSelect = {
   hiredDate: true,
   role: true,
   accountStatus: true,
-  emailVerifiedAt: true,
 } as const;
 
 export class UserRepository {
@@ -51,20 +50,15 @@ export class UserRepository {
         email: true,
         role: true,
         accountStatus: true,
-        emailVerifiedAt: true,
       },
     });
-  }
-
-  async setEmailVerifiedAt(id: string, emailVerifiedAt: Date | null, tx: PrismaClientOrTx = prisma) {
-    return tx.user.update({ where: { id }, data: { emailVerifiedAt }, select: { id: true } });
   }
 
   // Forgot Password only — ignores capitalization of what the user typed.
   async findByEmailInsensitive(email: string, tx: PrismaClientOrTx = prisma) {
     return await tx.user.findFirst({
       where: { email: { equals: email, mode: "insensitive" } },
-      select: { id: true, email: true, accountStatus: true, emailVerifiedAt: true },
+      select: { id: true, email: true, accountStatus: true },
     });
   }
 

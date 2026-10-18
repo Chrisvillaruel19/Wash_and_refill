@@ -52,7 +52,8 @@ export const usernameRule = z
 // the credentials are correct).
 export const passwordRule = z
   .string({ message: "Password is required" })
-  .min(8, "Password must be at least 8 characters");
+  .min(8, "Password must be at least 8 characters.")
+  .regex(/^\S+$/, "Password cannot contain spaces.");
 
 // Restock Authorization PIN: 4-6 digits, numeric only. Deliberately short
 // like a bank card PIN (not a password) — it's meant to be quickly typed by

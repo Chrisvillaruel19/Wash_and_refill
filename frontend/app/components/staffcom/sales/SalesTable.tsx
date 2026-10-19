@@ -1,5 +1,6 @@
 import { Order, OrderStatus } from "../../../staff/(dashboard)/types";
 import { formatGroupedItems } from "../../../lib/groupItems";
+import { paymentHint, paymentLabel, paymentTone, PAYMENT_BADGE_CLASS } from "../../../lib/paymentDisplay";
 
 interface SalesTableProps {
   orders: Order[];
@@ -50,16 +51,12 @@ export default function SalesTable({ orders, loading }: SalesTableProps) {
                   <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">₱{order.amount.toFixed(2)}</td>
                   <td className="p-3 sm:p-4 whitespace-nowrap">
                     <span
-                      className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
-                        order.payStatus === "Paid"
-                          ? "text-green-600 border-green-300 bg-green-50"
-                          : order.payStatus === "Refunded"
-                            ? "text-gray-500 border-gray-300 bg-gray-50"
-                            : "text-red-600 border-red-300 bg-red-50"
-                      }`}
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium border ${PAYMENT_BADGE_CLASS[paymentTone(order)]}`}
+                      title={paymentHint(order)}
                     >
-                      {order.payStatus}
-                      {order.payStatus === "Paid" && order.paymentMethod ? ` · ${order.paymentMethod}` : ""}
+                      {paymentLabel(order)}
+                      {/* The method only on plain paid orders — the refund labels stay short. */}
+                      {paymentTone(order) === "paid" && order.paymentMethod ? ` · ${order.paymentMethod}` : ""}
                     </span>
                   </td>
                   <td className={`p-3 sm:p-4 font-semibold whitespace-nowrap ${statusStyles[order.status]}`}>

@@ -1,5 +1,5 @@
 import { prisma } from "../../lib/prisma.js";
-import { Prisma, PaymentMethod } from "../../../generated/prisma/client.js";
+import { Prisma, PaymentMethod, OrderStatus } from "../../../generated/prisma/client.js";
 import { OrderRepository } from "../../repositories/order.repository.js";
 import { ExpenseRepository } from "../../repositories/expense.repository.js";
 import { WithdrawalRepository } from "../../repositories/withdrawal.repository.js";
@@ -35,26 +35,33 @@ type UnclaimedOrder = Awaited<ReturnType<OrderRepository["findUnclaimedPaid"]>>[
 // Service / Inventory) — a more accurate replacement for the frontend's
 // name-matching + residual "custom service sales" calculation, now possible
 // because the backend actually models these as distinct relations.
+//
+// Callers pass orders that aren't cancelled (findUnclaimedPaid / the
+// handover claim exclude them: a cancelled order's cash is taken out of the
+// drawer and set aside for its refund). The cancelled check below is only a
+// safety net so no figure can ever count one.
 export function summarizeOrders(orders: UnclaimedOrder[]) {
   let laundryEarnings = 0;
   let supplySales = 0;
   let customServiceSales = 0;
   let cashSalesTotal = 0;
+  let digitalSalesTotal = 0;
   let totalSales = 0;
 
   for (const order of orders) {
+    if (order.status === OrderStatus.CANCELLED) continue;
+
+    const orderTotal = Number(order.totalAmount);
+    if ((order.paymentMethod ?? PaymentMethod.CASH) === PaymentMethod.CASH) cashSalesTotal += orderTotal;
+    else digitalSalesTotal += orderTotal;
+
     for (const detail of order.orderDetails) {
       const subtotal = Number(detail.subtotal);
       if (detail.packageId) laundryEarnings += subtotal;
       else if (detail.inventoryId) supplySales += subtotal;
       else if (detail.serviceId) customServiceSales += subtotal;
     }
-
-    const orderTotal = Number(order.totalAmount);
     totalSales += orderTotal;
-    if ((order.paymentMethod ?? PaymentMethod.CASH) === PaymentMethod.CASH) {
-      cashSalesTotal += orderTotal;
-    }
   }
 
   return {
@@ -63,13 +70,15 @@ export function summarizeOrders(orders: UnclaimedOrder[]) {
     customServiceSales,
     cashSalesTotal,
     totalSales,
-    digitalSalesTotal: totalSales - cashSalesTotal,
+    digitalSalesTotal,
   };
 }
 
 // Live "how much cash is in the drawer right now" — the drawer's starting
 // balance plus every currently-unclaimed cash sale, minus every
-// currently-unclaimed expense and withdrawal. Global (no userId), since a
+// currently-unclaimed expense and withdrawal. Refunds never come out of the
+// drawer — the Admin pays them from the shop's earnings (see
+// refund-order.service.ts), so no staff shift is affected. Global (no userId), since a
 // withdrawal isn't tied to any one staff member's shift. This is a plain
 // read, not a claim — the caller must already hold the DrawerState lock
 // (acquired via acquireDrawerLock) before calling this, so no concurrent

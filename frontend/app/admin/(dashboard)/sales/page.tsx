@@ -52,6 +52,7 @@ export default function AdminSalesPage() {
   // "Today's Sales" already uses, via the same GET /dashboard/admin
   // endpoint. Deliberately not derived from `orders` (all-time, all-status)
   // the way this card used to be — that was the confirmed bug.
+  // Net of today's refunds (refunds themselves are listed in Refund Logs).
   const [totalCashToday, setTotalCashToday] = useState(0);
   // Sits directly beside Total Cash Today and reads as a "today" figure —
   // sourced from the same authoritative PAID + non-CANCELLED + paymentDate
@@ -203,7 +204,7 @@ export default function AdminSalesPage() {
     <div className="p-4 sm:p-6">
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 lg:flex-1 lg:max-w-4xl">
-          {/* Paid orders today — withdrawals never lower this; it's the sales record. */}
+          {/* Paid orders today minus today's refunds — withdrawals never lower this; it's the sales record. */}
           <AdminStatCard
             label="Today's Sales"
             value={peso(totalCashToday)}

@@ -154,8 +154,12 @@ export default function ShiftHandover() {
   // "Unclaimed" mirrors the backend's own lockUnclaimedPaidIds filter
   // exactly (paid, not cancelled, shiftHandoverId null) — this is the one
   // shared drawer's pending activity, from any staff member, not just mine.
+  // Cancelled orders never count: their cash was taken out of the drawer
+  // and set aside for the refund. A claimed order that was later refunded
+  // ("Refunded") was still a sale — the refund is its own transaction
+  // (never part of a shift — the Admin pays refunds).
   const unclaimedPaidOrders = orders.filter(
-    (o) => !o.shiftHandoverId && o.payStatus === "Paid" && o.status !== "Cancelled"
+    (o) => !o.shiftHandoverId && o.status !== "Cancelled" && (o.payStatus === "Paid" || o.payStatus === "Refunded")
   );
 
   // GET /orders (list) omits line items to stay lean — populated per unclaimed
@@ -193,11 +197,9 @@ export default function ShiftHandover() {
     .filter((l) => l.type === "SERVICE")
     .reduce((sum, l) => sum + l.subtotal, 0);
 
-  const cashSalesTotal = unclaimedPaidOrders
-    .filter((o) => (o.paymentMethod ?? "Cash") === "Cash")
-    .reduce((sum, o) => sum + o.amount, 0);
-  const totalSales = unclaimedPaidOrders.reduce((sum, o) => sum + o.amount, 0);
-  const digitalSalesTotal = totalSales - cashSalesTotal;
+  const isCash = (o: { paymentMethod?: string }) => (o.paymentMethod ?? "Cash") === "Cash";
+  const cashSalesTotal = unclaimedPaidOrders.filter(isCash).reduce((sum, o) => sum + o.amount, 0);
+  const digitalSalesTotal = unclaimedPaidOrders.filter((o) => !isCash(o)).reduce((sum, o) => sum + o.amount, 0);
 
   const dropOffSummary = buildDropOffSummary(allUnclaimedLines);
 
@@ -453,7 +455,7 @@ export default function ShiftHandover() {
             )}
           </div>
           <div>
-            <p className="text-sm text-gray-500">GCash / digital (excluded above)</p>
+            <p className="text-sm text-gray-500">GCash sales (not in drawer)</p>
             <p className="text-xl font-bold text-gray-900">₱{digitalSalesTotal.toFixed(2)}</p>
           </div>
         </div>

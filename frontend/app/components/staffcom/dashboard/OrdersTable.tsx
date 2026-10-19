@@ -5,6 +5,7 @@ import { Search } from "lucide-react";
 import CardHeader from "../../admincom/dashboard/CardHeader";
 import { peso } from "../../admincom/dashboard/format";
 import { statusBadgeStyles } from "../service/orderActions";
+import { paymentLabel, paymentTone, PAYMENT_TEXT_CLASS } from "../../../lib/paymentDisplay";
 import { Order, OrderStatus } from "../../../staff/(dashboard)/types";
 
 // `orders` is now the 20 most recent orders (a single bounded server page,
@@ -103,15 +104,9 @@ export default function OrdersTable({ orders }: OrdersTableProps) {
                   <td className="p-3 text-right text-gray-900 font-medium tabular-nums">{peso(order.amount)}</td>
                   <td className="p-3">
                     <span
-                      className={`text-xs font-semibold ${
-                        order.payStatus === "Paid"
-                          ? "text-green-600"
-                          : order.payStatus === "Refunded"
-                            ? "text-gray-500"
-                            : "text-red-500"
-                      }`}
+                      className={`text-xs font-semibold ${PAYMENT_TEXT_CLASS[paymentTone(order)]}`}
                     >
-                      {order.payStatus === "UnPaid" ? "Unpaid" : order.payStatus}
+                      {paymentLabel(order)}
                     </span>
                   </td>
                   <td className="p-3">

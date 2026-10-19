@@ -13,6 +13,8 @@ type BackendShiftHandover = {
   digitalSales: string;
   expense: string;
   withdrawal: string;
+  // Stored on newer handovers; null on older ones.
+  drawerStart?: string | null;
   expectedBalance: string;
   actualCashCount: string | null;
   notes: string | null;
@@ -41,8 +43,9 @@ function mapShiftHandover(h: BackendShiftHandover): ShiftHandoverRecord {
   // just algebraically undoing it for display. GCash (digitalSales) is part
   // of the category totals but never entered expectedBalance, so it has to
   // come back out here — otherwise a GCash shift shows float − GCash.
+  // Newer handovers store their starting cash, so no reversal is needed.
   const cashSales = laundrySales + supplySales + customServiceSales - Number(h.digitalSales);
-  const cashDrawer = expectedCash - cashSales + withdrawals + expense;
+  const cashDrawer = h.drawerStart != null ? Number(h.drawerStart) : expectedCash - cashSales + withdrawals + expense;
 
   return {
     id: h.id,

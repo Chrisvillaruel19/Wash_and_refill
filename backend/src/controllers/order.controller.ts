@@ -177,7 +177,8 @@ export class OrderController {
     try {
       const userId = (req as AuthenticatedRequest).user?.sub as string;
       const id = req.params.id as string;
-      const result = await refundOrderService(userId, id);
+      const { amount, method, reason } = req.body;
+      const result = await refundOrderService(userId, id, { amount, method, reason });
       return res.status(result.code).json(result);
     } catch (error) {
       console.error("OrderController.refund error", error);

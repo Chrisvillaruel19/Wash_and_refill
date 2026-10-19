@@ -1,6 +1,7 @@
 import CardHeader from "../../admincom/dashboard/CardHeader";
 import { peso } from "../../admincom/dashboard/format";
 import { Order } from "../../../staff/(dashboard)/types";
+import { paymentLabel, paymentTone, PAYMENT_TEXT_CLASS } from "../../../lib/paymentDisplay";
 
 // Deliberately no filter tabs or search — unlike OrdersTable, this data is
 // already server-scoped to exactly "my claimed orders today" (see
@@ -39,17 +40,7 @@ export default function MyClaimedTodayCard({ orders }: MyClaimedTodayCardProps) 
               </div>
               <div className="text-right shrink-0">
                 <p className="text-sm font-semibold text-gray-900 tabular-nums">{peso(order.amount)}</p>
-                <p
-                  className={`text-xs ${
-                    order.payStatus === "Paid"
-                      ? "text-green-600"
-                      : order.payStatus === "Refunded"
-                        ? "text-gray-500"
-                        : "text-red-500"
-                  }`}
-                >
-                  {order.payStatus === "UnPaid" ? "Unpaid" : order.payStatus}
-                </p>
+                <p className={`text-xs ${PAYMENT_TEXT_CLASS[paymentTone(order)]}`}>{paymentLabel(order)}</p>
               </div>
             </li>
           ))}

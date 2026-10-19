@@ -89,6 +89,7 @@ export class ShiftHandoverRepository {
       digitalSales: number;
       expense: number;
       withdrawal: number;
+      drawerStart: number;
       expectedBalance: number;
       actualCashCount: number;
       cashStatus: CashStatus;

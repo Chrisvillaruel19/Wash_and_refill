@@ -3,6 +3,7 @@
 import { Order } from "../../../staff/(dashboard)/types";
 import GroupedItemsList from "../GroupedItemsList";
 import { PayBadge } from "./OrderCard";
+import { cancelledRefundAction } from "../../../lib/paymentDisplay";
 import { getOrderActionState, primaryButtonClass, statusBadgeStyles } from "./orderActions";
 
 interface OrdersTableProps {
@@ -29,6 +30,7 @@ export default function OrdersTable({ orders, onAdvance, onCancel, onMarkAsPaid 
         <tbody>
           {orders.map((order) => {
             const { canCancel, isUnpaid, needsPaymentToRelease, primary } = getOrderActionState(order);
+            const refundAction = cancelledRefundAction(order);
             return (
               <tr key={order.id} className="border-b last:border-0 align-top hover:bg-gray-50/60">
                 <td className="p-3">
@@ -47,7 +49,7 @@ export default function OrdersTable({ orders, onAdvance, onCancel, onMarkAsPaid 
                 <td className="p-3 text-right whitespace-nowrap">
                   <p className="font-bold text-gray-900">₱{order.amount.toFixed(2)}</p>
                   <div className="mt-1">
-                    <PayBadge status={order.payStatus} />
+                    <PayBadge order={order} />
                   </div>
                   {isUnpaid && !needsPaymentToRelease && (
                     <button
@@ -77,6 +79,14 @@ export default function OrdersTable({ orders, onAdvance, onCancel, onMarkAsPaid 
                     >
                       {primary.label}
                     </button>
+                  ) : refundAction ? (
+                    <p
+                      className={`text-xs font-medium leading-snug ${
+                        refundAction.tone === "done" ? "text-green-700" : "text-amber-700"
+                      }`}
+                    >
+                      {refundAction.text}
+                    </p>
                   ) : (
                     <span className="text-gray-300">—</span>
                   )}

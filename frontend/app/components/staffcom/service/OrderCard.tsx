@@ -1,6 +1,7 @@
 "use client";
 
-import { Order, PayStatus } from "../../../staff/(dashboard)/types";
+import { Order } from "../../../staff/(dashboard)/types";
+import { cancelledRefundAction, paymentHint, paymentLabel, paymentTone, PAYMENT_BADGE_CLASS } from "../../../lib/paymentDisplay";
 import GroupedItemsList from "../GroupedItemsList";
 import { getOrderActionState, primaryButtonClass, statusBadgeStyles } from "./orderActions";
 
@@ -16,6 +17,7 @@ interface OrderCardProps {
 // Phone layout of one Services order — tablet/desktop use OrdersTable.
 export default function OrderCard({ order, onAdvance, onCancel, onMarkAsPaid }: OrderCardProps) {
   const { canCancel, isUnpaid, needsPaymentToRelease, primary } = getOrderActionState(order);
+  const refundAction = cancelledRefundAction(order);
 
   return (
     <div className="bg-white rounded-xl shadow-md p-4">
@@ -50,7 +52,7 @@ export default function OrderCard({ order, onAdvance, onCancel, onMarkAsPaid }: 
               Mark as Paid
             </button>
           )}
-          <PayBadge status={order.payStatus} />
+          <PayBadge order={order} />
         </div>
       </div>
 
@@ -61,6 +63,13 @@ export default function OrderCard({ order, onAdvance, onCancel, onMarkAsPaid }: 
         >
           {primary.label}
         </button>
+      )}
+      {refundAction && (
+        <p
+          className={`mt-3 text-xs font-medium ${refundAction.tone === "done" ? "text-green-700" : "text-amber-700"}`}
+        >
+          {refundAction.text}
+        </p>
       )}
       {canCancel && (
         <button
@@ -74,16 +83,16 @@ export default function OrderCard({ order, onAdvance, onCancel, onMarkAsPaid }: 
   );
 }
 
-const PAY_BADGE_STYLES: Record<PayStatus, string> = {
-  Paid: "text-blue-600 border-blue-300 bg-blue-50",
-  UnPaid: "text-red-500 border-red-300 bg-red-50",
-  Refunded: "text-gray-500 border-gray-300 bg-gray-50",
-};
-
-export function PayBadge({ status }: { status: PayStatus }) {
+export function PayBadge({ order }: { order: Order }) {
+  const tone = paymentTone(order);
   return (
-    <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold border ${PAY_BADGE_STYLES[status]}`}>
-      {status.toUpperCase()}
+    <span
+      className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+        tone === "paid" ? "text-blue-600 border-blue-300 bg-blue-50" : PAYMENT_BADGE_CLASS[tone]
+      }`}
+      title={paymentHint(order)}
+    >
+      {paymentLabel(order).toUpperCase()}
     </span>
   );
 }

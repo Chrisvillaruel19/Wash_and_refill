@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Clock, RefreshCw, CheckCircle2, Search, Download } from "lucide-react";
 import AdminStatCard from "../../../components/admincom/AdminStatCard";
-import ConfirmRefundModal from "../../../components/admincom/ConfirmRefundModal";
+import RefundOrderModal, { RefundFormData } from "../../../components/admincom/RefundOrderModal";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
 import { useServerPage } from "../../../lib/useServerPage";
@@ -17,6 +17,8 @@ import { getAdminDashboard } from "../../../lib/services/dashboard.service";
 import { formatGroupedItems } from "../../../lib/groupItems";
 import { exportOrdersToExcel } from "../../../lib/exportOrdersToExcel";
 import { ApiError } from "../../../lib/apiClient";
+import { paymentLabel, paymentTone, PAYMENT_TEXT_CLASS } from "../../../lib/paymentDisplay";
+import { useAutoRefresh } from "../../../lib/useAutoRefresh";
 import { Order, OrderStatus } from "../../../staff/(dashboard)/types";
 
 const PAGE_SIZE = 8;
@@ -60,6 +62,13 @@ export default function ClaimMonitoringPage() {
   // Bumped after a refund to force a refetch of whichever data
   // source (server page or the lazily-loaded full set below) is active.
   const [reloadKey, setReloadKey] = useState(0);
+
+  // New orders, cancellations and claims from staff show up every 30s and
+  // when returning to the tab — skipped while the refund form is open so
+  // the list doesn't shift underneath it.
+  useAutoRefresh(() => {
+    if (!refundTarget) setReloadKey((k) => k + 1);
+  });
 
   // Pending/In Progress counts are all-time (current backlog); Claimed is
   // shop-wide but scoped to the current business day — all three sourced
@@ -157,12 +166,12 @@ export default function ClaimMonitoringPage() {
   const paginatedItems = isFiltering ? clientPaginatedItems : serverItems;
   const tableLoading = isFiltering ? fullOrdersLoading : serverLoading;
 
-  async function confirmRefund() {
+  async function confirmRefund(data: RefundFormData) {
     if (!refundTarget) return;
     setActionSubmitting(true);
     setActionError("");
     try {
-      await refundOrder(refundTarget.id);
+      await refundOrder(refundTarget.id, data);
       setReloadKey((k) => k + 1);
       setRefundTarget(null);
     } catch (err) {
@@ -306,19 +315,15 @@ export default function ClaimMonitoringPage() {
                     <td className="p-3 sm:p-4 whitespace-nowrap">
                       <span
                         className={`font-semibold ${
-                          order.payStatus === "Paid"
-                            ? "text-blue-600"
-                            : order.payStatus === "Refunded"
-                              ? "text-gray-500"
-                              : "text-red-500"
+                          paymentTone(order) === "paid" ? "text-blue-600" : PAYMENT_TEXT_CLASS[paymentTone(order)]
                         }`}
                       >
-                        {order.payStatus === "UnPaid" ? "Unpaid" : order.payStatus}
+                        {paymentLabel(order)}
                       </span>
                     </td>
                     <td className="p-3 sm:p-4 whitespace-nowrap">
-                      {/* Cancelled after paying, or claimed but needing a refund
-                          (situational, e.g. damaged items). */}
+                      {/* Only the Admin refunds, and only cancelled (full amount)
+                          or claimed (partial or full) paid orders, until nothing's left. */}
                       {order.payStatus === "Paid" && (order.status === "Cancelled" || order.status === "Claimed") ? (
                         <button
                           onClick={() => {
@@ -349,9 +354,8 @@ export default function ClaimMonitoringPage() {
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
 
       {refundTarget && (
-        <ConfirmRefundModal
-          amount={refundTarget.amount}
-          claimed={refundTarget.status === "Claimed"}
+        <RefundOrderModal
+          order={refundTarget}
           onConfirm={confirmRefund}
           onCancel={() => setRefundTarget(null)}
           submitting={actionSubmitting}

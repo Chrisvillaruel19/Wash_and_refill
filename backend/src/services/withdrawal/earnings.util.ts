@@ -78,6 +78,8 @@ export async function getAvailableToWithdraw(tx: PrismaClientOrTx = prisma): Pro
   const openShiftCents = toCents(balance) - toCents(float);
   const cashTotalCents = Math.max(0, toCents(lastShift?.available ?? 0) + openShiftCents);
 
+  // Refunds don't come off this: the Admin pays them from the shop's
+  // earnings outside these balances (see refund-order.service.ts).
   const gcashShifts = gcashHandovers
     .map((h) => ({
       handoverId: h.id,

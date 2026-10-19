@@ -35,13 +35,15 @@ model User {
   // constrained to that at the schema level since role can change.
   restockPinHash  String?
 
-  orders          Order[]
+  orders          Order[] @relation("OrderCreatedBy")
+  paidOrders      Order[] @relation("OrderPaidBy")
   attendances     Attendance[]
   expenses        Expense[]
   shifts          ShiftHandover[]
   withdrawals     Withdrawal[]
   auditLogs       AuditLog[]
   tokens          Token[]
+  refunds         Refund[]
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -108,9 +110,16 @@ model Order {
 
   customerId      String
   customer        Customer @relation(fields:[customerId], references:[id])
+  // The customer's name and number exactly as staff typed them for THIS
+  // order — what every screen and receipt shows. Customer above only links
+  // orders that share a phone number; it never changes these, so a later
+  // order with a different name can't rewrite an earlier one.
+  customerName    String
+  customerPhone   String?
 
+  // Who created the order ("by …") — never changes.
   userId          String
-  user            User @relation(fields:[userId], references:[id])
+  user            User @relation("OrderCreatedBy", fields:[userId], references:[id])
 
   status          OrderStatus @default(PENDING)
   paymentStatus   PaymentStatus @default(UNPAID)
@@ -118,6 +127,14 @@ model Order {
 
   amountPaid      Decimal @default(0)
   totalAmount     Decimal
+
+  // The staff member who received the payment — the order's sale belongs
+  // to them (Staff Sales, "My shift sales", "My claimed"). Usually the
+  // creator; when an unpaid order is turned over and the next staff
+  // collects the money on pickup, it's that staff member, matching whose
+  // drawer (and Shift Handover) the cash went into. Null while unpaid.
+  paidById        String?
+  paidBy          User? @relation("OrderPaidBy", fields:[paidById], references:[id])
 
   paymentDate     DateTime?
   claimedDate     DateTime?
@@ -138,6 +155,10 @@ model Order {
 
   orderDetails    OrderDetail[]
   consumptions    InventoryConsumption[]
+  // Money given back to the customer later (see Refund). The order's own
+  // payment fields never change, so past sales and handovers stay as they
+  // were recorded.
+  refunds         Refund[]
 
   // Claim-based reconciliation: null means "not yet reconciled by any
   // Shift Handover." Set atomically, once, when a handover claims it —
@@ -155,6 +176,7 @@ model Order {
   // findUnclaimedForUser (Attendance's clock-out gate) filters by userId
   // directly — same "Postgres doesn't auto-index FK columns" reasoning.
   @@index([userId])
+  @@index([paidById])
   // Every order list/detail fetch joins back to Customer via `include:
   // {customer: true}` (order.repository.ts findAll/findById) — same FK
   // reasoning as shiftHandoverId/userId above.
@@ -182,9 +204,40 @@ enum OrderStatus {
 enum PaymentStatus {
   UNPAID
   PAID
-  // A paid order that was cancelled and whose money was handed back
-  // (set by an Admin via Refund in Laundry Monitoring).
-  REFUNDED
+}
+
+// Money an Admin gave back to a customer for a paid order (cancelled, or
+// e.g. damaged items). Recorded as its own transaction on the day it
+// happens — the order's sale is never edited, so past sales reports and
+// frozen Shift Handovers always match what was recorded then. Refunds are
+// the Admin's alone: they never touch a staff member's cash drawer, Shift
+// Handover, or the GCash available to withdraw (see refund-order.service.ts).
+// A claimed order's refund lowers sales on the day it's given; a cancelled
+// order was never a sale. Refunds for one order never exceed what was paid.
+model Refund {
+  id              String @id @default(uuid())
+
+  orderId         String
+  order           Order @relation(fields: [orderId], references: [id])
+
+  // The Admin who gave the refund.
+  userId          String
+  user            User @relation(fields: [userId], references: [id])
+
+  amount          Decimal
+  method          PaymentMethod
+  reason          String
+
+  // Not used: refunds aren't part of any shift (always null). Kept so the
+  // column already in the database stays mapped.
+  shiftHandoverId String?
+  shiftHandover   ShiftHandover? @relation(fields: [shiftHandoverId], references: [id])
+
+  createdAt       DateTime @default(now())
+
+  @@index([orderId])
+  @@index([shiftHandoverId])
+  @@index([createdAt])
 }
 
 enum PaymentMethod {
@@ -420,6 +473,14 @@ model ShiftHandover {
   digitalSales    Decimal @default(0)
   expense         Decimal
   withdrawal      Decimal
+  // Not used: refunds never touch a shift's drawer (always 0). Kept so the
+  // columns already in the database stay mapped.
+  cashRefunds     Decimal @default(0)
+  gcashRefunds    Decimal @default(0)
+  // The drawer's starting cash this handover's expectedBalance was built on
+  // (see getDrawerStart). Stored so reports never have to reverse the
+  // formula; null on handovers created before this was recorded.
+  drawerStart     Decimal?
 
   expectedBalance Decimal
   actualCashCount Decimal?
@@ -434,6 +495,7 @@ model ShiftHandover {
   claimedOrders      Order[]
   claimedExpenses    Expense[]
   claimedWithdrawals Withdrawal[] @relation("ClaimedWithdrawals")
+  claimedRefunds     Refund[]
   // Earnings the Admin withdrew from this shift AFTER it was handed over
   // (see Withdrawal.earningsFromHandoverId).
   earningsWithdrawals Withdrawal[] @relation("EarningsWithdrawals")

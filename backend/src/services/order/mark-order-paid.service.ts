@@ -38,13 +38,6 @@ export async function markOrderPaidService(
         };
       }
 
-      if (existing.paymentStatus === PaymentStatus.REFUNDED) {
-        return {
-          notEligible: true as const,
-          message: "This order was refunded and cannot be marked as paid again.",
-        };
-      }
-
       const paymentDate = new Date();
       const totalAmount = Number(existing.totalAmount);
 
@@ -55,7 +48,9 @@ export async function markOrderPaidService(
       const updateResult = await orderRepository.updatePaymentStatusIfCurrentlyIs(
         id,
         PaymentStatus.UNPAID,
-        { paymentStatus: PaymentStatus.PAID, paymentDate, amountPaid: totalAmount, paymentMethod },
+        // Whoever collects the payment owns the sale — e.g. the next staff
+        // member on a turned-over order (same as whose drawer it went into).
+        { paymentStatus: PaymentStatus.PAID, paymentDate, amountPaid: totalAmount, paymentMethod, paidById: userId },
         tx
       );
       if (updateResult.count === 0) {

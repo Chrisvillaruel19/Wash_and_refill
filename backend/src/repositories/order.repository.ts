@@ -7,11 +7,15 @@ type PrismaClientOrTx = typeof prisma | Prisma.TransactionClient;
 // list intentionally stays lean — customer info plus just enough of the
 // staff member's identity to display who created the order, not the full
 // nested line-item tree. getById returns the full detail.
-const listInclude = { customer: true, user: { select: { id: true, name: true } } } as const;
+// Refund amounts and methods — enough for the screens to show "Refunded",
+// "Partially refunded", how much is left, and how it was paid back.
+const refundAmounts = { select: { amount: true, method: true } } as const;
+const listInclude = { customer: true, user: { select: { id: true, name: true } }, refunds: refundAmounts } as const;
 const detailInclude = {
   customer: true,
   // Staff name for New Order's receipt.
   user: { select: { id: true, name: true } },
+  refunds: refundAmounts,
   orderDetails: {
     include: { service: true, package: true, inventory: true },
   },
@@ -20,9 +24,16 @@ const detailInclude = {
   },
 } as const;
 
+// "One staff member's orders" (Staff Sales): an order belongs to whoever
+// received its payment; until it's paid, to whoever created it. So a
+// turned-over unpaid order moves to the staff member who collects payment.
+function ownedBy(userId: string): Prisma.OrderWhereInput {
+  return { OR: [{ paidById: userId }, { paidById: null, userId }] };
+}
+
 function listWhere(params: { userId?: string; excludeSelfService?: boolean }): Prisma.OrderWhereInput {
   return {
-    ...(params.userId ? { userId: params.userId } : {}),
+    ...(params.userId ? ownedBy(params.userId) : {}),
     ...(params.excludeSelfService ? { isSelfService: false } : {}),
   };
 }
@@ -59,12 +70,15 @@ export class OrderRepository {
   async create(
     data: {
       customerId: string;
+      customerName: string;
+      customerPhone: string | null;
       userId: string;
       status: OrderStatus;
       claimedDate?: Date | null;
       isSelfService?: boolean;
       paymentMethod?: PaymentMethod;
       paymentStatus: PaymentStatus;
+      paidById: string | null;
       amountPaid: number;
       totalAmount: number;
       paymentDate: Date | null;
@@ -157,6 +171,7 @@ export class OrderRepository {
       paymentDate: Date | null;
       amountPaid?: number;
       paymentMethod?: PaymentMethod;
+      paidById?: string;
     },
     tx: PrismaClientOrTx = prisma
   ) {
@@ -167,16 +182,21 @@ export class OrderRepository {
         paymentDate: data.paymentDate,
         ...(data.amountPaid !== undefined ? { amountPaid: data.amountPaid } : {}),
         ...(data.paymentMethod !== undefined ? { paymentMethod: data.paymentMethod } : {}),
+        ...(data.paidById !== undefined ? { paidById: data.paidById } : {}),
       },
     });
   }
 
   // Claim-based reconciliation source (global, no userId filter): every
-  // currently-unclaimed, paid, non-cancelled order — regardless of who
-  // created it. This is a plain read (no FOR UPDATE); it's only ever
-  // called by Withdrawal's live balance check or by the caller after it
-  // has already locked the specific rows it intends to claim via
-  // lockUnclaimedPaidIds below.
+  // currently-unclaimed paid order — regardless of who created it. This is
+  // a plain read (no FOR UPDATE); it's only ever called by Withdrawal's live
+  // balance check or by the caller after it has already locked the
+  // specific rows it intends to claim via lockUnclaimedPaidIds below.
+  //
+  // Cancelled orders are excluded, paid or not: when Staff cancel a paid
+  // order they take its cash out of the drawer and keep it aside until the
+  // Admin refunds it, so it's never part of the drawer (or GCash) balance —
+  // and never claimed by a Shift Handover.
   async findUnclaimedPaid(tx: PrismaClientOrTx = prisma) {
     return tx.order.findMany({
       where: {
@@ -234,7 +254,7 @@ export class OrderRepository {
       where: {
         paymentStatus: PaymentStatus.PAID,
         status: { not: OrderStatus.CANCELLED },
-        ...(params.userId ? { userId: params.userId } : {}),
+        ...(params.userId ? { paidById: params.userId } : {}),
         ...(params.shiftHandoverId ? { shiftHandoverId: params.shiftHandoverId } : {}),
         ...(params.paymentDateGte || params.paymentDateLt
           ? {
@@ -250,14 +270,10 @@ export class OrderRepository {
   }
 
   // Unreported-activity check for Attendance's clock-out gate: any
-  // unclaimed order still eligible for reconciliation. CANCELLED is
-  // excluded here for the same reason it's excluded from the reconciliation
-  // claim itself (lockUnclaimedPaidIds below) — a cancelled order will
-  // never receive a shiftHandoverId under any circumstance, so without this
-  // exclusion it would permanently satisfy "unclaimed" and block clock-out
-  // forever. Fixed as a targeted production bug (Module 8 regression found
-  // during Module 10 verification), not a reconciliation-logic change: the
-  // claim queries elsewhere in this file are untouched.
+  // unclaimed order still eligible for reconciliation — exactly the rows
+  // lockUnclaimedPaidIds below claims (paid, not cancelled — a cancelled
+  // order's cash is set aside, never claimed), so every row here can always
+  // be resolved by submitting a Shift Handover.
   //
   // paymentStatus: PAID for the same reason — matches lockUnclaimedPaidIds
   // below exactly (and update-order-status.service.ts's CLAIMED-requires-
@@ -271,7 +287,8 @@ export class OrderRepository {
   async findUnclaimedForUser(userId: string, tx: PrismaClientOrTx = prisma) {
     return tx.order.findMany({
       where: {
-        userId,
+        // The sale is whoever received the payment (paidById), not the creator.
+        paidById: userId,
         shiftHandoverId: null,
         status: { not: OrderStatus.CANCELLED },
         paymentStatus: PaymentStatus.PAID,
@@ -294,19 +311,19 @@ export class OrderRepository {
     });
   }
 
-  // Same as countClaimedInRange above, additionally scoped to the order's
-  // original creator (Order.userId — accountability/ownership, never
-  // reassigned by any update path in this codebase, per the shared-shop
-  // cross-staff rules). This is what "my claimed orders today" means for a
-  // Staff member: userId is the authorization key, never staffName (which
-  // is display-only and not guaranteed unique).
+  // Same as countClaimedInRange above, additionally scoped to the staff
+  // member who received the order's payment (Order.paidById) — the sale's
+  // owner: the creator when paid at drop-off, or the next staff member who
+  // collected it on a turned-over order. This is what "my claimed orders
+  // today" means for a Staff member: the id is the authorization key, never
+  // staffName (which is display-only and not guaranteed unique).
   async countClaimedForUserInRange(
     userId: string,
     range: { start: Date; end: Date },
     tx: PrismaClientOrTx = prisma
   ): Promise<number> {
     return tx.order.count({
-      where: { userId, status: OrderStatus.CLAIMED, isSelfService: false, claimedDate: { gte: range.start, lt: range.end } },
+      where: { paidById: userId, status: OrderStatus.CLAIMED, isSelfService: false, claimedDate: { gte: range.start, lt: range.end } },
     });
   }
 
@@ -319,7 +336,7 @@ export class OrderRepository {
     tx: PrismaClientOrTx = prisma
   ) {
     return tx.order.findMany({
-      where: { userId, status: OrderStatus.CLAIMED, isSelfService: false, claimedDate: { gte: range.start, lt: range.end } },
+      where: { paidById: userId, status: OrderStatus.CLAIMED, isSelfService: false, claimedDate: { gte: range.start, lt: range.end } },
       include: listInclude,
       orderBy: { claimedDate: "desc" },
     });
@@ -331,22 +348,38 @@ export class OrderRepository {
   // all-time, kept for any future caller that genuinely wants that.
   // Independent of Shift Handover's claim status — a sale is revenue
   // whether or not it's been reconciled into a handover yet. userId scopes
-  // it to one staff member's own orders (Staff dashboard); omitted = shop-wide.
+  // it to the sales one staff member received payment for (Staff
+  // dashboard's "My shift sales"); omitted = shop-wide.
   async sumPaidRevenue(
     range?: { start: Date; end: Date },
     tx: PrismaClientOrTx = prisma,
     userId?: string
   ): Promise<number> {
-    const result = await tx.order.aggregate({
-      where: {
-        paymentStatus: PaymentStatus.PAID,
-        status: { not: OrderStatus.CANCELLED },
-        ...(userId ? { userId } : {}),
-        ...(range ? { paymentDate: { gte: range.start, lt: range.end } } : {}),
-      },
-      _sum: { totalAmount: true },
-    });
-    return Number(result._sum.totalAmount ?? 0);
+    const [result, refunds] = await Promise.all([
+      tx.order.aggregate({
+        where: {
+          paymentStatus: PaymentStatus.PAID,
+          status: { not: OrderStatus.CANCELLED },
+          ...(userId ? { paidById: userId } : {}),
+          ...(range ? { paymentDate: { gte: range.start, lt: range.end } } : {}),
+        },
+        _sum: { totalAmount: true },
+      }),
+      // Shop-wide (Admin) totals are net of refunds given in the same period
+      // (on orders that counted as sales) — taken off on the day of the
+      // refund, never the original sale's day. A staff member's own sales
+      // never are: refunds are the Admin's, paid from the shop's earnings.
+      userId
+        ? Promise.resolve({ _sum: { amount: 0 } })
+        : tx.refund.aggregate({
+            where: {
+              order: { status: { not: OrderStatus.CANCELLED } },
+              ...(range ? { createdAt: { gte: range.start, lt: range.end } } : {}),
+            },
+            _sum: { amount: true },
+          }),
+    ]);
+    return Number(result._sum.totalAmount ?? 0) - Number(refunds._sum.amount ?? 0);
   }
 
   // Admin dashboard: every paid, non-cancelled order paid within the range —

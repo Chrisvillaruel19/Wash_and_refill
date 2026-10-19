@@ -56,9 +56,16 @@ interface BackendOrder {
   totalAmount: string;
   createdAt: string;
   shiftHandoverId: string | null;
+  // As typed for this order — what every screen shows (see Order.customerName
+  // in schema.prisma). customer is only the phone-number link.
+  customerName?: string;
+  customerPhone?: string | null;
   customer: { customerName: string; phoneNumber: string | null };
   user?: { id: string; name: string };
   orderDetails?: BackendOrderDetail[];
+  refunds?: { amount: string; method?: string }[];
+  // Who received the payment (null while unpaid) — the sale's owner.
+  paidById?: string | null;
 }
 
 const STATUS_MAP: Record<string, OrderStatus> = {
@@ -72,8 +79,21 @@ const STATUS_MAP: Record<string, OrderStatus> = {
 const PAY_STATUS_MAP: Record<string, PayStatus> = {
   PAID: "Paid",
   UNPAID: "UnPaid",
-  REFUNDED: "Refunded",
 };
+
+function refundedTotal(order: BackendOrder): number {
+  return (order.refunds ?? []).reduce((sum, r) => sum + Number(r.amount), 0);
+}
+
+// The backend keeps a refunded order's payment as PAID (the sale is never
+// edited — see the Refund model); it's shown as "Refunded" once refunds
+// cover the whole total.
+function payStatusOf(order: BackendOrder): PayStatus {
+  const status = PAY_STATUS_MAP[order.paymentStatus] ?? "UnPaid";
+  if (status !== "Paid") return status;
+  const refunded = refundedTotal(order);
+  return refunded > 0 && Math.round(refunded * 100) >= Math.round(Number(order.totalAmount) * 100) ? "Refunded" : "Paid";
+}
 
 const PAYMENT_METHOD_MAP: Record<string, PaymentMethod> = {
   CASH: "Cash",
@@ -112,15 +132,19 @@ function mapOrder(order: BackendOrder): Order {
   const created = new Date(order.createdAt);
   return {
     id: order.id,
-    customer: order.customer.customerName,
-    contact: order.customer.phoneNumber ?? "",
+    customer: order.customerName ?? order.customer.customerName,
+    contact: (order.customerName !== undefined ? order.customerPhone : order.customer.phoneNumber) ?? "",
     time: created.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     date: created.toLocaleDateString(),
     amount: Number(order.totalAmount),
-    payStatus: PAY_STATUS_MAP[order.paymentStatus] ?? "UnPaid",
+    payStatus: payStatusOf(order),
+    refundedAmount: refundedTotal(order),
+    refundMethods: [...new Set((order.refunds ?? []).map((r) => PAYMENT_METHOD_MAP[r.method ?? ""]).filter(Boolean))],
     status: STATUS_MAP[order.status] ?? "Pending",
     items: order.orderDetails?.map(mapOrderDetail),
     staffName: order.user?.name,
+    staffId: order.user?.id,
+    ownerId: order.paidById ?? order.user?.id,
     createdAt: order.createdAt,
     paymentMethod: order.paymentMethod ? PAYMENT_METHOD_MAP[order.paymentMethod] : undefined,
     shiftHandoverId: order.shiftHandoverId,
@@ -216,9 +240,17 @@ export async function markOrderAsPaid(id: string, paymentMethod: PaymentMethod):
   });
 }
 
-// Admin only: marks a cancelled, paid order's money as handed back.
-export async function refundOrder(id: string): Promise<void> {
-  await apiClient.patch(`/orders/${id}/refund`);
+// Admin only: records one refund for a paid order (partial allowed). Paid by
+// the Admin — no staff drawer or shift handover changes.
+export async function refundOrder(
+  id: string,
+  data: { amount: number; method: PaymentMethod; reason: string }
+): Promise<void> {
+  await apiClient.post(`/orders/${id}/refunds`, {
+    amount: data.amount,
+    method: PAYMENT_METHOD_MAP_TO_BACKEND[data.method],
+    reason: data.reason,
+  });
 }
 
 export interface SalesBreakdownRow {
@@ -238,6 +270,10 @@ export interface SalesBreakdown {
   // createdAt-dated order array (see orderStats.ts).
   totalPaidAmount: number;
   paidOrderCount: number;
+  // Refunds given in the same range/shift (by refund date). totalPaidAmount
+  // is never reduced by them: netSales = totalPaidAmount − totalRefunds.
+  totalRefunds: number;
+  netSales: number;
 }
 
 // Real per-order-detail breakdown from the backend (GET /orders/sales-
@@ -292,8 +328,8 @@ function mapReceipt(order: BackendOrder): OrderReceipt {
     orderNumber: order.id.slice(0, 8).toUpperCase(),
     createdAt: order.createdAt,
     staffName: order.user?.name,
-    customer: order.customer.customerName,
-    contact: order.customer.phoneNumber ?? "",
+    customer: order.customerName ?? order.customer.customerName,
+    contact: (order.customerName !== undefined ? order.customerPhone : order.customer.phoneNumber) ?? "",
     lines: (order.orderDetails ?? []).map((d) => {
       const weight = d.weight != null ? Number(d.weight) : null;
       const parts = [weight !== null ? `${weight} kg` : null, d.quantity > 1 || weight === null ? `×${d.quantity}` : null];
@@ -306,7 +342,7 @@ function mapReceipt(order: BackendOrder): OrderReceipt {
     total,
     amountPaid,
     change: Math.max(0, amountPaid - total),
-    payStatus: PAY_STATUS_MAP[order.paymentStatus] ?? "UnPaid",
+    payStatus: payStatusOf(order),
     paymentMethod: order.paymentMethod ? PAYMENT_METHOD_MAP[order.paymentMethod] : undefined,
   };
 }

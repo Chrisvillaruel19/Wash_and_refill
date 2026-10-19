@@ -42,6 +42,12 @@ export interface Order {
   status: OrderStatus;
   items?: string[];
   staffName?: string;
+  // Account id of the staff member who created the order ("by …").
+  staffId?: string;
+  // Whose record the order is: the staff member who received the payment,
+  // or the creator while it's unpaid. A turned-over unpaid order becomes the
+  // next staff member's once they collect the payment.
+  ownerId?: string;
   // Real, sortable ISO timestamp — added for shift-scoping (Shift Handover
   // filters orders by this, not by the display-only date/time strings above).
   // Optional because orders created before this field existed won't have it;
@@ -57,6 +63,13 @@ export interface Order {
   // consumer that needs it (its "unclaimed" definition, not a timestamp
   // window). undefined for records mapped before this field existed.
   shiftHandoverId?: string | null;
+  // Total the Admin has refunded so far (0 = none). The sale itself never
+  // changes: payStatus is "Refunded" only once the whole amount was refunded,
+  // so a partly refunded order still shows "Paid" (Laundry Monitoring shows
+  // the partial amount).
+  refundedAmount: number;
+  // How the refunds were paid back (Cash and/or GCash); empty if none.
+  refundMethods?: PaymentMethod[];
 }
 export interface InventoryItem {
   id: string;

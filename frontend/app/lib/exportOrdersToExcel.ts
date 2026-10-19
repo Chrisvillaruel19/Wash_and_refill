@@ -1,5 +1,6 @@
 import { formatGroupedItems } from "./groupItems";
 import { Order } from "../staff/(dashboard)/types";
+import { paymentLabel } from "./paymentDisplay";
 
 const PESO_FORMAT = '"₱"#,##0.00';
 
@@ -21,7 +22,7 @@ export async function exportOrdersToExcel(orders: Order[], fileName: string): Pr
     { header: "Laundry Items", key: "items", width: 50 },
     { header: "Total", key: "total", width: 14, style: { numFmt: PESO_FORMAT } },
     { header: "Status", key: "status", width: 14 },
-    { header: "Payment", key: "payStatus", width: 12 },
+    { header: "Payment", key: "payStatus", width: 32 },
     { header: "Payment Method", key: "paymentMethod", width: 16 },
   ];
   for (const order of orders) {
@@ -33,7 +34,7 @@ export async function exportOrdersToExcel(orders: Order[], fileName: string): Pr
       items: order.items && order.items.length > 0 ? formatGroupedItems(order.items) : "",
       total: order.amount,
       status: order.status,
-      payStatus: order.payStatus === "UnPaid" ? "Unpaid" : order.payStatus,
+      payStatus: paymentLabel(order),
       // Never blank: unpaid orders have no method yet, and orders settled
       // via Mark as Paid (which doesn't capture a method) say so explicitly.
       paymentMethod: order.paymentMethod ?? (order.payStatus === "Paid" ? "Not recorded" : "—"),

@@ -253,12 +253,18 @@ export async function createOrderService(input: {
       const createdOrder = await orderRepository.create(
         {
           customerId: customer.id,
+          // As typed for this order — a known phone number's Customer row is
+          // reused for linking only, never for the name shown on this order.
+          customerName: input.customerName,
+          customerPhone: input.phoneNumber ?? null,
           userId: input.userId,
           status: isSelfService ? OrderStatus.CLAIMED : OrderStatus.PENDING,
           claimedDate: isSelfService ? paymentDate : null,
           isSelfService,
           paymentMethod: input.paymentMethod,
           paymentStatus,
+          // Paid at drop-off: the creator received the money.
+          paidById: paymentStatus === PaymentStatus.PAID ? input.userId : null,
           amountPaid: input.amountPaid,
           totalAmount,
           paymentDate,

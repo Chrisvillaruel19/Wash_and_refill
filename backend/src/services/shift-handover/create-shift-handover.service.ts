@@ -86,6 +86,8 @@ export async function createShiftHandoverService(
       const withdrawals = await withdrawalRepository.findByIds(withdrawalIds, tx);
       const withdrawalTotal = withdrawals.reduce((sum, w) => sum + Number(w.amount), 0);
 
+      // Refunds aren't part of any shift: the Admin pays them from the shop's
+      // earnings, never the drawer (see refund-order.service.ts).
       const expectedBalance = drawerStart + cashSalesTotal - withdrawalTotal - expenseTotal;
       const actualCashCount = data.actualCashCounted;
 
@@ -115,6 +117,7 @@ export async function createShiftHandoverService(
           digitalSales: digitalSalesTotal,
           expense: expenseTotal,
           withdrawal: withdrawalTotal,
+          drawerStart,
           expectedBalance,
           actualCashCount,
           cashStatus,

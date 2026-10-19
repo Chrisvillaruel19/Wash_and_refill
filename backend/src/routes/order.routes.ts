@@ -12,6 +12,7 @@ import {
   markOrderPaidSchema,
   listOrdersSchema,
   getSalesBreakdownSchema,
+  refundOrderSchema,
 } from "../schema/order/index.js";
 import { Role } from "../../generated/prisma/client.js";
 
@@ -91,13 +92,15 @@ router.patch(
 );
 
 // Refund: Admin only — the one Order mutation that IS role-gated, since
-// handing money back for a cancelled paid order is an Admin decision, not
-// routine staff work.
-router.patch(
-  "/:id/refund",
+// handing money back is an Admin decision, not routine staff work (Staff
+// can only cancel Pending orders). Each call records one refund
+// transaction (partial refunds allowed), hence POST.
+router.post(
+  "/:id/refunds",
   authMiddleware.execute,
   requireRole(Role.ADMIN),
-  validateSchema(idParamSchema),
+  mutationLimiter,
+  validateSchema(refundOrderSchema),
   orderController.refund
 );
 

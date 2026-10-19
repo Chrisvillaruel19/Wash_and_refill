@@ -28,7 +28,7 @@ export function paymentLabel(order: OrderMoney): string {
     case "awaitingRefund":
       return "Paid · Awaiting refund";
     case "partiallyRefunded":
-      return `Partially refunded · ₱${Math.max(0, order.amount - order.refundedAmount).toFixed(2)} left`;
+      return "Partially refunded";
     case "unpaid":
       return "Unpaid";
     case "refunded":
@@ -67,16 +67,22 @@ export const REFUNDED_CANCELLED_HINT = "Refund approved — give the set-aside c
 // Services Action column. A cancelled order is always refunded the way it
 // was paid (the server enforces it), so the method is the payment method.
 export function cancelledRefundAction(
-  order: Pick<Order, "payStatus" | "status" | "paymentMethod" | "amount" | "refundedAmount" | "refundMethods">
+  order: Pick<
+    Order,
+    "payStatus" | "status" | "paymentMethod" | "amount" | "refundedAmount" | "refundMethods" | "refundToGive"
+  >
 ): { text: string; tone: "pending" | "done" } | null {
-  // A claimed order's refund is the Admin's alone (paid from the shop's
-  // earnings) — Staff are just told it happened; nothing for them to do.
+  // A claimed order's refund (e.g. damaged items): a cash one is handed to
+  // the customer by the staff on duty (Refunds to give card); a GCash one is
+  // sent by the Admin.
   if (order.status === "Claimed" && order.refundedAmount > 0) {
-    const via = order.refundMethods?.length ? ` via ${order.refundMethods.join(" + ")}` : "";
-    return {
-      text: `Admin refunded ₱${order.refundedAmount.toFixed(2)}${via} — nothing to do`,
-      tone: "done",
-    };
+    const toGive = order.refundToGive ?? 0;
+    if (toGive > 0) {
+      return { text: `Refund approved — give ₱${toGive.toFixed(2)} cash to the customer`, tone: "pending" };
+    }
+    return order.paymentMethod === "GCash"
+      ? { text: `Admin refunded ₱${order.refundedAmount.toFixed(2)} via GCash`, tone: "done" }
+      : { text: `₱${order.refundedAmount.toFixed(2)} refund given to the customer`, tone: "done" };
   }
   if (order.status !== "Cancelled" || order.payStatus === "UnPaid") return null;
   const amount = `₱${order.amount.toFixed(2)}`;

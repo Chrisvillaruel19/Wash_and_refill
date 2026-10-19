@@ -16,14 +16,16 @@ import {
 } from "../../../lib/services/shiftHandoverApi.service";
 import {
   getWithdrawals,
-  getAvailableToWithdraw,
+  getMoneySummary,
   createWithdrawal,
+  MoneySummary,
   WithdrawalRecord,
 } from "../../../lib/services/withdrawalApi.service";
 import { getAdminDashboard } from "../../../lib/services/dashboard.service";
 import { ApiError } from "../../../lib/apiClient";
 import Pagination from "../../../components/staffcom/Pagination";
 import { useServerPage } from "../../../lib/useServerPage";
+import { useAutoRefresh } from "../../../lib/useAutoRefresh";
 
 const HANDOVERS_PAGE_SIZE = 6;
 
@@ -44,6 +46,61 @@ function todayDateInputValue(): string {
   return `${y}-${m}-${d}`;
 }
 
+// Today's money in one table, Cash / GCash / Total — every row comes from the
+// same records, so Net always equals Today's Sales and Available always
+// equals the Withdraw window.
+function MoneySummaryCard({ summary }: { summary: MoneySummary }) {
+  const rows: { label: string; hint: string; key: keyof MoneySummary; sign?: "−"; strong?: boolean }[] = [
+    { label: "Sales", hint: "Payments received today", key: "sales" },
+    { label: "Refunds", hint: "Claimed orders refunded today", key: "refunds", sign: "−" },
+    { label: "Net sales", hint: "= Today's Sales", key: "net", strong: true },
+    { label: "Withdrawn", hint: "Earnings taken out today (refunds not included)", key: "withdrawn" },
+    { label: "Available to withdraw", hint: "Right now, from all days · starting cash excluded", key: "available", strong: true },
+  ];
+  return (
+    <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 mb-6">
+      <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+        <h2 className="text-lg font-bold text-gray-900">Today&apos;s Money</h2>
+        <p className="text-xs text-gray-400">Updates automatically</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm tabular-nums">
+          <thead>
+            <tr className="text-gray-700 border-b bg-gray-50">
+              <th className="p-2 text-left font-semibold">Today</th>
+              <th className="p-2 text-right font-semibold">Cash</th>
+              <th className="p-2 text-right font-semibold">GCash</th>
+              <th className="p-2 text-right font-semibold">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const v = summary[r.key];
+              const fmt = (n: number) => (r.sign && n > 0 ? `${r.sign} ${peso(n)}` : peso(n));
+              return (
+                <tr key={r.key} className={`border-b last:border-0 ${r.strong ? "bg-gray-50/60" : ""}`}>
+                  <td className="p-2">
+                    <span className={`block text-gray-900 ${r.strong ? "font-semibold" : ""}`}>{r.label}</span>
+                    <span className="block text-xs text-gray-500">{r.hint}</span>
+                  </td>
+                  <td className={`p-2 text-right text-gray-900 whitespace-nowrap ${r.strong ? "font-semibold" : ""}`}>{fmt(v.cash)}</td>
+                  <td className={`p-2 text-right text-gray-900 whitespace-nowrap ${r.strong ? "font-semibold" : ""}`}>{fmt(v.gcash)}</td>
+                  <td className={`p-2 text-right text-gray-900 whitespace-nowrap ${r.strong ? "font-semibold" : ""}`}>{fmt(v.total)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-gray-500 mt-2">
+        Cash refunds are handed to the customer by the staff on duty from the drawer (until then they&apos;re held back from
+        Available to withdraw); GCash refunds come off the shop&apos;s GCash. Cancelled orders are never sales, so their
+        refunds aren&apos;t counted here.
+      </p>
+    </div>
+  );
+}
+
 export default function AdminSalesPage() {
   const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>([]);
   // Backend-authoritative today's revenue (paymentStatus PAID, status not
@@ -60,9 +117,12 @@ export default function AdminSalesPage() {
   // two cards agree on the same definition instead of silently disagreeing
   // on time scope.
   const [todayAverageOrderValue, setTodayAverageOrderValue] = useState(0);
-  // The Withdraw window's Cash and GCash totals (starting cash excluded);
-  // the card shows their sum. null = not loaded.
-  const [availableToWithdraw, setAvailableToWithdraw] = useState<{ cash: number; gcash: number } | null>(null);
+  // Today's money split Cash / GCash (sales, refunds, net, withdrawn,
+  // available — the same figures as the Withdraw window). null = not loaded.
+  const [summary, setSummary] = useState<MoneySummary | null>(null);
+  // Bumped by the auto-refresh so the paged handover grid and the
+  // breakdowns reload too.
+  const [reloadTick, setReloadTick] = useState(0);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -97,41 +157,57 @@ export default function AdminSalesPage() {
     setPage: setHandoverPage,
     totalPages: handoverTotalPages,
     items: handovers,
-  } = useServerPage(getShiftHandoversPage, HANDOVERS_PAGE_SIZE, true);
+  } = useServerPage(getShiftHandoversPage, HANDOVERS_PAGE_SIZE, true, reloadTick);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const today = todayDateInputValue();
-        const [withdrawalsData, dashboardData, todaySales] = await Promise.all([
-          getWithdrawals(),
-          getAdminDashboard(),
-          getSalesBreakdown({ dateFrom: today, dateTo: today }),
-        ]);
-        setWithdrawals(withdrawalsData);
-        setTotalCashToday(dashboardData.totalCashToday);
-        setTodayAverageOrderValue(
-          todaySales.paidOrderCount > 0 ? todaySales.totalPaidAmount / todaySales.paidOrderCount : 0
-        );
-      } catch {
-        setLoadError("Unable to load sales data. Please try again.");
-      } finally {
-        setLoading(false);
-      }
+  // Everything money-related on this page, read fresh. `initial` decides
+  // whether a failure blocks the page (first load) or is ignored (a
+  // background refresh keeps showing the last good figures).
+  async function loadMoney(initial: boolean) {
+    try {
+      const today = todayDateInputValue();
+      const [withdrawalsData, dashboardData, todaySales] = await Promise.all([
+        getWithdrawals(),
+        getAdminDashboard(),
+        getSalesBreakdown({ dateFrom: today, dateTo: today }),
+      ]);
+      setWithdrawals(withdrawalsData);
+      setTotalCashToday(dashboardData.totalCashToday);
+      setTodayAverageOrderValue(
+        todaySales.paidOrderCount > 0 ? todaySales.totalPaidAmount / todaySales.paidOrderCount : 0
+      );
+    } catch {
+      if (initial) setLoadError("Unable to load sales data. Please try again.");
+    } finally {
+      if (initial) setLoading(false);
     }
-    load();
-    refreshAvailableToWithdraw();
+    refreshSummary();
+  }
+
+  function refreshSummary() {
+    getMoneySummary()
+      .then(setSummary)
+      .catch(() => {});
+  }
+
+  // First load only — later refreshes come from useAutoRefresh below.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadMoney(true);
     // Non-critical — the page's other sections still work if this fails;
     // the modal simply shows whatever was last successfully loaded (0 on
     // first failure) rather than blocking the whole page.
     getDefaultStartingCash().then(setDefaultStartingCash).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function refreshAvailableToWithdraw() {
-    getAvailableToWithdraw()
-      .then((a) => setAvailableToWithdraw({ cash: a.cash.total, gcash: a.gcash.total }))
-      .catch(() => setAvailableToWithdraw(null));
-  }
+  // Live: sales, refunds and withdrawals made anywhere (a staff sale, a
+  // refund in Laundry Monitoring, a handover) show up within 30 seconds.
+  // Paused while the withdraw window is open — it refreshes its own amounts.
+  useAutoRefresh(() => {
+    if (showWithdrawModal) return;
+    loadMoney(false);
+    setReloadTick((t) => t + 1);
+  });
 
   async function handleSaveStartingCash(value: number) {
     setStartingCashLoading(true);
@@ -167,7 +243,7 @@ export default function AdminSalesPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedShiftId]);
+  }, [selectedShiftId, reloadTick]);
 
   const selectedShift = selectedShiftId ? handovers.find((h) => h.id === selectedShiftId) : undefined;
   const inventoryModalShift = inventoryModalShiftId
@@ -181,7 +257,7 @@ export default function AdminSalesPage() {
       await createWithdrawal(data);
       const refreshed = await getWithdrawals();
       setWithdrawals(refreshed);
-      refreshAvailableToWithdraw();
+      refreshSummary();
       setShowWithdrawModal(false);
     } catch (err) {
       setWithdrawError(
@@ -213,9 +289,7 @@ export default function AdminSalesPage() {
           />
           <AdminStatCard
             label="Available to Withdraw"
-            value={
-              availableToWithdraw === null ? "—" : peso(availableToWithdraw.cash + availableToWithdraw.gcash)
-            }
+            value={summary === null ? "—" : peso(summary.available.total)}
             sub="Starting cash excluded"
             icon={HandCoins}
             iconColor="text-blue-600 bg-blue-100"
@@ -253,6 +327,8 @@ export default function AdminSalesPage() {
           </button>
         </div>
       </div>
+
+      {summary && <MoneySummaryCard summary={summary} />}
 
       {breakdownError && (
         <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg py-2 px-3 mb-4">
@@ -366,6 +442,7 @@ export default function AdminSalesPage() {
                   <th className="p-3 text-right font-semibold">Expense</th>
                   <th className="p-3 text-right font-semibold">Starting Cash</th>
                   <th className="p-3 text-right font-semibold">Withdrawal</th>
+                  <th className="p-3 text-right font-semibold">Refunds Paid</th>
                   <th className="p-3 text-right font-semibold">Expected Cash</th>
                   <th className="p-3 text-right font-semibold">Cash Counted</th>
                   <th className="p-3 text-right font-semibold">Over / Short</th>
@@ -406,6 +483,7 @@ export default function AdminSalesPage() {
                       <td className="p-3 text-right text-gray-900">{peso(h.expense)}</td>
                       <td className="p-3 text-right text-gray-900">{peso(h.cashDrawer)}</td>
                       <td className="p-3 text-right text-gray-900">{peso(h.withdrawals)}</td>
+                      <td className="p-3 text-right text-gray-900">{peso(h.refundsPaid ?? 0)}</td>
                       <td className="p-3 text-right text-gray-900 font-medium">{peso(h.expectedCash)}</td>
                       <td className="p-3 text-right text-gray-900 font-medium">{peso(h.actualCashCounted)}</td>
                       <td
@@ -487,9 +565,18 @@ export default function AdminSalesPage() {
                       </span>
                       {w.fromShift
                         ? `${w.fromShift.staffName}'s shift, ${new Date(w.fromShift.endTime).toLocaleDateString()}`
-                        : "Open shift drawer"}
+                        : w.source === "GCash"
+                          ? "GCash balance"
+                          : "Open shift drawer"}
                     </td>
-                    <td className="p-2 text-gray-900">{w.reason}</td>
+                    <td className="p-2 text-gray-900">
+                      {w.isRefund && (
+                        <span className="inline-block mr-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700">
+                          Refund
+                        </span>
+                      )}
+                      {w.reason}
+                    </td>
                   </tr>
                 ))
               ) : (

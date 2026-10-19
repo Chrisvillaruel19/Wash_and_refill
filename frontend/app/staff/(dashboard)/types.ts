@@ -68,6 +68,9 @@ export interface Order {
   // so a partly refunded order still shows "Paid" (Laundry Monitoring shows
   // the partial amount).
   refundedAmount: number;
+  // Approved cash refunds (claimed orders) staff haven't handed to the
+  // customer yet; 0 = none waiting.
+  refundToGive?: number;
   // How the refunds were paid back (Cash and/or GCash); empty if none.
   refundMethods?: PaymentMethod[];
 }
@@ -149,6 +152,9 @@ export interface ShiftHandoverRecord {
   // touch the physical drawer). Optional for the same legacy-record reason.
   digitalSales?: number;
   withdrawals: number;
+  // Cash refunds staff handed to customers from the drawer this shift
+  // (approved by the Admin) — part of expectedCash, never of sales.
+  refundsPaid?: number;
   expense: number;
   expectedCash: number;
   actualCashCounted: number;

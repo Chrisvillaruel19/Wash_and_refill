@@ -9,6 +9,8 @@ import {
   refundOrderService,
   getSalesBreakdownService,
   getMyClaimedTodayService,
+  payOutRefundService,
+  listPendingRefundPayoutsService,
 } from "../services/order/index.js";
 import { JwtPayload } from "../lib/jwt.js";
 import { Role } from "../../generated/prisma/client.js";
@@ -169,6 +171,35 @@ export class OrderController {
         code: 500,
         status: "error",
         message: "Unable to mark order as paid",
+      });
+    }
+  };
+
+  public pendingRefundPayouts = async (req: Request, res: Response) => {
+    try {
+      const result = await listPendingRefundPayoutsService();
+      return res.status(result.code).json(result);
+    } catch (error) {
+      console.error("OrderController.pendingRefundPayouts error", error);
+      return res.status(500).json({
+        code: 500,
+        status: "error",
+        message: "Unable to retrieve pending refund payouts",
+      });
+    }
+  };
+
+  public payOutRefund = async (req: Request, res: Response) => {
+    try {
+      const userId = (req as AuthenticatedRequest).user?.sub as string;
+      const result = await payOutRefundService(userId, req.params.refundId as string);
+      return res.status(result.code).json(result);
+    } catch (error) {
+      console.error("OrderController.payOutRefund error", error);
+      return res.status(500).json({
+        code: 500,
+        status: "error",
+        message: "Unable to record the refund payout",
       });
     }
   };

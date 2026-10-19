@@ -3,6 +3,8 @@ import {
   createShiftHandoverService,
   listShiftHandoversService,
   updateDrawerSettingsService,
+  getPendingWithdrawalsService,
+  getInventoryBeginningService,
 } from "../services/shift-handover/index.js";
 import { JwtPayload } from "../lib/jwt.js";
 
@@ -21,6 +23,34 @@ export class ShiftHandoverController {
         code: 500,
         status: "error",
         message: "Unable to submit shift handover",
+      });
+    }
+  };
+
+  public inventoryBeginning = async (req: Request, res: Response) => {
+    try {
+      const result = await getInventoryBeginningService();
+      return res.status(result.code).json(result);
+    } catch (error) {
+      console.error("ShiftHandoverController.inventoryBeginning error", error);
+      return res.status(500).json({
+        code: 500,
+        status: "error",
+        message: "Unable to retrieve beginning inventory",
+      });
+    }
+  };
+
+  public pendingWithdrawals = async (req: Request, res: Response) => {
+    try {
+      const result = await getPendingWithdrawalsService();
+      return res.status(result.code).json(result);
+    } catch (error) {
+      console.error("ShiftHandoverController.pendingWithdrawals error", error);
+      return res.status(500).json({
+        code: 500,
+        status: "error",
+        message: "Unable to retrieve pending withdrawals",
       });
     }
   };

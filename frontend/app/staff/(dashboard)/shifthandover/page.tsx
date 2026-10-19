@@ -8,11 +8,15 @@ import {
   getShiftHandoversPage,
   getMostRecentShiftHandover,
   createShiftHandover,
+  getPendingWithdrawals,
+  getInventoryBeginning,
+  PendingWithdrawals,
 } from "../../../lib/services/shiftHandoverApi.service";
 import { ApiError } from "../../../lib/apiClient";
 import { Order, ExpenseRecord, InventoryItem, ShiftHandoverRecord } from "../types";
 import Pagination from "../../../components/staffcom/Pagination";
 import { useServerPage } from "../../../lib/useServerPage";
+import { useAutoRefresh } from "../../../lib/useAutoRefresh";
 import FieldError from "../../../components/FieldError";
 
 const PAGE_SIZE = 6;
@@ -49,6 +53,41 @@ function describeCashDifference(difference: number) {
   if (rounded < 0) return { label: "Shortage", className: "text-red-600" };
   if (rounded > 0) return { label: "Over", className: "text-green-600" };
   return { label: "Balanced", className: "text-gray-500" };
+}
+
+// One row of the Expected Cash breakdown; with children, the row opens to
+// list what it's made of.
+function CashLine({
+  label,
+  value,
+  sign,
+  children,
+}: {
+  label: string;
+  value: number;
+  sign?: "+" | "−";
+  children?: React.ReactNode;
+}) {
+  const amount = `${sign ? `${sign} ` : ""}₱${value.toFixed(2)}`;
+  if (!children) {
+    return (
+      <div className="flex justify-between px-3 py-2 border-b border-gray-100 text-gray-700">
+        <span>{label}</span>
+        <span>{amount}</span>
+      </div>
+    );
+  }
+  return (
+    <details className="border-b border-gray-100 text-gray-700">
+      <summary className="flex justify-between px-3 py-2 cursor-pointer select-none">
+        <span>
+          {label} <span className="text-xs text-blue-600">(details)</span>
+        </span>
+        <span>{amount}</span>
+      </summary>
+      <ul className="px-3 pb-2 space-y-0.5 text-xs text-gray-500">{children}</ul>
+    </details>
+  );
 }
 
 export default function ShiftHandover() {
@@ -122,12 +161,37 @@ export default function ShiftHandover() {
       }
     }
     load();
+    refreshPendingWithdrawals();
   }, []);
 
+  // Cash the Admin took out of the drawer this shift (earnings or a
+  // claimed order's refund) — read live so Expected Cash matches the drawer.
+  const [pendingWithdrawals, setPendingWithdrawals] = useState<PendingWithdrawals | null>(null);
+  function refreshPendingWithdrawals() {
+    getPendingWithdrawals()
+      .then(setPendingWithdrawals)
+      .catch(() => {});
+  }
+
+  // Live: sales, expenses and Admin withdrawals/refunds made while this page
+  // is open show up within 30 seconds (the typed count and notes stay).
+  useAutoRefresh(() => {
+    refreshPendingWithdrawals();
+    getOrders().then(setOrders).catch(() => {});
+    getExpenses().then(setExpenses).catch(() => {});
+  });
+
+  // Beginning counts for the "Beginning → Now" table (null = not loaded).
+  const [beginningQty, setBeginningQty] = useState<Map<string, number> | null>(null);
+
   useEffect(() => {
+    // Stock and its beginning count move together (a new item, a first
+    // handover), so they're always refreshed as a pair.
     const refreshInventory = () => {
       void getInventory().then(setInventory).catch(() => {});
+      void getInventoryBeginning().then(setBeginningQty).catch(() => {});
     };
+    refreshInventory();
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") refreshInventory();
     };
@@ -203,31 +267,33 @@ export default function ShiftHandover() {
 
   const dropOffSummary = buildDropOffSummary(allUnclaimedLines);
 
-  // GET /expenses is self-scoped server-side for Staff (only their own) —
-  // this really is "my pending expenses," not a filtering shortcut.
+  // Every expense paid from the shared drawer since the last handover, any
+  // staff — the same total the server subtracts on submit. GET /expenses
+  // only returns this staff member's own, so that's just the fallback until
+  // the server total loads.
   const myUnclaimedExpenses = expenses.filter((e) => !e.shiftHandoverId);
-  const expenseTotal = myUnclaimedExpenses.reduce((sum, e) => sum + e.amount, 0);
+  const expenseTotal =
+    pendingWithdrawals?.expensesTotal ?? myUnclaimedExpenses.reduce((sum, e) => sum + e.amount, 0);
 
   // Fixed cash float, always — the shop remits earnings/excess out via
   // Withdrawal at handover, so every new shift begins with this same
   // Admin-configured amount, never the previous shift's actualCashCounted.
   const drawerStart = defaultStartingCash;
 
-  // This shift's beginning quantity per item = that item's endingQty on the
-  // most recent submitted handover (matches the backend's own rule exactly —
-  // see create-shift-handover.service.ts). Items missing from that snapshot
-  // (no previous handover yet, or the item was added after it) fall back to
-  // the item's current live stock, same as the backend's own fallback —
-  // never a fabricated number, never Staff-entered.
-  const beginningQtyByInventoryId = new Map(
-    (mostRecentHandover?.inventorySnapshot ?? []).map((row) => [row.inventoryId, row.endingQty])
-  );
+  // This shift's beginning quantity per item, computed server-side by the
+  // same rule the snapshot uses on submit (inventory-beginning.util.ts):
+  // the last handover's ending count, or — if none counted the item — stock
+  // plus what this period's orders used. Until it loads, the last snapshot.
+  const beginningQtyByInventoryId =
+    beginningQty ??
+    new Map((mostRecentHandover?.inventorySnapshot ?? []).map((row) => [row.inventoryId, row.endingQty]));
 
-  // Withdrawals aren't visible to Staff (GET /withdrawals is Admin-only) —
-  // excluded from this preview by necessity, disclosed below. The actual
-  // submission is still fully correct: the backend recomputes this figure
-  // itself from real data, including any pending withdrawals.
-  const expectedCash = drawerStart + cashSalesTotal - expenseTotal;
+  // Same formula the backend uses on submit (it recomputes it itself from
+  // real data): starting cash + cash sales − expenses − cash the Admin took
+  // out − cash refunds handed to customers this shift.
+  const drawerWithdrawalTotal = pendingWithdrawals?.total ?? 0;
+  const refundsPaidTotal = pendingWithdrawals?.refundsPaidTotal ?? 0;
+  const expectedCash = drawerStart + cashSalesTotal - expenseTotal - drawerWithdrawalTotal - refundsPaidTotal;
   const hasActualCash = actualCashInput.trim() !== "";
   const actualCashCounted = hasActualCash ? Number(actualCashInput) : 0;
   const shortage = actualCashCounted - expectedCash;
@@ -268,6 +334,8 @@ export default function ShiftHandover() {
       setMostRecentHandover(recentHandover.record);
       setDefaultStartingCash(recentHandover.defaultStartingCash);
       setReloadKey((k) => k + 1);
+      refreshPendingWithdrawals();
+      getInventoryBeginning().then(setBeginningQty).catch(() => {});
       setActualCashInput("");
       setNotes("");
       setHandoverSubmittedThisShift(true);
@@ -323,7 +391,7 @@ export default function ShiftHandover() {
           <div>
             <p className="text-sm text-gray-500">Expense</p>
             <p className="text-lg font-bold text-gray-900">₱{expenseTotal.toFixed(2)}</p>
-            <p className="text-xs text-gray-400">Yours only</p>
+            <p className="text-xs text-gray-400">Paid from the drawer this shift</p>
           </div>
         </div>
 
@@ -407,11 +475,51 @@ export default function ShiftHandover() {
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
         <h2 className="text-lg font-bold text-gray-900 mb-4">Cash Reconciliation</h2>
 
-        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg py-2 px-3 mb-4">
-          Expected Cash below reflects only your own pending expenses and excludes any pending
-          withdrawals — those aren&apos;t visible to your role. Both are still correctly included in
-          the actual reconciliation once you submit.
-        </p>
+        {/* How Expected Cash is reached, top to bottom — same formula the
+            server uses on submit. Lines that took cash out list their items
+            in a collapsible row so the sum stays readable. */}
+        <div className="border border-gray-200 rounded-lg mb-4 text-sm tabular-nums">
+          <CashLine label="Starting cash" value={drawerStart} />
+          <CashLine label="Cash sales" value={cashSalesTotal} sign="+" />
+          {expenseTotal > 0 && <CashLine label="Expenses" value={expenseTotal} sign="−" />}
+          {refundsPaidTotal > 0 && (
+            <CashLine label="Refunds given to customers" value={refundsPaidTotal} sign="−">
+              {pendingWithdrawals?.refundsPaid.map((p) => (
+                <li key={p.id} className="flex justify-between gap-3">
+                  <span>
+                    {new Date(p.paidOutAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} · {p.customerName} —{" "}
+                    {p.reason}
+                  </span>
+                  <span>₱{p.amount.toFixed(2)}</span>
+                </li>
+              ))}
+            </CashLine>
+          )}
+          {drawerWithdrawalTotal > 0 && (
+            <CashLine label="Taken out by Admin" value={drawerWithdrawalTotal} sign="−">
+              {pendingWithdrawals?.withdrawals.map((w) => (
+                <li key={w.id} className="flex justify-between gap-3">
+                  <span>
+                    {new Date(w.withdrawalDate).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} · {w.reason}
+                  </span>
+                  <span>₱{w.amount.toFixed(2)}</span>
+                </li>
+              ))}
+            </CashLine>
+          )}
+          <div className="flex justify-between px-3 py-2 bg-gray-50 font-semibold text-gray-900 rounded-b-lg">
+            <span>Expected cash in drawer</span>
+            <span>₱{expectedCash.toFixed(2)}</span>
+          </div>
+        </div>
+
+        {pendingWithdrawals && pendingWithdrawals.refundsToGiveTotal > 0 && (
+          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg py-2 px-3 mb-4">
+            ₱{pendingWithdrawals.refundsToGiveTotal.toFixed(2)} in approved refunds hasn&apos;t been given to customers yet
+            (see Refunds to give on your Dashboard). That cash is still in the drawer, so count it — whoever is on duty
+            when the customer comes will give it.
+          </p>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-4">
           <div>

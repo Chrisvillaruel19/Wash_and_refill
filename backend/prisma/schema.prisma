@@ -43,7 +43,8 @@ model User {
   withdrawals     Withdrawal[]
   auditLogs       AuditLog[]
   tokens          Token[]
-  refunds         Refund[]
+  refunds         Refund[] @relation("RefundApprovedBy")
+  refundPayouts   Refund[] @relation("RefundPaidOutBy")
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -220,24 +221,37 @@ model Refund {
   orderId         String
   order           Order @relation(fields: [orderId], references: [id])
 
-  // The Admin who gave the refund.
+  // The Admin who gave (approved) the refund.
   userId          String
-  user            User @relation(fields: [userId], references: [id])
+  user            User @relation("RefundApprovedBy", fields: [userId], references: [id])
 
   amount          Decimal
   method          PaymentMethod
   reason          String
 
-  // Not used: refunds aren't part of any shift (always null). Kept so the
-  // column already in the database stays mapped.
+  // Payout. A claimed order's CASH refund is approved by the Admin, then
+  // the staff member on duty hands the cash to the customer from the drawer
+  // and marks it given (paidOutById set) — only then does it leave the
+  // drawer math, and the next Shift Handover reconciles it (shiftHandoverId).
+  // paidOutAt null = approved, cash not given yet. Every other refund
+  // (GCash, cancelled orders, records from before payouts existed) is
+  // settled when recorded: paidOutAt set, paidOutById null, no drawer effect.
+  paidOutAt       DateTime?
+  paidOutById     String?
+  paidOutBy       User? @relation("RefundPaidOutBy", fields: [paidOutById], references: [id])
   shiftHandoverId String?
   shiftHandover   ShiftHandover? @relation(fields: [shiftHandoverId], references: [id])
+
+  // A claimed order's refund, taken out of the earnings available to
+  // withdraw (none for a cancelled order's refund).
+  withdrawals     Withdrawal[]
 
   createdAt       DateTime @default(now())
 
   @@index([orderId])
   @@index([shiftHandoverId])
   @@index([createdAt])
+  @@index([paidOutAt])
 }
 
 enum PaymentMethod {
@@ -473,9 +487,11 @@ model ShiftHandover {
   digitalSales    Decimal @default(0)
   expense         Decimal
   withdrawal      Decimal
-  // Not used: refunds never touch a shift's drawer (always 0). Kept so the
-  // columns already in the database stay mapped.
+  // Cash refunds staff handed to customers from the drawer during this shift
+  // (see Refund.paidOutById) — part of expectedBalance.
   cashRefunds     Decimal @default(0)
+  // Not used (always 0): GCash refunds never touch a drawer. Kept so the
+  // column already in the database stays mapped.
   gcashRefunds    Decimal @default(0)
   // The drawer's starting cash this handover's expectedBalance was built on
   // (see getDrawerStart). Stored so reports never have to reverse the
@@ -585,8 +601,14 @@ model Withdrawal {
   earningsFromHandoverId String?
   earningsFromHandover   ShiftHandover? @relation("EarningsWithdrawals", fields: [earningsFromHandoverId], references: [id])
 
+  // Set when this money paid a claimed order's refund (see
+  // refund-order.service.ts) instead of being taken as earnings.
+  refundId        String?
+  refund          Refund? @relation(fields: [refundId], references: [id])
+
   @@index([shiftHandoverId])
   @@index([earningsFromHandoverId])
+  @@index([refundId])
 }
 
 enum WithdrawalSource {

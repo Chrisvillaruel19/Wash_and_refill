@@ -63,7 +63,8 @@ interface BackendOrder {
   customer: { customerName: string; phoneNumber: string | null };
   user?: { id: string; name: string };
   orderDetails?: BackendOrderDetail[];
-  refunds?: { amount: string; method?: string }[];
+  // paidOutAt null = an approved cash refund staff haven't handed over yet.
+  refunds?: { amount: string; method?: string; paidOutAt?: string | null }[];
   // Who received the payment (null while unpaid) — the sale's owner.
   paidById?: string | null;
 }
@@ -83,6 +84,11 @@ const PAY_STATUS_MAP: Record<string, PayStatus> = {
 
 function refundedTotal(order: BackendOrder): number {
   return (order.refunds ?? []).reduce((sum, r) => sum + Number(r.amount), 0);
+}
+
+// Approved cash refunds the staff on duty still has to hand the customer.
+function refundToGiveTotal(order: BackendOrder): number {
+  return (order.refunds ?? []).filter((r) => r.paidOutAt === null).reduce((sum, r) => sum + Number(r.amount), 0);
 }
 
 // The backend keeps a refunded order's payment as PAID (the sale is never
@@ -139,6 +145,7 @@ function mapOrder(order: BackendOrder): Order {
     amount: Number(order.totalAmount),
     payStatus: payStatusOf(order),
     refundedAmount: refundedTotal(order),
+    refundToGive: refundToGiveTotal(order),
     refundMethods: [...new Set((order.refunds ?? []).map((r) => PAYMENT_METHOD_MAP[r.method ?? ""]).filter(Boolean))],
     status: STATUS_MAP[order.status] ?? "Pending",
     items: order.orderDetails?.map(mapOrderDetail),
@@ -240,8 +247,34 @@ export async function markOrderAsPaid(id: string, paymentMethod: PaymentMethod):
   });
 }
 
-// Admin only: records one refund for a paid order (partial allowed). Paid by
-// the Admin — no staff drawer or shift handover changes.
+// An approved cash refund waiting for the staff member on duty to hand the
+// customer the cash from the drawer.
+export interface RefundPayout {
+  id: string;
+  amount: number;
+  reason: string;
+  approvedAt: string;
+  approvedBy: string;
+  orderId: string;
+  customerName: string;
+  customerPhone: string | null;
+  orderTotal: number;
+}
+
+export async function getPendingRefundPayouts(): Promise<RefundPayout[]> {
+  const { payouts } = await apiClient.get<{ payouts: RefundPayout[] }>("/orders/refund-payouts");
+  return payouts.map((p) => ({ ...p, amount: Number(p.amount), orderTotal: Number(p.orderTotal) }));
+}
+
+// Staff on duty gave that cash to the customer — it leaves the drawer now
+// and shows on their Shift Handover as "Refunds paid".
+export async function payOutRefund(refundId: string): Promise<void> {
+  await apiClient.post(`/orders/refunds/${refundId}/pay-out`, {});
+}
+
+// Admin only: records one refund for a paid order (partial allowed), paid
+// back the way the customer paid. A claimed order's cash refund is then
+// handed over by the staff on duty; a GCash one comes off the shop's GCash.
 export async function refundOrder(
   id: string,
   data: { amount: number; method: PaymentMethod; reason: string }

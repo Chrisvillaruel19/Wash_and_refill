@@ -9,7 +9,7 @@ type PrismaClientOrTx = typeof prisma | Prisma.TransactionClient;
 // nested line-item tree. getById returns the full detail.
 // Refund amounts and methods — enough for the screens to show "Refunded",
 // "Partially refunded", how much is left, and how it was paid back.
-const refundAmounts = { select: { amount: true, method: true } } as const;
+const refundAmounts = { select: { amount: true, method: true, paidOutAt: true } } as const;
 const listInclude = { customer: true, user: { select: { id: true, name: true } }, refunds: refundAmounts } as const;
 const detailInclude = {
   customer: true,
@@ -380,6 +380,42 @@ export class OrderRepository {
           }),
     ]);
     return Number(result._sum.totalAmount ?? 0) - Number(refunds._sum.amount ?? 0);
+  }
+
+  // Every GCash payment the shop has received for an order that counts as a
+  // sale (not cancelled) — it lands in the shop's GCash the moment the
+  // customer pays, so it's withdrawable right away, open shift or not.
+  async sumGcashSales(tx: PrismaClientOrTx = prisma): Promise<number> {
+    const result = await tx.order.aggregate({
+      where: {
+        paymentStatus: PaymentStatus.PAID,
+        status: { not: OrderStatus.CANCELLED },
+        paymentMethod: PaymentMethod.GCASH,
+      },
+      _sum: { totalAmount: true },
+    });
+    return Number(result._sum.totalAmount ?? 0);
+  }
+
+  // Shop-wide sales within a period, split by how the customer paid (no
+  // recorded method = Cash, as everywhere). Gross — refunds are separate.
+  async sumPaidByMethodInRange(range: { start: Date; end: Date }, tx: PrismaClientOrTx = prisma) {
+    const rows = await tx.order.groupBy({
+      by: ["paymentMethod"],
+      where: {
+        paymentStatus: PaymentStatus.PAID,
+        status: { not: OrderStatus.CANCELLED },
+        paymentDate: { gte: range.start, lt: range.end },
+      },
+      _sum: { totalAmount: true },
+    });
+    let cash = 0;
+    let gcash = 0;
+    for (const r of rows) {
+      if (r.paymentMethod === PaymentMethod.GCASH) gcash += Number(r._sum.totalAmount ?? 0);
+      else cash += Number(r._sum.totalAmount ?? 0);
+    }
+    return { cash, gcash };
   }
 
   // Admin dashboard: every paid, non-cancelled order paid within the range —

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useEscapeKey } from "../../lib/useEscapeKey";
 import { useFieldErrors } from "../../lib/useFieldErrors";
+import { useAutoRefresh } from "../../lib/useAutoRefresh";
 import FieldError from "../FieldError";
 import {
   AvailableToWithdraw,
@@ -72,6 +73,14 @@ export default function AdminWithdrawalFormModal({
       })
       .catch(() => setLoadError("Unable to load available amounts. Close this and try again."));
   }, []);
+
+  // Keep the amounts live while the window is open (a sale, refund or
+  // handover elsewhere changes them); the server re-checks on submit anyway.
+  useAutoRefresh(() => {
+    getAvailableToWithdraw()
+      .then(setAvailable)
+      .catch(() => {});
+  });
 
   const total = available ? (source === "Cash" ? available.cash.total : available.gcash.total) : 0;
 
@@ -194,33 +203,45 @@ export default function AdminWithdrawalFormModal({
                       detail={
                         available.cash.openShift === 0
                           ? "No cash sales since the last handover"
-                          : "Cash sales minus expenses and withdrawals"
+                          : "Cash sales minus expenses, withdrawals and refunds paid from the drawer"
                       }
                       value={peso(available.cash.openShift)}
                     />
+                    {available.cash.owedRefunds > 0 && (
+                      <BreakdownRow
+                        label="Refunds staff still have to give"
+                        detail="Approved, still in the drawer — owed to customers"
+                        value={`− ${peso(available.cash.owedRefunds)}`}
+                      />
+                    )}
                     <BreakdownRow
                       label="Starting cash"
                       detail="Stays in the drawer — not withdrawable"
                       value={peso(available.startingCash)}
                     />
                   </>
-                ) : available.gcash.shifts.length > 0 ? (
-                  available.gcash.shifts.map((s) => (
-                    <BreakdownRow
-                      key={s.handoverId}
-                      label={`${s.staffName}'s shift`}
-                      detail={closedAt(s.endTime)}
-                      value={peso(s.available)}
-                    />
-                  ))
                 ) : (
-                  <p className="py-1.5 text-gray-500">No GCash left to withdraw.</p>
+                  <>
+                    <BreakdownRow
+                      label="GCash payments received"
+                      detail="All orders paid by GCash (cancelled ones excluded), including the open shift"
+                      value={peso(available.gcash.sales)}
+                    />
+                    <BreakdownRow
+                      label="Refunded by GCash"
+                      detail="Claimed orders refunded from the shop's GCash"
+                      value={`− ${peso(available.gcash.refunds)}`}
+                    />
+                    <BreakdownRow
+                      label="Already withdrawn"
+                      value={`− ${peso(available.gcash.withdrawn)}`}
+                    />
+                  </>
                 )}
                 <p className="pt-2 text-xs text-gray-500">
                   {source === "Cash"
-                    ? "Taken from the last handover's leftover first, then from the open shift."
-                    : "Taken from the oldest shift first."}{" "}
-                  Each shift is recorded separately in the history.
+                    ? "Taken from the last handover's leftover first, then from the open shift. Each shift is recorded separately in the history."
+                    : "GCash is in the shop's account as soon as the customer pays, so it's available right away — no need to wait for a handover."}
                 </p>
               </div>
             </details>

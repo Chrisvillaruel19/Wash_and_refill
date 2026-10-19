@@ -26,8 +26,9 @@ const toCents = (n: number) => Math.round(n * 100);
 const peso = (n: number) => `₱${n.toFixed(2)}`;
 
 // Admin-only. One refund transaction for a paid order — partial allowed,
-// never more than what's left to refund. The Admin pays it from the shop's
-// earnings; no staff drawer or shift changes. The original sale is never edited.
+// never more than what's left to refund, always the way the customer paid. A
+// claimed order's refund is taken from the earnings available to withdraw;
+// staff sales never change. The original sale is never edited.
 export default function RefundOrderModal({ order, onConfirm, onCancel, submitting, error }: RefundOrderModalProps) {
   useEscapeKey(onCancel);
   const remaining = Math.max(0, (toCents(order.amount) - toCents(order.refundedAmount)) / 100);
@@ -36,8 +37,9 @@ export default function RefundOrderModal({ order, onConfirm, onCancel, submittin
   const fullOnly = order.status === "Cancelled";
 
   const [amount, setAmount] = useState(remaining.toFixed(2));
-  // How the customer paid is the usual way to pay them back.
-  const [method, setMethod] = useState<PaymentMethod>(order.paymentMethod ?? "Cash");
+  // Always paid back the way the customer paid (the server enforces it), so
+  // cash and GCash each add up on their own.
+  const method: PaymentMethod = order.paymentMethod ?? "Cash";
   const [reason, setReason] = useState(order.status === "Cancelled" ? "Order cancelled" : "");
   const fields = useFieldErrors<"amount" | "reason">("refund");
   const base = "w-full border rounded-lg p-2 text-gray-900";
@@ -112,8 +114,7 @@ export default function RefundOrderModal({ order, onConfirm, onCancel, submittin
             <legend className="block text-sm text-gray-500 mb-1">Refund by</legend>
             <div className="grid grid-cols-2 gap-2">
               {(["Cash", "GCash"] as PaymentMethod[]).map((m) => {
-                // A cancelled order goes back the way it was paid.
-                const disabled = fullOnly && m !== method;
+                const disabled = m !== method;
                 return (
                   <label
                     key={m}
@@ -127,7 +128,7 @@ export default function RefundOrderModal({ order, onConfirm, onCancel, submittin
                       value={m}
                       checked={method === m}
                       disabled={disabled}
-                      onChange={() => setMethod(m)}
+                      readOnly
                     />
                     <span className="text-sm font-medium text-gray-900">{m}</span>
                   </label>
@@ -140,8 +141,8 @@ export default function RefundOrderModal({ order, onConfirm, onCancel, submittin
                   ? "Staff set this cash aside when they cancelled. Once you refund, it shows Refunded and staff give it to the customer — the drawer isn't affected."
                   : "Send it back to the customer through GCash. It was never counted as GCash income, so the GCash balance isn't affected."
                 : method === "Cash"
-                  ? "You hand the cash to the customer from the shop's earnings — not from the staff cash drawer."
-                  : "You send it back from the shop's GCash."}
+                  ? "Paid by cash, so refunded by cash. The staff on duty will see \"Refunds to give\", hand the cash to the customer from the drawer and mark it given — their Shift Handover then expects that much less. Until then it's held back from the cash available to withdraw."
+                  : "Paid by GCash, so refunded by GCash. Send it from the shop's GCash — it comes off the GCash available to withdraw."}
             </p>
           </fieldset>
 
@@ -165,7 +166,7 @@ export default function RefundOrderModal({ order, onConfirm, onCancel, submittin
           <p className="text-xs text-gray-500">
             {fullOnly
               ? "This cancelled order was never counted as a sale, so refunding it doesn't change any sales figures."
-              : "No staff shift is affected — the drawer and shift handovers don't change. The original sale stays in past reports; this refund is recorded today and subtracted from today's sales."}
+              : "Staff sales don't change. The original sale stays in past reports; this refund is recorded today and subtracted from today's sales."}
           </p>
 
           <div className="flex justify-end gap-3 pt-1">

@@ -46,6 +46,9 @@ export default function OrderSummary({
   // Empty amount = saved as Unpaid; a partial amount is rejected on submit.
   const isUnpaid = amountPaid <= 0;
   const isShort = !isUnpaid && change < 0;
+  // Every order is a laundry job (drop-off or self service): a package or
+  // supplies alone have nothing to wash. The server rejects it too.
+  const missingLaundryService = cartItems.length > 0 && !cartItems.some((item) => item.sourceType === "SERVICE");
 
   return (
     <div className="bg-white rounded-xl shadow-md overflow-hidden flex flex-col h-fit lg:sticky lg:top-4">
@@ -160,10 +163,17 @@ export default function OrderSummary({
           </p>
         )}
 
+        {missingLaundryService && (
+          <p className="text-amber-800 text-sm mb-3 bg-amber-50 border border-amber-200 rounded-lg py-2 px-3" role="alert">
+            Add at least one laundry service (e.g. Clothes or Self Service). A package or supplies alone has nothing to
+            wash.
+          </p>
+        )}
+
         <button
           type="button"
           onClick={onFinishTransaction}
-          disabled={cartItems.length === 0 || isSubmitting}
+          disabled={cartItems.length === 0 || missingLaundryService || isSubmitting}
           className="w-full bg-blue-600 text-white rounded-lg py-3 font-semibold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
         >
           {isSubmitting ? "Processing..." : "Finish Transaction"}

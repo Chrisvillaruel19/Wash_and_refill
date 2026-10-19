@@ -189,6 +189,15 @@ export async function createOrderService(input: {
         }
       }
 
+      // Every order is a laundry job — drop-off or self service. A package
+      // (the wash's detergent etc.) or supplies alone have nothing to wash,
+      // and would sit in Service Management forever.
+      if (selfServiceLines + dropOffServiceLines === 0) {
+        throw new OrderValidationError(
+          "Add at least one laundry service (e.g. Clothes or Self Service). A package or supplies alone has nothing to wash."
+        );
+      }
+
       // 3. Atomic, conditional stock decrement per aggregated inventory
       // item — never a plain read-then-write. A count of 0 means there
       // wasn't enough stock, and aborts the whole transaction: no partial

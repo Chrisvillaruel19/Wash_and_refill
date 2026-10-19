@@ -13,6 +13,7 @@ import {
   listOrdersSchema,
   getSalesBreakdownSchema,
   refundOrderSchema,
+  refundIdParamSchema,
 } from "../schema/order/index.js";
 import { Role } from "../../generated/prisma/client.js";
 
@@ -52,6 +53,22 @@ router.get(
   "/claimed-today",
   authMiddleware.execute,
   orderController.getMyClaimedToday
+);
+
+// Approved cash refunds (claimed orders) waiting for the staff member on
+// duty to hand the cash to the customer — every signed-in user sees them.
+// Same "/:id" ordering reasoning as above.
+router.get("/refund-payouts", authMiddleware.execute, orderController.pendingRefundPayouts);
+
+// Staff on duty gave that cash from the drawer.
+router.post(
+  "/refunds/:refundId/pay-out",
+  authMiddleware.execute,
+  requireRole(Role.STAFF),
+  requireActiveShift,
+  mutationLimiter,
+  validateSchema(refundIdParamSchema),
+  orderController.payOutRefund
 );
 
 router.get(

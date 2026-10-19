@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma.js";
-import { Prisma, StockStatus } from "../../generated/prisma/client.js";
+import { Prisma, StockStatus, OrderStatus } from "../../generated/prisma/client.js";
 
 // Accepts either the singleton client or a transaction client, so future
 // modules (e.g. Orders) can call these methods inside their own
@@ -7,6 +7,27 @@ import { Prisma, StockStatus } from "../../generated/prisma/client.js";
 type PrismaClientOrTx = typeof prisma | Prisma.TransactionClient;
 
 export class InventoryRepository {
+  // Stock each item lost to orders created after `since` (null = ever),
+  // net of cancellations — a cancelled order's stock was put back. Used to
+  // reconstruct a shift's beginning count when no earlier handover counted
+  // the item (see inventory-beginning.util.ts).
+  async sumNetConsumedSince(
+    inventoryIds: string[],
+    since: Date | null,
+    tx: PrismaClientOrTx = prisma
+  ): Promise<Map<string, number>> {
+    if (inventoryIds.length === 0) return new Map();
+    const rows = await tx.inventoryConsumption.groupBy({
+      by: ["inventoryId"],
+      where: {
+        inventoryId: { in: inventoryIds },
+        order: { status: { not: OrderStatus.CANCELLED }, ...(since ? { createdAt: { gt: since } } : {}) },
+      },
+      _sum: { quantityUsed: true },
+    });
+    return new Map(rows.map((r) => [r.inventoryId, r._sum.quantityUsed ?? 0]));
+  }
+
   async findAllActive(tx: PrismaClientOrTx = prisma) {
     return tx.inventory.findMany({
       where: { isActive: true },

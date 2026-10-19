@@ -9,8 +9,11 @@ export interface WithdrawalRecord {
   reason: string;
   adminName: string;
   source: WithdrawalSource;
-  // Set when taken from a closed shift's earnings; null = the open shift's drawer.
+  // Set when taken from a closed shift's earnings; null = the open shift's
+  // drawer (Cash) or the GCash balance.
   fromShift: { staffName: string; endTime: string } | null;
+  // True when this paid a claimed order's refund rather than being earnings.
+  isRefund: boolean;
 }
 
 type BackendWithdrawal = {
@@ -21,6 +24,7 @@ type BackendWithdrawal = {
   performedBy: string;
   source?: "CASH" | "GCASH";
   fromShift?: { staffName: string; endTime: string } | null;
+  refundId?: string | null;
 };
 
 function mapWithdrawal(w: BackendWithdrawal): WithdrawalRecord {
@@ -32,6 +36,7 @@ function mapWithdrawal(w: BackendWithdrawal): WithdrawalRecord {
     adminName: w.performedBy,
     source: w.source === "GCASH" ? "GCash" : "Cash",
     fromShift: w.fromShift ?? null,
+    isRefund: !!w.refundId,
   };
 }
 
@@ -55,13 +60,18 @@ export interface AvailableToWithdraw {
     // Left above the starting cash at the last handover's count, minus what
     // was already taken from it. Negative = that count was short.
     lastShift: ShiftPortion | null;
-    // The open shift so far: cash sales − expenses − withdrawals.
+    // The open shift so far: cash sales − expenses − withdrawals − refunds
+    // staff handed out.
     openShift: number;
+    // Approved cash refunds not handed to customers yet — held back.
+    owedRefunds: number;
   };
+  // One live balance: sales − refunds − withdrawn (never below zero).
   gcash: {
     total: number;
-    // Closed shifts with GCash not yet withdrawn, oldest first.
-    shifts: ShiftPortion[];
+    sales: number;
+    refunds: number;
+    withdrawn: number;
   };
 }
 
@@ -77,11 +87,43 @@ export async function getAvailableToWithdraw(): Promise<AvailableToWithdraw> {
       total: Number(r.cash.total),
       lastShift: r.cash.lastShift ? mapPortion(r.cash.lastShift) : null,
       openShift: Number(r.cash.openShift),
+      owedRefunds: Number(r.cash.owedRefunds ?? 0),
     },
     gcash: {
       total: Number(r.gcash.total),
-      shifts: r.gcash.shifts.map(mapPortion),
+      sales: Number(r.gcash.sales),
+      refunds: Number(r.gcash.refunds),
+      withdrawn: Number(r.gcash.withdrawn),
     },
+  };
+}
+
+// One row of the money summary, split by how the money moved.
+export interface MoneyRow {
+  cash: number;
+  gcash: number;
+  total: number;
+}
+
+// Today's money, every figure live from the same records as Today's Sales
+// and the Withdraw window: net = sales − refunds = Today's Sales.
+export interface MoneySummary {
+  sales: MoneyRow;
+  refunds: MoneyRow;
+  net: MoneyRow;
+  withdrawn: MoneyRow;
+  available: MoneyRow;
+}
+
+export async function getMoneySummary(): Promise<MoneySummary> {
+  const r = await apiClient.get<MoneySummary>("/withdrawals/summary");
+  const row = (x: MoneyRow): MoneyRow => ({ cash: Number(x.cash), gcash: Number(x.gcash), total: Number(x.total) });
+  return {
+    sales: row(r.sales),
+    refunds: row(r.refunds),
+    net: row(r.net),
+    withdrawn: row(r.withdrawn),
+    available: row(r.available),
   };
 }
 

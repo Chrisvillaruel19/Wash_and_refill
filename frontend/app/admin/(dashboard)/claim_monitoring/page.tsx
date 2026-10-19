@@ -334,8 +334,14 @@ export default function ClaimMonitoringPage() {
                         >
                           Refund
                         </button>
-                      ) : (
+                      ) : (order.refundToGive ?? 0) === 0 ? (
                         <span className="text-gray-400">—</span>
+                      ) : null}
+                      {/* An approved cash refund the staff on duty hasn't handed over yet. */}
+                      {(order.refundToGive ?? 0) > 0 && (
+                        <span className="block mt-1 text-xs text-amber-700">
+                          Staff to give ₱{(order.refundToGive ?? 0).toFixed(2)} cash
+                        </span>
                       )}
                     </td>
                   </tr>

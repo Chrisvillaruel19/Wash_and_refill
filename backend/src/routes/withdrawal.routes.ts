@@ -32,8 +32,11 @@ router.post(
 
 router.get("/", authMiddleware.execute, requireRole(Role.ADMIN), withdrawalController.list);
 
-// How much can be withdrawn right now — one Cash total (float excluded) and
-// one GCash total, each with its per-shift breakdown.
+// How much can be withdrawn right now — one Cash total (float excluded,
+// with its per-shift breakdown) and one live GCash balance.
 router.get("/available", authMiddleware.execute, requireRole(Role.ADMIN), withdrawalController.available);
+
+// Today's sales, refunds, net, withdrawn and available, split Cash / GCash.
+router.get("/summary", authMiddleware.execute, requireRole(Role.ADMIN), withdrawalController.summary);
 
 export default router;

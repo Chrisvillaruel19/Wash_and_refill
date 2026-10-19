@@ -1,11 +1,13 @@
 import { prisma } from "../../lib/prisma.js";
 import { OrderRepository } from "../../repositories/order.repository.js";
 import { AttendanceRepository } from "../../repositories/attendance.repository.js";
+import { RefundRepository } from "../../repositories/refund.repository.js";
 import { lowStockInventoryService } from "../inventory/index.js";
 import { getBusinessDayRange } from "../../lib/business-timezone.js";
 
 const orderRepository = new OrderRepository();
 const attendanceRepository = new AttendanceRepository();
+const refundRepository = new RefundRepository();
 
 // Deliberately does not re-embed the full orders list — the frontend's
 // OrdersTable already has its own source via the existing GET /orders
@@ -18,10 +20,13 @@ export async function getStaffDashboardService(userId: string) {
     // clock-in) — the shop-wide total is Admin-only. Not clocked in = 0.
     const activeAttendance = await attendanceRepository.findActiveForUser(userId);
     const shiftStart = activeAttendance?.timeIn ?? null;
-    const [myShiftSales, claimedToday, statusCounts, lowStockResult] = await Promise.all([
+    const [myShiftSales, myShiftRefundsPaid, claimedToday, statusCounts, lowStockResult] = await Promise.all([
       shiftStart
         ? orderRepository.sumPaidRevenue({ start: shiftStart, end: new Date(Date.now() + 60_000) }, prisma, userId)
         : Promise.resolve(0),
+      // Cash refunds this staff member handed to customers this shift
+      // (approved by the Admin) — the card shows sales minus these as net.
+      shiftStart ? refundRepository.sumPaidOutByUserSince(userId, shiftStart) : Promise.resolve(0),
       orderRepository.countClaimedForUserInRange(userId, todayRange),
       orderRepository.countByStatus(),
       lowStockInventoryService(),
@@ -33,6 +38,8 @@ export async function getStaffDashboardService(userId: string) {
       message: "Staff dashboard statistics retrieved successfully",
       data: {
         myShiftSales,
+        myShiftRefundsPaid,
+        myShiftNetSales: (Math.round(myShiftSales * 100) - Math.round(myShiftRefundsPaid * 100)) / 100,
         onShift: shiftStart !== null,
         claimedToday,
         pending: statusCounts.PENDING,

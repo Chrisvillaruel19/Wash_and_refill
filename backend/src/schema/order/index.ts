@@ -7,3 +7,4 @@ export { updateOrderStatusSchema } from "./update-order-status.schema.js";
 export { markOrderPaidSchema } from "./mark-order-paid.schema.js";
 export { getSalesBreakdownSchema } from "./get-sales-breakdown.schema.js";
 export { refundOrderSchema } from "./refund-order.schema.js";
+export { refundIdParamSchema } from "./refund-id-param.schema.js";

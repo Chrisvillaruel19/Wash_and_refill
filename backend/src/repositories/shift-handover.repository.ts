@@ -41,22 +41,6 @@ export class ShiftHandoverRepository {
     });
   }
 
-  // Every closed shift that took GCash, oldest first — each one's GCash stays
-  // withdrawable until taken, however old (GCash is never counted into the
-  // drawer, so a later count can't absorb it the way it absorbs cash).
-  async findWithGcashSales(tx: PrismaClientOrTx = prisma) {
-    return tx.shiftHandover.findMany({
-      where: { digitalSales: { gt: 0 } },
-      select: {
-        id: true,
-        endTime: true,
-        digitalSales: true,
-        user: { select: { name: true } },
-      },
-      orderBy: { endTime: "asc" },
-    });
-  }
-
   // The single most recent handover across ALL staff — the shared drawer's
   // last known state, used as the starting balance for the next handover
   // and for Withdrawal's live balance calculation.
@@ -89,6 +73,7 @@ export class ShiftHandoverRepository {
       digitalSales: number;
       expense: number;
       withdrawal: number;
+      cashRefunds: number;
       drawerStart: number;
       expectedBalance: number;
       actualCashCount: number;

@@ -4,6 +4,7 @@ import { OrderRepository } from "../../repositories/order.repository.js";
 import { ExpenseRepository } from "../../repositories/expense.repository.js";
 import { WithdrawalRepository } from "../../repositories/withdrawal.repository.js";
 import { DrawerStateRepository } from "../../repositories/drawer-state.repository.js";
+import { RefundRepository } from "../../repositories/refund.repository.js";
 
 type PrismaClientOrTx = typeof prisma | Prisma.TransactionClient;
 
@@ -11,6 +12,7 @@ const orderRepository = new OrderRepository();
 const expenseRepository = new ExpenseRepository();
 const withdrawalRepository = new WithdrawalRepository();
 const drawerStateRepository = new DrawerStateRepository();
+const refundRepository = new RefundRepository();
 
 // The drawer's starting balance for a new reconciliation: always the
 // Admin-configured fixed cash float (DrawerState.defaultStartingCash),
@@ -76,9 +78,9 @@ export function summarizeOrders(orders: UnclaimedOrder[]) {
 
 // Live "how much cash is in the drawer right now" — the drawer's starting
 // balance plus every currently-unclaimed cash sale, minus every
-// currently-unclaimed expense and withdrawal. Refunds never come out of the
-// drawer — the Admin pays them from the shop's earnings (see
-// refund-order.service.ts), so no staff shift is affected. Global (no userId), since a
+// currently-unclaimed expense, cash withdrawal (GCash ones never touch the
+// drawer) and cash refund a staff member handed to a customer (see
+// pay-out-refund.service.ts). Global (no userId), since a
 // withdrawal isn't tied to any one staff member's shift. This is a plain
 // read, not a claim — the caller must already hold the DrawerState lock
 // (acquired via acquireDrawerLock) before calling this, so no concurrent
@@ -95,14 +97,18 @@ export async function getCurrentDrawerBalance(tx: PrismaClientOrTx = prisma): Pr
   const withdrawals = await withdrawalRepository.findUnclaimed(tx);
   const withdrawalTotal = withdrawals.reduce((sum, w) => sum + Number(w.amount), 0);
 
-  return drawerStart + cashSalesTotal - expenseTotal - withdrawalTotal;
+  const refundsPaidTotal = await refundRepository.sumUnclaimedPayouts(tx);
+
+  return drawerStart + cashSalesTotal - expenseTotal - withdrawalTotal - refundsPaidTotal;
 }
 
 // Unreported-activity check for Attendance's clock-out gate: does this
-// staff member have any order or expense not yet claimed by any handover?
-// Claim-status based, not timestamp based — no "since" cutoff needed.
+// staff member have any order, expense or refund payout not yet claimed by
+// any handover? Claim-status based, not timestamp based — no "since" cutoff
+// needed.
 export async function getUnreportedActivity(userId: string, tx: PrismaClientOrTx = prisma) {
   const orders = await orderRepository.findUnclaimedForUser(userId, tx);
   const expenses = await expenseRepository.findUnclaimedForUser(userId, tx);
-  return { orders, expenses };
+  const refundPayouts = await refundRepository.findUnclaimedPayoutsForUser(userId, tx);
+  return { orders, expenses, refundPayouts };
 }

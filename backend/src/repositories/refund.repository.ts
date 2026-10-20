@@ -3,12 +3,12 @@ import { Prisma, PaymentMethod, OrderStatus } from "../../generated/prisma/clien
 
 type PrismaClientOrTx = typeof prisma | Prisma.TransactionClient;
 
-// Refunds never change a staff member's sales. A refund of a claimed order
-// lowers shop sales on the day it's approved; a cancelled order was never a
-// sale, so its refund doesn't. Money side (see refund-order.service.ts): a
+// A claimed order's refund lowers shop sales on the day it's approved; a
+// cancelled order was never a sale, so its refund doesn't. The order's own
+// sale record never changes. Money side (see refund-order.service.ts): a
 // claimed order's cash refund is handed over by staff from the drawer (a
-// payout, reconciled by Shift Handover); a GCash one comes off the shop's
-// GCash balance.
+// payout, reconciled by Shift Handover, and shown as a deduction from that
+// staff member's shift sales); a GCash one comes off the shop's GCash.
 const notCancelledOrder = { order: { status: { not: OrderStatus.CANCELLED } } };
 
 // A claimed order's cash refund the Admin approved that no staff member has
@@ -83,23 +83,14 @@ export class RefundRepository {
     });
   }
 
-  // Cash refunds this staff member handed to customers since a moment (their
-  // clock-in) — shown against their shift sales on the Staff Dashboard.
-  async sumPaidOutByUserSince(userId: string, since: Date, tx: PrismaClientOrTx = prisma): Promise<number> {
-    const result = await tx.refund.aggregate({
-      where: { paidOutById: userId, paidOutAt: { gte: since } },
-      _sum: { amount: true },
-    });
-    return Number(result._sum.amount ?? 0);
-  }
-
   async sumUnclaimedPayouts(tx: PrismaClientOrTx = prisma): Promise<number> {
     const result = await tx.refund.aggregate({ where: unclaimedPayout, _sum: { amount: true } });
     return Number(result._sum.amount ?? 0);
   }
 
   // Cash refunds this staff member handed to customers within a period
-  // (open-ended bounds allowed) — their own Sales report nets these out.
+  // (open-ended bounds allowed) — netted out of their own shift sales on the
+  // Dashboard (since clock-in) and their Sales report (chosen dates).
   async sumPaidOutByUserInRange(
     userId: string,
     params: { gte?: Date; lt?: Date },

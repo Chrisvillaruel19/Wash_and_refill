@@ -140,8 +140,10 @@ export default function SalesPage() {
   // After refunds: what was paid, minus the cash refunds this staff member
   // handed to customers in the same dates — the same rule as "My shift
   // sales" on the Dashboard, so the two always agree.
+  // Never below zero: a refund handed out for an older or another staff
+  // member's order can outweigh a quiet day's sales.
   const averageOrderValue =
-    salesTotals.paidOrderCount > 0 ? salesTotals.netSales / salesTotals.paidOrderCount : 0;
+    salesTotals.paidOrderCount > 0 ? Math.max(0, salesTotals.netSales) / salesTotals.paidOrderCount : 0;
 
   const {
     page: clientPage,

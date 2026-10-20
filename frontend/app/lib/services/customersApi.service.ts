@@ -1,6 +1,6 @@
 import { apiClient } from "../apiClient";
 
-export type CustomerSort = "recent" | "visits" | "spent" | "name";
+export type CustomerSort = "recent" | "visits" | "name";
 // "regular" = came back 2+ times.
 export type CustomerFilter = "all" | "regular";
 
@@ -12,9 +12,6 @@ export interface CustomerSummary {
   phoneNumber: string | null;
   // Orders that weren't cancelled.
   visits: number;
-  // Paid (not cancelled) minus refunds — what they actually paid the shop.
-  spent: number;
-  refunded: number;
   firstVisit: string | null;
   lastVisit: string | null;
 }
@@ -26,7 +23,6 @@ export interface CustomerOverview {
   regulars: number;
   // First visit this calendar month.
   newThisMonth: number;
-  spent: number;
 }
 
 export async function getCustomerSummaries(params: {
@@ -49,14 +45,13 @@ export async function getCustomerSummaries(params: {
     pagination: { totalPages: number; total: number };
   }>(`/customers/summaries?${qs}`);
   return {
-    items: r.customers.map((c) => ({ ...c, visits: Number(c.visits), spent: Number(c.spent), refunded: Number(c.refunded) })),
+    items: r.customers.map((c) => ({ ...c, visits: Number(c.visits) })),
     totalPages: r.pagination.totalPages,
     total: r.pagination.total,
     overview: {
       customers: Number(r.overview.customers),
       regulars: Number(r.overview.regulars),
       newThisMonth: Number(r.overview.newThisMonth),
-      spent: Number(r.overview.spent),
     },
   };
 }

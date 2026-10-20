@@ -17,14 +17,16 @@ export async function listCustomerSummariesService(params: {
   pageSize: number;
 }) {
   try {
-    const [rows, overview] = await Promise.all([crmRepository.findSummaries(params), crmRepository.getOverview()]);
-    const total = rows[0]?.total ?? 0;
+    const [{ rows, total }, overview] = await Promise.all([
+      crmRepository.findSummaries(params),
+      crmRepository.getOverview(),
+    ]);
     return {
       code: 200,
       status: "success",
       message: "Customers retrieved successfully",
       data: {
-        customers: rows.map(({ total: _total, ...row }) => row),
+        customers: rows,
         overview,
         pagination: {
           page: params.page,
@@ -48,6 +50,7 @@ export async function getCustomerProfileService(id: string) {
 
     const orders = await crmRepository.findOrders(id);
     let visits = 0;
+    let paidOrders = 0;
     let paidCents = 0;
     let refundedCents = 0;
     let cancelled = 0;
@@ -57,7 +60,10 @@ export async function getCustomerProfileService(id: string) {
         cancelled++;
       } else {
         visits++;
-        if (o.paymentStatus === PaymentStatus.PAID) paidCents += toCents(Number(o.totalAmount));
+        if (o.paymentStatus === PaymentStatus.PAID) {
+          paidOrders++;
+          paidCents += toCents(Number(o.totalAmount));
+        }
         refundedCents += toCents(refunded);
       }
       return {
@@ -92,7 +98,9 @@ export async function getCustomerProfileService(id: string) {
           cancelled,
           spent: (paidCents - refundedCents) / 100,
           refunded: refundedCents / 100,
-          averageOrder: visits > 0 ? Math.round(paidCents / visits) / 100 : 0,
+          // Per PAID order (an unpaid one hasn't been paid yet), after
+          // refunds — the same basis as Total spent next to it.
+          averageOrder: paidOrders > 0 ? Math.round((paidCents - refundedCents) / paidOrders) / 100 : 0,
           firstVisit: visited.length ? visited[visited.length - 1].createdAt : null,
           lastVisit: visited.length ? visited[0].createdAt : null,
         },

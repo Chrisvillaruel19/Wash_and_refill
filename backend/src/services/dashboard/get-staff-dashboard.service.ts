@@ -26,7 +26,7 @@ export async function getStaffDashboardService(userId: string) {
         : Promise.resolve(0),
       // Cash refunds this staff member handed to customers this shift
       // (approved by the Admin) — the card shows sales minus these as net.
-      shiftStart ? refundRepository.sumPaidOutByUserSince(userId, shiftStart) : Promise.resolve(0),
+      shiftStart ? refundRepository.sumPaidOutByUserInRange(userId, { gte: shiftStart }) : Promise.resolve(0),
       orderRepository.countClaimedForUserInRange(userId, todayRange),
       orderRepository.countByStatus(),
       lowStockInventoryService(),

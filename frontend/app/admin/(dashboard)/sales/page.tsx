@@ -181,8 +181,11 @@ export default function AdminSalesPage() {
       ]);
       setWithdrawals(withdrawalsData);
       setTotalCashToday(dashboardData.totalCashToday);
+      // After refunds, like Today's Sales beside it (and the Staff Sales
+      // page): today's paid sales minus today's claimed-order refunds, per
+      // paid order — never below zero.
       setTodayAverageOrderValue(
-        todaySales.paidOrderCount > 0 ? todaySales.totalPaidAmount / todaySales.paidOrderCount : 0
+        todaySales.paidOrderCount > 0 ? Math.max(0, todaySales.netSales) / todaySales.paidOrderCount : 0
       );
     } catch {
       if (initial) setLoadError("Unable to load sales data. Please try again.");

@@ -3,7 +3,7 @@ import { RefundRepository } from "../../repositories/refund.repository.js";
 import { AuditAction, OrderStatus, PaymentMethod } from "../../../generated/prisma/client.js";
 import { writeAuditLog } from "../../lib/audit-log.js";
 import { acquireDrawerLock } from "../../lib/drawer-lock.js";
-import { getCurrentDrawerBalance } from "../shift-handover/reconciliation.util.js";
+import { getDrawerCashOnHand } from "../withdrawal/earnings.util.js";
 
 const refundRepository = new RefundRepository();
 
@@ -35,9 +35,10 @@ export async function payOutRefundService(userId: string, refundId: string) {
         return { conflict: "This refund was already given to the customer." } as const;
       }
 
-      // The bills have to physically be there.
+      // The bills have to physically be there — including cash a previous
+      // shift left in the drawer that the Admin hasn't withdrawn yet.
       const amount = Number(refund.amount);
-      const inDrawer = await getCurrentDrawerBalance(tx);
+      const inDrawer = await getDrawerCashOnHand(tx);
       if (Math.round(amount * 100) > Math.round(inDrawer * 100)) {
         return {
           conflict: `The drawer should only have ${peso(inDrawer)} — not enough to give ${peso(amount)}. Ask the Admin.`,

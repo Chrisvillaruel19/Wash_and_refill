@@ -4,8 +4,12 @@ import { Prisma } from "../../generated/prisma/client.js";
 type PrismaClientOrTx = typeof prisma | Prisma.TransactionClient;
 
 export type CustomerSort = "recent" | "visits" | "name";
-// "regular" = came back 2+ times (not counting cancelled orders).
+// "regular" = REGULAR_MIN_VISITS+ visits (cancelled orders don't count).
 export type CustomerFilter = "all" | "regular";
+
+// How many completed visits make a customer a Regular. The Customers page
+// uses the same number (frontend REGULAR_MIN_VISITS).
+export const REGULAR_MIN_VISITS = 5;
 
 // ORDER BY per sort — a fixed whitelist, never built from user input. Each
 // ends on the customer id so ties (same name, no visits yet…) keep one fixed
@@ -67,7 +71,7 @@ export class CustomerCrmRepository {
       )
       SELECT id, name, "phoneNumber", visits, "firstVisit", "lastVisit"
       FROM stats
-      WHERE (${regularsOnly}::boolean = false OR visits >= 2)
+      WHERE (${regularsOnly}::boolean = false OR visits >= ${REGULAR_MIN_VISITS})
         AND (
           ${like}::text IS NULL
           OR name ILIKE ${like}
@@ -91,7 +95,8 @@ export class CustomerCrmRepository {
   }
 
   // Headline numbers for the Customers page: how many customers, how many
-  // came back (2+ visits), and how many first came this month (Manila time).
+  // are Regulars (REGULAR_MIN_VISITS+ visits), and how many first came this
+  // month (Manila time).
   async getOverview(tx: PrismaClientOrTx = prisma) {
     const [row] = await tx.$queryRaw<
       { customers: bigint; regulars: bigint; newThisMonth: bigint }[]
@@ -106,7 +111,7 @@ export class CustomerCrmRepository {
       )
       SELECT
         COUNT(*) AS customers,
-        COUNT(*) FILTER (WHERE visits >= 2) AS regulars,
+        COUNT(*) FILTER (WHERE visits >= ${REGULAR_MIN_VISITS}) AS regulars,
         COUNT(*) FILTER (
           WHERE first_visit >= (date_trunc('month', now() AT TIME ZONE 'Asia/Manila') AT TIME ZONE 'Asia/Manila')
         ) AS "newThisMonth"

@@ -1,7 +1,7 @@
 import { apiClient } from "../apiClient";
 
 export type CustomerSort = "recent" | "visits" | "name";
-// "regular" = came back 2+ times.
+// "regular" = 5+ visits (see REGULAR_MIN_VISITS on the Customers page).
 export type CustomerFilter = "all" | "regular";
 
 // One row of the Admin Customers page.
@@ -19,7 +19,7 @@ export interface CustomerSummary {
 // Headline numbers for the Customers page (all customers, not just the page).
 export interface CustomerOverview {
   customers: number;
-  // 2+ visits.
+  // 5+ visits.
   regulars: number;
   // First visit this calendar month.
   newThisMonth: number;

@@ -15,8 +15,12 @@ import {
 
 const PAGE_SIZE = 10;
 
+// Completed visits that make a customer a Regular — must match the
+// backend's REGULAR_MIN_VISITS (customer-crm.repository.ts).
+const REGULAR_MIN_VISITS = 5;
+
 // One dropdown for how to list customers: three orderings, plus
-// "Regular customers" (only 2+ visits, most recent first).
+// "Regular customers" (only 5+ visits, most recent first).
 type ViewOption = CustomerSort | "regular";
 const VIEWS: { value: ViewOption; label: string }[] = [
   { value: "recent", label: "Most recent visit" },
@@ -134,7 +138,7 @@ export default function CustomersPage() {
           value={overview ? overview.regulars : "—"}
           icon={Repeat}
           iconColor="text-green-600 bg-green-100"
-          sub="Came back 2+ times"
+          sub={`${REGULAR_MIN_VISITS}+ visits`}
         />
         <AdminStatCard
           label="New this month"
@@ -226,7 +230,7 @@ export default function CustomersPage() {
                       {debouncedSearch
                         ? "Try part of the name or phone number."
                         : filter === "regular"
-                          ? "A customer becomes a regular on their second visit."
+                          ? `A customer becomes a regular after ${REGULAR_MIN_VISITS} visits.`
                           : "They appear here after their first order."}
                     </p>
                   </td>
@@ -254,10 +258,12 @@ export default function CustomersPage() {
                             <p className="flex items-center gap-1.5 font-semibold text-gray-900">
                               <span className="truncate">{c.name}</span>
                             </p>
-                            {c.visits >= 2 ? (
+                            {c.visits >= REGULAR_MIN_VISITS ? (
                               <span className="inline-block mt-0.5 rounded-full bg-green-50 text-green-700 ring-1 ring-green-200 text-[11px] font-semibold px-2 py-px">
                                 Regular
                               </span>
+                            ) : c.visits >= 2 ? (
+                              <span className="text-xs text-gray-500">Returning customer</span>
                             ) : c.visits === 1 ? (
                               <span className="text-xs text-gray-400">New customer</span>
                             ) : (
@@ -272,7 +278,7 @@ export default function CustomersPage() {
                       <td className="py-3 px-3 text-center">
                         <span
                           className={`inline-flex min-w-[2rem] justify-center rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${
-                            c.visits >= 2 ? "bg-sky-100 text-sky-700" : "bg-gray-100 text-gray-600"
+                            c.visits >= REGULAR_MIN_VISITS ? "bg-sky-100 text-sky-700" : "bg-gray-100 text-gray-600"
                           }`}
                         >
                           {c.visits}

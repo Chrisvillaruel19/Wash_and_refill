@@ -89,7 +89,10 @@ export default function StaffDashboardPage() {
             shift (e.g. damaged items, approved by the Admin). */}
         <AdminStatCard
           label="My shift sales"
-          value={peso(data.myShiftNetSales)}
+          // Never shown below ₱0: a refund handed out for another staff
+          // member's (or an older) order can outweigh a quiet shift's sales.
+          // The line below still shows both figures in full.
+          value={peso(Math.max(0, data.myShiftNetSales))}
           icon={Wallet}
           iconColor="text-green-600 bg-green-100"
           sub={

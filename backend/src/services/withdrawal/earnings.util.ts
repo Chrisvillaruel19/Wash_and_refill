@@ -108,6 +108,21 @@ export async function getAvailableToWithdraw(tx: PrismaClientOrTx = prisma): Pro
   };
 }
 
+// Cash physically in the drawer right now: the starting cash + what the last
+// handover counted above it (minus what was withdrawn from that count) + the
+// open shift's net cash. Built from the same figures as
+// getAvailableToWithdraw, so the two never disagree — but unlike "available
+// to withdraw" it keeps the starting cash and doesn't hold back approved
+// refunds: it answers "can staff physically hand this cash over?".
+export async function getDrawerCashOnHand(tx: PrismaClientOrTx = prisma): Promise<number> {
+  const available = await getAvailableToWithdraw(tx);
+  return fromCents(
+    toCents(available.startingCash) +
+      toCents(available.cash.lastShift?.available ?? 0) +
+      toCents(available.cash.openShift)
+  );
+}
+
 // One withdrawal record to create: a slice of a closed shift's earnings
 // (handoverId set) or of the open shift's drawer / the GCash balance
 // (handoverId null).

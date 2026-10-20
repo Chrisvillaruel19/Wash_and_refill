@@ -68,7 +68,7 @@ export async function cancelOrderService(userId: string, id: string, actorRole?:
         userId,
         action: AuditAction.UPDATE,
         module: "Order",
-        description: `Cancelled order (was ${existing.status}), inventory restored`,
+        description: `Cancelled order (was ${existing.status}), supplies restored`,
         oldValue: { status: existing.status },
         newValue: { status: OrderStatus.CANCELLED },
       });
@@ -92,7 +92,7 @@ export async function cancelOrderService(userId: string, id: string, actorRole?:
     return {
       code: 200,
       status: "success",
-      message: "Order cancelled successfully, inventory restored",
+      message: "Order cancelled successfully, supplies restored",
       data: { order: result.order },
     };
   } catch (error) {

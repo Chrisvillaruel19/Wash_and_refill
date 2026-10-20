@@ -8,16 +8,16 @@ export default function BestSellersCard({ items }: BestSellersCardProps) {
   const max = Math.max(...items.map((i) => i.quantitySold), 0);
 
   return (
-    <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 h-full">
-      <h2 className="text-base sm:text-lg font-bold text-gray-800 mb-4">Best-selling packages</h2>
+    <div className="bg-white rounded-xl shadow-md ring-1 ring-gray-200/80 p-4 sm:p-6 h-full">
+      <h2 className="text-base sm:text-lg font-bold text-gray-900 mb-4">Best-selling packages</h2>
       {items.length === 0 ? (
-        <p className="text-gray-400 text-sm py-6 text-center">No package sales yet.</p>
+        <p className="text-gray-500 text-sm py-6 text-center">No package sales yet.</p>
       ) : (
         <ul className="space-y-3">
           {items.map((item) => (
             <li key={item.name}>
               <div className="flex items-baseline justify-between gap-3 text-sm mb-1">
-                <span className="text-gray-800 font-medium truncate">{item.name}</span>
+                <span className="text-gray-900 font-medium truncate">{item.name}</span>
                 <span className="text-gray-900 font-semibold tabular-nums shrink-0">
                   {item.quantitySold} sold
                 </span>

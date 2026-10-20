@@ -123,6 +123,13 @@ export default function AdminCatalogPage() {
   const filteredPackages = packages.filter((pkg) =>
     pkg.name.toLowerCase().includes(packageSearch.toLowerCase())
   );
+  // Same 8-per-page paging as the Supplies and Services tables.
+  const {
+    page: packagePage,
+    setPage: setPackagePage,
+    totalPages: packageTotalPages,
+    paginatedItems: pagedPackages,
+  } = usePagination(filteredPackages, PAGE_SIZE, packageSearch);
   const packageGridColumns =
     filteredPackages.length >= 4
       ? "lg:grid-cols-4"
@@ -654,7 +661,7 @@ export default function AdminCatalogPage() {
           <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
             {filteredPackages.length > 0 ? (
               <div className={`grid grid-cols-1 sm:grid-cols-2 ${packageGridColumns} gap-4`}>
-                {filteredPackages.map((pkg) => {
+                {pagedPackages.map((pkg) => {
                   const colorProps = packageColorProps(pkg.color);
                   return (
                   <div
@@ -698,6 +705,7 @@ export default function AdminCatalogPage() {
             ) : (
               <p className="text-center text-gray-400 py-8">No packages found.</p>
             )}
+            <Pagination page={packagePage} totalPages={packageTotalPages} onPageChange={setPackagePage} />
           </div>
         </>
       )}

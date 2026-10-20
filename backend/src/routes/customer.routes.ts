@@ -10,6 +10,7 @@ import {
   phoneParamSchema,
   findOrCreateCustomerSchema,
   updateCustomerSchema,
+  listCustomerSummariesSchema,
 } from "../schema/customer/index.js";
 
 const router = Router();
@@ -29,6 +30,24 @@ router.post(
 );
 
 router.get("/", authMiddleware.execute, customerController.list);
+
+// Admin Customers page (CRM): totals per customer and a profile with every
+// order. Registered before "/:id" so "summaries" isn't taken as an id.
+router.get(
+  "/summaries",
+  authMiddleware.execute,
+  requireRole(Role.ADMIN),
+  validateSchema(listCustomerSummariesSchema),
+  customerController.summaries
+);
+router.get(
+  "/:id/profile",
+  authMiddleware.execute,
+  requireRole(Role.ADMIN),
+  validateSchema(idParamSchema),
+  customerController.profile
+);
+
 
 // Registered before "/:id" so it isn't captured as an id param.
 router.get(

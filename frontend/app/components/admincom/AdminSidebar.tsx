@@ -15,12 +15,13 @@ import {
   DollarSign,
   Receipt,
   CalendarDays,
-  LogOut,
   Menu,
   X,
+  Contact,
 } from "lucide-react";
 
 import { logout } from "../../lib/auth";
+import { useLogoutRequest } from "../../lib/logoutRequest";
 import { ApiError } from "../../lib/apiClient";
 import { alertError } from "../../lib/alerts";
 
@@ -29,6 +30,7 @@ const menuItems = [
   { label: "Employee", href: "/admin/employee", icon: Users },
   { label: "Catalog", href: "/admin/catalog", icon: Package },
   { label: "Laundry", href: "/admin/claim_monitoring", icon: ClipboardList },
+  { label: "Customers", href: "/admin/customers", icon: Contact },
   { label: "Archive", href: "/admin/archive", icon: Archive },
   { label: "Logs", href: "/admin/logs", icon: FileText },
   { label: "Sales", href: "/admin/sales", icon: DollarSign },
@@ -63,6 +65,8 @@ export default function AdminSidebar() {
       setLoggingOut(false);
     }
   }
+  // Logout lives in the header's profile menu, which runs this flow.
+  useLogoutRequest(handleLogout);
 
   return (
     <>
@@ -81,7 +85,7 @@ export default function AdminSidebar() {
       )}
 
       <aside
-        className={`w-56 h-screen md:h-auto md:min-h-screen bg-sky-600 text-white flex flex-col shadow-lg fixed md:static top-0 left-0 z-50 transition-transform duration-300 ${
+        className={`w-56 h-screen bg-sky-600 text-white flex flex-col shadow-lg fixed md:sticky md:self-start shrink-0 top-0 left-0 z-50 transition-transform duration-300 ${
           isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         }`}
       >
@@ -92,18 +96,20 @@ export default function AdminSidebar() {
           <X size={22} />
         </button>
 
-        <div className="flex flex-col items-center py-6 border-b border-blue-500 shrink-0">
+        <div className="flex flex-col items-center py-5 mx-4 border-b border-white/15 shrink-0">
           <Image
             src="/LOGO.png"
             alt="Logo"
-            width={100}
-            height={99}
+            width={84}
+            height={83}
             priority
-            className="rounded-full"
+            className="rounded-full shadow-md ring-2 ring-white/30"
           />
         </div>
 
-        <nav className="flex-1 min-h-0 overflow-y-auto mt-6">
+        {/* Pinned on desktop; the list scrolls on its own (thin, blended
+            scrollbar) only when the screen is shorter than the menu. */}
+        <nav className="sidebar-scroll flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-1">
           {menuItems.map((item) => {
             const isActive = pathname === item.href;
             const Icon = item.icon;
@@ -112,31 +118,20 @@ export default function AdminSidebar() {
               <Link
                 key={item.href}
                 href={item.href}
-                className="flex items-center gap-4 px-6 py-4"
+                aria-current={isActive ? "page" : undefined}
+                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] transition-colors ${
+                  isActive
+                    ? "bg-white/20 text-white font-semibold ring-1 ring-white/30 shadow-sm"
+                    : "text-white/90 hover:bg-white/10 hover:text-white"
+                }`}
               >
-                <Icon size={22} />
-                <span
-                  className={`inline-block ${
-                    isActive ? "border-b-2 border-white" : "border-b-2 border-transparent"
-                  }`}
-                >
-                  {item.label}
-                </span>
+                <Icon size={20} className="shrink-0" />
+                <span className="truncate">{item.label}</span>
               </Link>
             );
           })}
         </nav>
 
-        <div className="p-5 border-t border-blue-500 shrink-0">
-          <button
-            onClick={handleLogout}
-            disabled={loggingOut}
-            className="flex items-center justify-center gap-2 w-full bg-sky-700 hover:bg-sky-800 py-3 rounded-lg transition disabled:opacity-60"
-          >
-            <LogOut size={18} />
-            {loggingOut ? "Logging out..." : "Logout"}
-          </button>
-        </div>
       </aside>
     </>
   );

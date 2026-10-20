@@ -42,7 +42,7 @@ export async function updateInventoryService(
         userId,
         action: AuditAction.UPDATE,
         module: "Inventory",
-        description: `Updated inventory item "${updated.itemName}"`,
+        description: `Updated supply "${updated.itemName}"`,
         oldValue: {
           itemName: existing.itemName,
           quantity: existing.quantity,
@@ -74,7 +74,7 @@ export async function updateInventoryService(
       return {
         code: 409,
         status: "error",
-        message: "An active inventory item with this name already exists",
+        message: "A supply with this name already exists",
       };
     }
 

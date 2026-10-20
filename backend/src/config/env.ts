@@ -18,6 +18,11 @@ const envSchema = z.object({
   // requires HTTPS, so COOKIE_SECURE is forced on automatically below
   // whenever this is "none", regardless of NODE_ENV.
   COOKIE_SAMESITE: z.enum(["lax", "none"]).default("lax"),
+  // How the backend reaches Postgres. "pg" (default) = the normal database
+  // port 5432. "neon" = Neon's driver over secure WebSockets on port 443 —
+  // for networks that block or stall port 5432 (the browser-based Neon
+  // console still works there). Same database, same behaviour.
+  DB_DRIVER: z.enum(["pg", "neon"]).default("pg"),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);
@@ -96,6 +101,7 @@ export const ENV = {
     PORT: process.env.PORT || 8000,
     BACKEND_PORT: process.env.BACKEND_URL ||'http://localhost:8000',
     DATABASE_URL: parsedEnv.data.DATABASE_URL,
+    DB_DRIVER: parsedEnv.data.DB_DRIVER,
     FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3000',
     // CORS allow-list — separate from FRONTEND_URL (which is also used to
     // build the one canonical password-reset link, so it must stay a

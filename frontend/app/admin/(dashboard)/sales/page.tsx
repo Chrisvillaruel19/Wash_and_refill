@@ -25,9 +25,11 @@ import { getAdminDashboard } from "../../../lib/services/dashboard.service";
 import { ApiError } from "../../../lib/apiClient";
 import Pagination from "../../../components/staffcom/Pagination";
 import { useServerPage } from "../../../lib/useServerPage";
+import { usePagination } from "../../../lib/usePagination";
 import { useAutoRefresh } from "../../../lib/useAutoRefresh";
 
 const HANDOVERS_PAGE_SIZE = 6;
+const WITHDRAWALS_PAGE_SIZE = 10;
 
 // "₱10,413.00" / "-₱1.00" — sign before the peso sign, thousands grouped.
 function peso(n: number) {
@@ -103,6 +105,13 @@ function MoneySummaryCard({ summary }: { summary: MoneySummary }) {
 
 export default function AdminSalesPage() {
   const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>([]);
+  // Withdrawal History grows forever — 10 per page, newest first.
+  const {
+    page: withdrawalPage,
+    setPage: setWithdrawalPage,
+    totalPages: withdrawalTotalPages,
+    paginatedItems: pagedWithdrawals,
+  } = usePagination(withdrawals, WITHDRAWALS_PAGE_SIZE);
   // Backend-authoritative today's revenue (paymentStatus PAID, status not
   // CANCELLED, paymentDate within the Manila business day) — the exact same
   // sumPaidRevenue(getBusinessDayRange()) call the Admin Dashboard's
@@ -282,12 +291,14 @@ export default function AdminSalesPage() {
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 lg:flex-1 lg:max-w-4xl">
           {/* Paid orders today minus today's refunds — withdrawals never lower this; it's the sales record. */}
           <AdminStatCard
+            compact
             label="Today's Sales"
             value={peso(totalCashToday)}
             icon={Wallet}
             iconColor="text-green-600 bg-green-100"
           />
           <AdminStatCard
+            compact
             label="Available to Withdraw"
             value={summary === null ? "—" : peso(summary.available.total)}
             sub="Starting cash excluded"
@@ -296,6 +307,7 @@ export default function AdminSalesPage() {
           />
           <div className="col-span-2 sm:col-span-1">
             <AdminStatCard
+              compact
               label="Average Order Value"
               value={peso(todayAverageOrderValue)}
               icon={TrendingUp}
@@ -447,7 +459,7 @@ export default function AdminSalesPage() {
                   <th className="p-3 text-right font-semibold">Cash Counted</th>
                   <th className="p-3 text-right font-semibold">Over / Short</th>
                   <th className="p-3 text-left font-semibold">Notes</th>
-                  <th className="p-3 text-center font-semibold">Inventory</th>
+                  <th className="p-3 text-center font-semibold">Supplies</th>
                 </tr>
               </thead>
               <tbody className="tabular-nums">
@@ -542,7 +554,7 @@ export default function AdminSalesPage() {
             </thead>
             <tbody>
               {withdrawals.length > 0 ? (
-                withdrawals.map((w) => (
+                pagedWithdrawals.map((w) => (
                   <tr key={w.id} className="border-b last:border-0">
                     <td className="p-2 whitespace-nowrap text-gray-900">
                       {new Date(w.timestamp).toLocaleDateString()}
@@ -589,6 +601,7 @@ export default function AdminSalesPage() {
             </tbody>
           </table>
         </div>
+        <Pagination page={withdrawalPage} totalPages={withdrawalTotalPages} onPageChange={setWithdrawalPage} />
       </div>
 
       {showWithdrawModal && (

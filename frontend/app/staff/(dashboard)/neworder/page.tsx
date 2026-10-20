@@ -303,7 +303,9 @@ export default function NewOrderPage() {
           <PackageGrid packages={packages} onAdd={handlePackageAdd} />
         </div>
 
-        <div>
+        {/* Desktop: the summary fills this column, top to bottom of the
+            left side (customer info → last package card). */}
+        <div className="lg:relative lg:min-h-[480px]">
           <OrderSummary
             cartItems={cartItems}
             onRemoveItem={removeFromCart}

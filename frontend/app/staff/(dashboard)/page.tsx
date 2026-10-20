@@ -34,7 +34,9 @@ export default function StaffDashboardPage() {
       try {
         const [dashboard, orderPage, myClaimedToday] = await Promise.all([
           getStaffDashboard(),
-          getOrdersPage(1, 20),
+          // Only this staff member's own orders: ones they received the
+          // payment for, or created and still unpaid (same rule as Services).
+          getOrdersPage(1, 20, true),
           getMyClaimedOrdersToday(),
         ]);
         setData(dashboard);

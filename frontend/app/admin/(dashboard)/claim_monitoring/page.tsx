@@ -31,13 +31,20 @@ type MonitoringFilter = "All" | "Claimed" | "Unclaimed";
 
 const filters: MonitoringFilter[] = ["All", "Claimed", "Unclaimed"];
 
-function matchesMonitoringFilter(order: Order, filter: MonitoringFilter, searchDate: string) {
+function matchesMonitoringFilter(order: Order, filter: MonitoringFilter, searchText: string) {
   const matchesFilter =
     filter === "All" ||
     (filter === "Claimed" && order.status === "Claimed") ||
     (filter === "Unclaimed" && order.status !== "Claimed" && order.status !== "Cancelled");
 
-  return matchesFilter && order.date.includes(searchDate);
+  if (!matchesFilter) return false;
+  // One box searches everything the table shows: customer name, contact
+  // number, date and staff — case-insensitive, spaces around ignored.
+  const term = searchText.trim().toLowerCase();
+  if (!term) return true;
+  return [order.customer, order.contact, order.date, order.staffName ?? ""].some((field) =>
+    field.toLowerCase().includes(term)
+  );
 }
 
 const statusStyles: Record<OrderStatus, string> = {
@@ -50,7 +57,7 @@ const statusStyles: Record<OrderStatus, string> = {
 
 export default function ClaimMonitoringPage() {
   const [activeFilter, setActiveFilter] = useState<MonitoringFilter>("All");
-  const [searchDate, setSearchDate] = useState("");
+  const [searchText, setSearchText] = useState("");
   const [error, setError] = useState("");
   // GET /orders (list) omits line items to stay lean — populated per-order,
   // bounded to whatever page is currently visible, via GET /orders/:id.
@@ -86,7 +93,7 @@ export default function ClaimMonitoringPage() {
       });
   }, [reloadKey]);
 
-  const isFiltering = activeFilter !== "All" || searchDate !== "";
+  const isFiltering = activeFilter !== "All" || searchText !== "";
 
   // Default (unfiltered) browsing — real server-side pagination, one
   // request per page turn, verifiable in the network tab.
@@ -98,7 +105,7 @@ export default function ClaimMonitoringPage() {
     loading: serverLoading,
   } = useServerPage(getDropOffOrdersPage, PAGE_SIZE, !isFiltering, reloadKey);
 
-  // The filter tabs and date search need to reach every historical order,
+  // The filter tabs and search need to reach every historical order,
   // not just whatever page is currently loaded — the backend's page/pageSize
   // support has no filter/search params to push this server-side. Lazily
   // fetched only once a filter or search is actually used, and cached for
@@ -127,13 +134,13 @@ export default function ClaimMonitoringPage() {
   }, [isFiltering, reloadKey]);
 
   const filteredOrders = (fullOrders ?? []).filter((order) =>
-    matchesMonitoringFilter(order, activeFilter, searchDate)
+    matchesMonitoringFilter(order, activeFilter, searchText)
   );
 
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
 
-  // Exports whatever the active tab + date search currently match ("All"
+  // Exports whatever the active tab + search currently match ("All"
   // with no search = every order). Always a fresh fetch with line items
   // included, independent of the table's paging/cache.
   async function handleExport() {
@@ -141,7 +148,7 @@ export default function ClaimMonitoringPage() {
     setExportError("");
     try {
       const orders = await getOrders({ includeItems: true, excludeSelfService: true });
-      const matching = orders.filter((order) => matchesMonitoringFilter(order, activeFilter, searchDate));
+      const matching = orders.filter((order) => matchesMonitoringFilter(order, activeFilter, searchText));
       const today = new Date().toISOString().slice(0, 10);
       await exportOrdersToExcel(matching, `customer-records-${activeFilter.toLowerCase()}-${today}.xlsx`);
     } catch {
@@ -156,7 +163,7 @@ export default function ClaimMonitoringPage() {
     setPage: setClientPage,
     totalPages: clientTotalPages,
     paginatedItems: clientPaginatedItems,
-  } = usePagination(filteredOrders, PAGE_SIZE, `${activeFilter}-${searchDate}`);
+  } = usePagination(filteredOrders, PAGE_SIZE, `${activeFilter}-${searchText}`);
 
   // Unified view regardless of which mode is active, so the render below
   // (and the per-order line-item lookup effect) doesn't need to know which.
@@ -255,10 +262,11 @@ export default function ClaimMonitoringPage() {
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="Search Date"
-            value={searchDate}
-            onChange={(e) => setSearchDate(e.target.value)}
-            name="monitoring-search-date"
+            placeholder="Search name, contact, date or staff"
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            name="monitoring-search"
+            aria-label="Search orders by customer name, contact number, date or staff"
             autoComplete="off"
             className="w-full pl-9 pr-4 py-1.5 border border-gray-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
           />

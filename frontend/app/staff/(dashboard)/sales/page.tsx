@@ -52,7 +52,7 @@ export default function SalesPage() {
   // package breakdown above, just reading its two extra fields. Never
   // derived from `filteredOrders` (createdAt-scoped, order-record browsing)
   // — those are two different questions (see comment on the effect below).
-  const [salesTotals, setSalesTotals] = useState({ totalPaidAmount: 0, paidOrderCount: 0 });
+  const [salesTotals, setSalesTotals] = useState({ totalPaidAmount: 0, netSales: 0, paidOrderCount: 0 });
 
   useEffect(() => {
     async function load() {
@@ -74,7 +74,11 @@ export default function SalesPage() {
       .then((data) => {
         if (cancelled) return;
         setPackageBreakdown(data.packageBreakdown);
-        setSalesTotals({ totalPaidAmount: data.totalPaidAmount, paidOrderCount: data.paidOrderCount });
+        setSalesTotals({
+          totalPaidAmount: data.totalPaidAmount,
+          netSales: data.netSales,
+          paidOrderCount: data.paidOrderCount,
+        });
       })
       .catch(() => {
         if (!cancelled) setBreakdownError("Unable to load package sales breakdown.");
@@ -133,8 +137,11 @@ export default function SalesPage() {
   // "Sales" is defined by paymentDate — an order created yesterday and paid
   // today is today's sale but wouldn't be in a createdAt-"today" filter, and
   // vice versa. salesTotals (from the same date range) is the correct source.
+  // After refunds: what was paid, minus the cash refunds this staff member
+  // handed to customers in the same dates — the same rule as "My shift
+  // sales" on the Dashboard, so the two always agree.
   const averageOrderValue =
-    salesTotals.paidOrderCount > 0 ? salesTotals.totalPaidAmount / salesTotals.paidOrderCount : 0;
+    salesTotals.paidOrderCount > 0 ? salesTotals.netSales / salesTotals.paidOrderCount : 0;
 
   const {
     page: clientPage,

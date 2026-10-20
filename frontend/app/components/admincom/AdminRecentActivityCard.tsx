@@ -76,16 +76,16 @@ export default function AdminRecentActivityCard({ logs, logsHref = "/admin/logs"
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 h-full">
+    <div className="bg-white rounded-xl shadow-md ring-1 ring-gray-200/80 p-4 sm:p-6 h-full">
       <CardHeader title="Recent activity" linkHref={logsHref ?? undefined} linkLabel="View all logs" />
 
       {logs.length === 0 ? (
-        <p className="text-gray-400 text-sm">No recent activity.</p>
+        <p className="text-gray-500 text-sm">No recent activity.</p>
       ) : (
         <div className="space-y-4">
           {groups.map((group) => (
             <div key={group.heading}>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">{group.heading}</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">{group.heading}</p>
               <ul className="space-y-3">
                 {group.items.map((log) => {
                   const { icon: Icon, color } = (log.module && MODULE_ICONS[log.module]) || DEFAULT_ICON;
@@ -94,8 +94,8 @@ export default function AdminRecentActivityCard({ logs, logsHref = "/admin/logs"
                       <span className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${color}`}>
                         <Icon size={14} />
                       </span>
-                      <p className="min-w-0 flex-1 text-gray-700 break-words">{humanize(log.message)}</p>
-                      <time className="text-xs text-gray-400 shrink-0 mt-0.5 tabular-nums" dateTime={log.timestamp}>
+                      <p className="min-w-0 flex-1 text-gray-800 break-words">{humanize(log.message)}</p>
+                      <time className="text-xs text-gray-500 shrink-0 mt-0.5 tabular-nums" dateTime={log.timestamp}>
                         {new Date(log.timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
                       </time>
                     </li>

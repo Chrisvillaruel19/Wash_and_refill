@@ -5,9 +5,12 @@ import { HandCoins } from "lucide-react";
 import { getPendingRefundPayouts, payOutRefund, RefundPayout } from "../../lib/services/ordersApi.service";
 import { useAutoRefresh } from "../../lib/useAutoRefresh";
 import { useActiveShift } from "../../lib/useActiveShift";
+import { usePagination } from "../../lib/usePagination";
+import Pagination from "./Pagination";
 import { ApiError } from "../../lib/apiClient";
 
 const peso = (n: number) => `₱${n.toFixed(2)}`;
+const PAGE_SIZE = 5;
 
 // Approved cash refunds (claimed orders, e.g. damaged items) waiting for the
 // staff member on duty to hand the customer the cash from the drawer. Shown
@@ -53,6 +56,8 @@ export default function RefundPayoutsCard({ onPaid, className = "mb-6" }: { onPa
     }
   }
 
+  const { page, setPage, totalPages, paginatedItems } = usePagination(payouts, PAGE_SIZE);
+
   if (payouts.length === 0) return null;
 
   return (
@@ -76,7 +81,7 @@ export default function RefundPayoutsCard({ onPaid, className = "mb-6" }: { onPa
         <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg py-2 px-3 mb-3">{error}</p>
       )}
       <ul className="space-y-2">
-        {payouts.map((p) => (
+        {paginatedItems.map((p) => (
           <li
             key={p.id}
             className="bg-white border border-amber-200 rounded-lg p-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4"
@@ -127,6 +132,7 @@ export default function RefundPayoutsCard({ onPaid, className = "mb-6" }: { onPa
           </li>
         ))}
       </ul>
+      <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
     </div>
   );
 }

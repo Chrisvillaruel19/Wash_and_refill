@@ -98,6 +98,25 @@ export class RefundRepository {
     return Number(result._sum.amount ?? 0);
   }
 
+  // Cash refunds this staff member handed to customers within a period
+  // (open-ended bounds allowed) — their own Sales report nets these out.
+  async sumPaidOutByUserInRange(
+    userId: string,
+    params: { gte?: Date; lt?: Date },
+    tx: PrismaClientOrTx = prisma
+  ): Promise<number> {
+    const result = await tx.refund.aggregate({
+      where: {
+        paidOutById: userId,
+        ...(params.gte || params.lt
+          ? { paidOutAt: { ...(params.gte ? { gte: params.gte } : {}), ...(params.lt ? { lt: params.lt } : {}) } }
+          : { paidOutAt: { not: null } }),
+      },
+      _sum: { amount: true },
+    });
+    return Number(result._sum.amount ?? 0);
+  }
+
   async findUnclaimedPayoutsForUser(userId: string, tx: PrismaClientOrTx = prisma) {
     return tx.refund.findMany({ where: { ...unclaimedPayout, paidOutById: userId }, select: { id: true } });
   }

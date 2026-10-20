@@ -51,7 +51,10 @@ export default function OrderSummary({
   const missingLaundryService = cartItems.length > 0 && !cartItems.some((item) => item.sourceType === "SERVICE");
 
   return (
-    <div className="bg-white rounded-xl shadow-md overflow-hidden flex flex-col h-fit lg:sticky lg:top-4">
+    // Desktop: stretched to the full height of the left column (see the
+    // wrapper in neworder/page.tsx); the cart list takes the spare room and
+    // scrolls inside when it's longer. Phones: sized to its content.
+    <div className="bg-white rounded-xl shadow-md overflow-hidden flex flex-col h-fit lg:absolute lg:inset-0 lg:h-auto">
       <div className="bg-blue-600 text-white flex items-center gap-2 px-4 sm:px-5 py-3">
         <ShoppingCart size={18} />
         <span className="font-semibold">Order Summary</span>
@@ -59,7 +62,7 @@ export default function OrderSummary({
 
       {/* Capped height so a long cart scrolls inside the list instead of
           stretching the whole Order Summary card. */}
-      <div className="flex-1 p-4 sm:p-5 space-y-3 overflow-y-auto min-h-[150px] sm:min-h-[200px] max-h-[320px]">
+      <div className="flex-1 p-4 sm:p-5 space-y-3 overflow-y-auto min-h-[150px] sm:min-h-[200px] max-h-[320px] lg:min-h-0 lg:max-h-none">
         {cartItems.length > 0 ? (
           cartItems.map((item) => (
             <div

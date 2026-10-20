@@ -28,7 +28,7 @@ export async function createInventoryService(
         userId,
         action: AuditAction.CREATE,
         module: "Inventory",
-        description: `Created inventory item "${item.itemName}"`,
+        description: `Added supply "${item.itemName}"`,
         newValue: {
           itemName: item.itemName,
           quantity: item.quantity,
@@ -45,7 +45,7 @@ export async function createInventoryService(
       return {
         code: 409,
         status: "error",
-        message: "An active inventory item with this name already exists",
+        message: "A supply with this name already exists",
       };
     }
 

@@ -16,10 +16,17 @@ import { ApiError } from "../../../lib/apiClient";
 import { Order, ExpenseRecord, InventoryItem, ShiftHandoverRecord } from "../types";
 import Pagination from "../../../components/staffcom/Pagination";
 import { useServerPage } from "../../../lib/useServerPage";
+import { usePagination } from "../../../lib/usePagination";
 import { useAutoRefresh } from "../../../lib/useAutoRefresh";
 import FieldError from "../../../components/FieldError";
+import AdminStatCard from "../../../components/admincom/AdminStatCard";
+import { Wallet, Shirt, Package, Sparkles, Receipt } from "lucide-react";
 
 const PAGE_SIZE = 6;
+const TABLE_PAGE_SIZE = 5;
+
+// "₱1,110.00" — thousands grouped, so big amounts stay readable.
+const peso = (n: number) => `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 interface DropOffRow {
   name: string;
@@ -267,6 +274,14 @@ export default function ShiftHandover() {
 
   const dropOffSummary = buildDropOffSummary(allUnclaimedLines);
 
+  // 5 supplies per page, so a long supply list never stretches the page.
+  const {
+    page: suppliesPage,
+    setPage: setSuppliesPage,
+    totalPages: suppliesTotalPages,
+    paginatedItems: pagedSupplies,
+  } = usePagination(inventory, TABLE_PAGE_SIZE);
+
   // Every expense paid from the shared drawer since the last handover, any
   // staff — the same total the server subtracts on submit. GET /expenses
   // only returns this staff member's own, so that's just the fallback until
@@ -365,114 +380,148 @@ export default function ShiftHandover() {
 
   return (
     <div className="p-4 sm:p-6">
-      <h1 className="text-2xl font-bold text-gray-800 mb-1">Shift Handover</h1>
-      <p className="text-gray-500 mb-6">Attendance, Stock Inventory & Cash Management</p>
+      <h1 className="text-2xl font-bold text-gray-900 mb-1">Shift Handover</h1>
+      <p className="text-gray-600 mb-6">Count your drawer and supplies, then submit at the end of your shift.</p>
 
-      <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 mb-6">
-        <h2 className="text-lg font-bold text-gray-900 mb-4">Current Shift Summary</h2>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
-          <div>
-            <p className="text-sm text-gray-500">Cash drawer</p>
-            <p className="text-lg font-bold text-gray-900">₱{drawerStart.toFixed(2)}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Laundry sales</p>
-            <p className="text-lg font-bold text-gray-900">₱{laundrySales.toFixed(2)}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Supply sales</p>
-            <p className="text-lg font-bold text-gray-900">₱{supplySales.toFixed(2)}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Custom service sales</p>
-            <p className="text-lg font-bold text-gray-900">₱{customServiceSales.toFixed(2)}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Expense</p>
-            <p className="text-lg font-bold text-gray-900">₱{expenseTotal.toFixed(2)}</p>
-            <p className="text-xs text-gray-400">Paid from the drawer this shift</p>
-          </div>
+      {/* This shift's money at a glance — same cards as the Dashboard. */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
+        <AdminStatCard
+          compact
+          label="Starting cash"
+          value={peso(drawerStart)}
+          icon={Wallet}
+          iconColor="text-sky-600 bg-sky-100"
+          sub="In the drawer at shift start"
+        />
+        <AdminStatCard
+          compact
+          label="Laundry sales"
+          value={peso(laundrySales)}
+          icon={Shirt}
+          iconColor="text-blue-600 bg-blue-100"
+          sub="Drop-off packages"
+        />
+        <AdminStatCard
+          compact
+          label="Supply sales"
+          value={peso(supplySales)}
+          icon={Package}
+          iconColor="text-emerald-600 bg-emerald-100"
+          sub="Detergent, Downy, etc."
+        />
+        <AdminStatCard
+          compact
+          label="Custom service sales"
+          value={peso(customServiceSales)}
+          icon={Sparkles}
+          iconColor="text-violet-600 bg-violet-100"
+          sub="Per-kg services"
+        />
+        <div className="col-span-2 lg:col-span-1">
+          <AdminStatCard
+          compact
+            label="Expenses"
+            value={peso(expenseTotal)}
+            icon={Receipt}
+            iconColor="text-amber-600 bg-amber-100"
+            sub="Paid from the drawer"
+          />
         </div>
+      </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          <div>
-            <h3 className="font-semibold text-gray-900 mb-1">Inventory (Beginning → Now)</h3>
-            <p className="text-xs text-gray-500 mb-3">
-              Beginning comes from the last submitted handover&apos;s ending count. Your ending
-              count when you submit will become the next shift&apos;s beginning.
-            </p>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead>
-                  <tr className="text-gray-700 border-b bg-gray-50">
-                    <th className="p-2 whitespace-nowrap">Item</th>
-                    <th className="p-2 whitespace-nowrap">Unit</th>
-                    <th className="p-2 whitespace-nowrap">Beginning</th>
-                    <th className="p-2 whitespace-nowrap">Now</th>
-                    <th className="p-2 whitespace-nowrap">Unit Price</th>
-                    <th className="p-2 whitespace-nowrap">Total Value</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {inventory.map((item) => (
-                    <tr key={item.id} className="border-b last:border-0">
-                      <td className="p-2 whitespace-nowrap text-gray-900">{item.name}</td>
-                      <td className="p-2 whitespace-nowrap text-gray-900">{item.unit}</td>
-                      <td className="p-2 whitespace-nowrap text-gray-900">
-                        {beginningQtyByInventoryId.get(item.id) ?? item.currentStock}
-                      </td>
-                      <td className="p-2 whitespace-nowrap text-gray-900">{item.currentStock}</td>
-                      <td className="p-2 whitespace-nowrap text-gray-900">₱{item.price}</td>
-                      <td className="p-2 whitespace-nowrap text-gray-900">
-                        ₱{(item.currentStock * item.price).toFixed(2)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div>
-            <h3 className="font-semibold text-gray-900 mb-3">Drop off Summary</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead>
-                  <tr className="text-gray-700 border-b bg-gray-50">
-                    <th className="p-2 whitespace-nowrap">Pack Name</th>
-                    <th className="p-2 whitespace-nowrap">Price</th>
-                    <th className="p-2 whitespace-nowrap">Total orders</th>
-                    <th className="p-2 whitespace-nowrap">Total price</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dropOffSummary.length > 0 ? (
-                    dropOffSummary.map((p) => (
-                      <tr key={p.name} className="border-b last:border-0">
-                        <td className="p-2 whitespace-nowrap text-gray-900">{p.name}</td>
-                        <td className="p-2 whitespace-nowrap text-gray-900">₱{p.price.toFixed(2)}</td>
-                        <td className="p-2 whitespace-nowrap text-gray-900">{p.totalOrders}</td>
-                        <td className="p-2 whitespace-nowrap text-gray-900">
-                          ₱{p.totalPrice.toFixed(2)}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <div className="bg-white rounded-xl shadow-md ring-1 ring-gray-200/80 p-4 sm:p-6">
+          <h2 className="text-lg font-bold text-gray-900">Supplies (Beginning → Now)</h2>
+          <p className="text-xs text-gray-600 mt-0.5 mb-4">
+            Beginning is the last handover&apos;s ending count. Your count when you submit becomes the next
+            shift&apos;s beginning.
+          </p>
+          <div className="overflow-x-auto rounded-lg border border-gray-200">
+            <table className="w-full text-sm tabular-nums">
+              <thead>
+                <tr className="bg-gray-50 text-gray-600 text-xs uppercase tracking-wide">
+                  <th className="p-3 text-left font-semibold whitespace-nowrap">Item</th>
+                  <th className="p-3 text-left font-semibold whitespace-nowrap">Unit</th>
+                  <th className="p-3 text-right font-semibold whitespace-nowrap">Unit price</th>
+                  <th className="p-3 text-right font-semibold whitespace-nowrap">Beginning</th>
+                  <th className="p-3 text-right font-semibold whitespace-nowrap">Now</th>
+                  <th className="p-3 text-right font-semibold whitespace-nowrap">Used</th>
+                  <th className="p-3 text-right font-semibold whitespace-nowrap">Value now</th>
+                </tr>
+              </thead>
+              <tbody>
+                {inventory.length > 0 ? (
+                  pagedSupplies.map((item) => {
+                    const beginning = beginningQtyByInventoryId.get(item.id) ?? item.currentStock;
+                    const used = beginning - item.currentStock;
+                    return (
+                      <tr key={item.id} className="border-t border-gray-100">
+                        <td className="p-3 text-gray-900 whitespace-nowrap">{item.name}</td>
+                        <td className="p-3 text-gray-700 whitespace-nowrap">{item.unit}</td>
+                        <td className="p-3 text-right text-gray-900 whitespace-nowrap">₱{item.price.toFixed(2)}</td>
+                        <td className="p-3 text-right text-gray-900">{beginning}</td>
+                        <td className="p-3 text-right text-gray-900 font-semibold">{item.currentStock}</td>
+                        <td className={`p-3 text-right ${used > 0 ? "text-red-600 font-medium" : "text-gray-500"}`}>
+                          {used > 0 ? `−${used}` : used < 0 ? `+${-used}` : "0"}
+                        </td>
+                        <td className="p-3 text-right text-gray-900 whitespace-nowrap">
+                          ₱{(item.currentStock * item.price).toFixed(2)}
                         </td>
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={4} className="p-4 text-center text-gray-400">
-                        No drop-off orders yet.
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={7} className="p-4 text-center text-gray-500">
+                      No supplies yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <Pagination page={suppliesPage} totalPages={suppliesTotalPages} onPageChange={setSuppliesPage} />
+        </div>
+
+        <div className="bg-white rounded-xl shadow-md ring-1 ring-gray-200/80 p-4 sm:p-6">
+          <h2 className="text-lg font-bold text-gray-900">Drop-off Summary</h2>
+          <p className="text-xs text-gray-600 mt-0.5 mb-4">Packages paid for this shift.</p>
+          <div className="overflow-x-auto rounded-lg border border-gray-200">
+            <table className="w-full text-sm tabular-nums">
+              <thead>
+                <tr className="bg-gray-50 text-gray-600 text-xs uppercase tracking-wide">
+                  <th className="p-3 text-left font-semibold">Package</th>
+                  <th className="p-3 text-right font-semibold">Price</th>
+                  <th className="p-3 text-right font-semibold">Orders</th>
+                  <th className="p-3 text-right font-semibold">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dropOffSummary.length > 0 ? (
+                  dropOffSummary.map((p) => (
+                    <tr key={p.name} className="border-t border-gray-100">
+                      <td className="p-3 text-gray-900">{p.name}</td>
+                      <td className="p-3 text-right text-gray-900 whitespace-nowrap">₱{p.price.toFixed(2)}</td>
+                      <td className="p-3 text-right text-gray-900">{p.totalOrders}</td>
+                      <td className="p-3 text-right text-gray-900 font-semibold whitespace-nowrap">
+                        ₱{p.totalPrice.toFixed(2)}
                       </td>
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="p-4 text-center text-gray-500">
+                      No drop-off orders yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
+      <div className="bg-white rounded-xl shadow-md ring-1 ring-gray-200/80 p-4 sm:p-6">
         <h2 className="text-lg font-bold text-gray-900 mb-4">Cash Reconciliation</h2>
 
         {/* How Expected Cash is reached, top to bottom — same formula the

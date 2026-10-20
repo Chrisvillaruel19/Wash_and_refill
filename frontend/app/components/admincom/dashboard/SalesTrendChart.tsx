@@ -29,19 +29,19 @@ export default function SalesTrendChart({ days }: SalesTrendChartProps) {
   const current = days[selected];
 
   return (
-    <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 h-full flex flex-col">
+    <div className="bg-white rounded-xl shadow-md ring-1 ring-gray-200/80 p-4 sm:p-6 h-full flex flex-col">
       <CardHeader title="Sales, last 7 days" linkHref="/admin/sales" linkLabel="View sales" />
 
       {days.length === 0 ? (
-        <p className="text-gray-400 text-sm py-8 text-center">No sales data yet.</p>
+        <p className="text-gray-500 text-sm py-8 text-center">No sales data yet.</p>
       ) : (
         <>
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-sm mb-3" aria-live="polite">
-            <span className="text-gray-500">
+            <span className="text-gray-600">
               {current ? dayLabel(current.date, selected === days.length - 1) : ""}:{" "}
               <span className="font-semibold text-gray-900">{peso(current?.total ?? 0)}</span>
             </span>
-            <span className="text-gray-500">
+            <span className="text-gray-600">
               Week <span className="font-semibold text-gray-900">{peso(weekTotal)}</span>
             </span>
           </div>
@@ -62,12 +62,12 @@ export default function SalesTrendChart({ days }: SalesTrendChartProps) {
                   className="flex-1 h-full flex flex-col justify-end items-center rounded-t-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
                 >
                   {isSelected && d.total > 0 && (
-                    <span className="text-[11px] font-semibold text-gray-900 mb-1 whitespace-nowrap">
+                    <span className="text-xs font-semibold text-gray-900 mb-1 whitespace-nowrap">
                       {pesoShort(d.total)}
                     </span>
                   )}
                   <span
-                    className={`block w-full max-w-[24px] rounded-t ${isSelected ? "bg-blue-600" : "bg-blue-600/45"}`}
+                    className={`block w-full max-w-[24px] rounded-t ${isSelected ? "bg-blue-600" : "bg-blue-300"}`}
                     style={{ height: barHeight }}
                   />
                 </button>
@@ -78,7 +78,7 @@ export default function SalesTrendChart({ days }: SalesTrendChartProps) {
             {days.map((d, i) => (
               <span
                 key={d.date}
-                className={`flex-1 text-center text-[11px] ${i === selected ? "text-gray-900 font-semibold" : "text-gray-500"}`}
+                className={`flex-1 text-center text-xs ${i === selected ? "text-gray-900 font-semibold" : "text-gray-600"}`}
               >
                 {dayLabel(d.date, i === days.length - 1)}
               </span>

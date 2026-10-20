@@ -3,7 +3,7 @@ import { RefundRepository } from "../../repositories/refund.repository.js";
 import { AuditAction, OrderStatus, PaymentMethod } from "../../../generated/prisma/client.js";
 import { writeAuditLog } from "../../lib/audit-log.js";
 import { acquireDrawerLock } from "../../lib/drawer-lock.js";
-import { getCurrentDrawerBalance } from "../shift-handover/reconciliation.util.js";
+import { getAvailableToWithdraw } from "../withdrawal/earnings.util.js";
 
 const refundRepository = new RefundRepository();
 
@@ -35,9 +35,17 @@ export async function payOutRefundService(userId: string, refundId: string) {
         return { conflict: "This refund was already given to the customer." } as const;
       }
 
-      // The bills have to physically be there.
+      // The bills have to physically be there. Same "drawer now" as the
+      // withdrawal math (see getAvailableToWithdraw): the starting cash, the
+      // last count's leftover not yet withdrawn, and the open shift's net
+      // cash — not just the float plus the open shift.
       const amount = Number(refund.amount);
-      const inDrawer = await getCurrentDrawerBalance(tx);
+      const available = await getAvailableToWithdraw(tx);
+      const inDrawer =
+        (Math.round(available.startingCash * 100) +
+          Math.round((available.cash.lastShift?.available ?? 0) * 100) +
+          Math.round(available.cash.openShift * 100)) /
+        100;
       if (Math.round(amount * 100) > Math.round(inDrawer * 100)) {
         return {
           conflict: `The drawer should only have ${peso(inDrawer)} — not enough to give ${peso(amount)}. Ask the Admin.`,

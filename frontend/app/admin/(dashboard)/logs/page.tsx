@@ -2,7 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
-import { getRestockLogs, getEditedLogs, getPasswordResetLogs } from "../../../lib/services/auditLogApi.service";
+import {
+  getRestockLogs,
+  getEditedLogs,
+  getPasswordResetLogs,
+  getRefundLogs,
+  getAllLogsPage,
+  getRecentLogs,
+  AuditLogEntry,
+} from "../../../lib/services/auditLogApi.service";
 import { getExpenses, getExpensesPage } from "../../../lib/services/expensesApi.service";
 import { getWithdrawals, WithdrawalRecord } from "../../../lib/services/withdrawalApi.service";
 import { ActivityLog, ExpenseRecord } from "../../../staff/(dashboard)/types";
@@ -12,7 +20,7 @@ import { useServerPage } from "../../../lib/useServerPage";
 
 const PAGE_SIZE = 8;
 
-type LogTab = "restock" | "expense" | "edited" | "withdrawal" | "password";
+type LogTab = "all" | "restock" | "expense" | "edited" | "withdrawal" | "password" | "refund";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString();
@@ -26,8 +34,9 @@ export default function AdminLogsPage() {
   const [restockLogsAll, setRestockLogsAll] = useState<ActivityLog[]>([]);
   const [editedLogsAll, setEditedLogsAll] = useState<ActivityLog[]>([]);
   const [passwordLogsAll, setPasswordLogsAll] = useState<ActivityLog[]>([]);
+  const [refundLogsAll, setRefundLogsAll] = useState<ActivityLog[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>([]);
-  const [activeTab, setActiveTab] = useState<LogTab>("restock");
+  const [activeTab, setActiveTab] = useState<LogTab>("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -35,14 +44,17 @@ export default function AdminLogsPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [restockData, editedData, withdrawalsData, passwordData] = await Promise.all([
+        const [restockData, editedData, withdrawalsData, passwordData, refundData] = await Promise.all([
           getRestockLogs(),
           getEditedLogs(),
           getWithdrawals(),
           getPasswordResetLogs(),
+          getRefundLogs(),
         ]);
 
         setPasswordLogsAll(passwordData);
+
+        setRefundLogsAll(refundData);
 
         setRestockLogsAll(restockData);
 
@@ -73,8 +85,18 @@ export default function AdminLogsPage() {
       w.reason.toLowerCase().includes(search.toLowerCase())
   );
 
+  const refundLogs = refundLogsAll.filter((l) =>
+    l.message.toLowerCase().includes(search.toLowerCase())
+  );
+
   const activityList =
-    activeTab === "restock" ? restockLogs : activeTab === "password" ? passwordLogs : editedLogs;
+    activeTab === "restock"
+      ? restockLogs
+      : activeTab === "password"
+        ? passwordLogs
+        : activeTab === "refund"
+          ? refundLogs
+          : editedLogs;
 
   const {
     page: activityPage,
@@ -150,6 +172,68 @@ export default function AdminLogsPage() {
     paginatedItems: paginatedWithdrawals,
   } = usePagination(filteredWithdrawals, PAGE_SIZE, search);
 
+  // All tab — every log type. Browsing uses real server pages (the full
+  // history can be large); a search falls back to the newest entries
+  // filtered client-side, same cap as the other log tabs.
+  const isSearchingAll = activeTab === "all" && search !== "";
+  const {
+    page: allServerPage,
+    setPage: setAllServerPage,
+    totalPages: allServerTotalPages,
+    items: allServerItems,
+    loading: allServerLoading,
+  } = useServerPage(getAllLogsPage, PAGE_SIZE, activeTab === "all" && !isSearchingAll);
+
+  const [recentLogs, setRecentLogs] = useState<AuditLogEntry[] | null>(null);
+  const [recentLogsLoading, setRecentLogsLoading] = useState(false);
+  // Shown in the table, not page-wide: a failed search shouldn't hide the
+  // whole Logs page. Cleared when the search is cleared, so it can retry.
+  const [recentLogsError, setRecentLogsError] = useState("");
+  // Fetched fresh each time a search starts (and dropped when it's cleared),
+  // so entries logged since the last search show up too.
+  useEffect(() => {
+    if (!isSearchingAll) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setRecentLogs(null);
+      setRecentLogsError("");
+      return;
+    }
+    if (recentLogs || recentLogsError) return;
+    let cancelled = false;
+    setRecentLogsLoading(true);
+    getRecentLogs()
+      .then((data) => {
+        if (!cancelled) setRecentLogs(data);
+      })
+      .catch(() => {
+        if (!cancelled) setRecentLogsError("Unable to search logs right now. Clear the search and try again.");
+      })
+      .finally(() => {
+        if (!cancelled) setRecentLogsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isSearchingAll, recentLogs, recentLogsError]);
+
+  const filteredRecentLogs = (recentLogs ?? []).filter(
+    (l) =>
+      l.message.toLowerCase().includes(search.toLowerCase()) ||
+      l.type.toLowerCase().includes(search.toLowerCase())
+  );
+  const {
+    page: allClientPage,
+    setPage: setAllClientPage,
+    totalPages: allClientTotalPages,
+    paginatedItems: allClientItems,
+  } = usePagination(filteredRecentLogs, PAGE_SIZE, search);
+
+  const allPage = isSearchingAll ? allClientPage : allServerPage;
+  const setAllPage = isSearchingAll ? setAllClientPage : setAllServerPage;
+  const allTotalPages = isSearchingAll ? allClientTotalPages : allServerTotalPages;
+  const allItems = isSearchingAll ? allClientItems : allServerItems;
+  const allTableLoading = isSearchingAll ? recentLogsLoading : allServerLoading;
+
   if (loading) {
     return <p className="text-gray-400 p-6">Loading logs...</p>;
   }
@@ -161,7 +245,9 @@ export default function AdminLogsPage() {
   return (
     <div className="p-4 sm:p-6">
       <h1 className="text-2xl font-bold text-gray-800 mb-1">
-        {activeTab === "restock"
+        {activeTab === "all"
+          ? "All Logs"
+          : activeTab === "restock"
           ? "Restock Logs"
           : activeTab === "expense"
           ? "Expense Logs"
@@ -169,6 +255,8 @@ export default function AdminLogsPage() {
           ? "Withdrawal Logs"
           : activeTab === "password"
           ? "Password Reset Logs"
+          : activeTab === "refund"
+          ? "Refund Logs"
           : "Edited Logs"}
       </h1>
       <p className="text-gray-500 mb-6">
@@ -179,6 +267,16 @@ export default function AdminLogsPage() {
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-5 gap-3">
         <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={() => setActiveTab("all")}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium border ${
+              activeTab === "all"
+                ? "bg-blue-600 text-white border-blue-600"
+                : "text-gray-600 border-gray-300 hover:bg-gray-50"
+            }`}
+          >
+            All
+          </button>
           <button
             onClick={() => setActiveTab("restock")}
             className={`px-4 py-1.5 rounded-lg text-sm font-medium border ${
@@ -229,6 +327,16 @@ export default function AdminLogsPage() {
           >
             View Password Resets
           </button>
+          <button
+            onClick={() => setActiveTab("refund")}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium border ${
+              activeTab === "refund"
+                ? "bg-blue-600 text-white border-blue-600"
+                : "text-gray-600 border-gray-300 hover:bg-gray-50"
+            }`}
+          >
+            View Refund Logs
+          </button>
         </div>
 
         <div className="relative w-full sm:max-w-xs">
@@ -245,7 +353,47 @@ export default function AdminLogsPage() {
         </div>
       </div>
 
-      {activeTab === "expense" ? (
+      {activeTab === "all" ? (
+        <>
+          <div className="bg-white rounded-xl shadow-md overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead>
+                  <tr className="text-gray-700 border-b bg-gray-50">
+                    <th className="p-3 whitespace-nowrap">Date</th>
+                    <th className="p-3 whitespace-nowrap">Time</th>
+                    <th className="p-3 whitespace-nowrap">Type</th>
+                    <th className="p-3">Details</th>
+                  </tr>
+                </thead>
+                <tbody className={allTableLoading ? "opacity-50" : undefined}>
+                  {allItems.length > 0 ? (
+                    allItems.map((l) => (
+                      <tr key={l.id} className="border-b last:border-0">
+                        <td className="p-3 whitespace-nowrap text-gray-900">{formatDate(l.timestamp)}</td>
+                        <td className="p-3 whitespace-nowrap text-gray-900">{formatTime(l.timestamp)}</td>
+                        <td className="p-3 whitespace-nowrap text-gray-900">{l.type}</td>
+                        <td className="p-3 text-gray-900">{l.message}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={4} className="p-8 text-center text-gray-400">
+                        {allTableLoading
+                          ? "Loading..."
+                          : isSearchingAll && recentLogsError
+                            ? recentLogsError
+                            : "No records found."}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <Pagination page={allPage} totalPages={allTotalPages} onPageChange={setAllPage} />
+        </>
+      ) : activeTab === "expense" ? (
         <>
           <div className="bg-white rounded-xl shadow-md overflow-hidden">
             <div className="overflow-x-auto">

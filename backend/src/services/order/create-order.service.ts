@@ -189,6 +189,15 @@ export async function createOrderService(input: {
         }
       }
 
+      // Every order is a laundry job — drop-off or self service. A package
+      // (the wash's detergent etc.) or supplies alone have nothing to wash,
+      // and would sit in Service Management forever.
+      if (selfServiceLines + dropOffServiceLines === 0) {
+        throw new OrderValidationError(
+          "Add at least one laundry service (e.g. Clothes or Self Service). A package or supplies alone has nothing to wash."
+        );
+      }
+
       // 3. Atomic, conditional stock decrement per aggregated inventory
       // item — never a plain read-then-write. A count of 0 means there
       // wasn't enough stock, and aborts the whole transaction: no partial
@@ -253,12 +262,18 @@ export async function createOrderService(input: {
       const createdOrder = await orderRepository.create(
         {
           customerId: customer.id,
+          // As typed for this order — a known phone number's Customer row is
+          // reused for linking only, never for the name shown on this order.
+          customerName: input.customerName,
+          customerPhone: input.phoneNumber ?? null,
           userId: input.userId,
           status: isSelfService ? OrderStatus.CLAIMED : OrderStatus.PENDING,
           claimedDate: isSelfService ? paymentDate : null,
           isSelfService,
           paymentMethod: input.paymentMethod,
           paymentStatus,
+          // Paid at drop-off: the creator received the money.
+          paidById: paymentStatus === PaymentStatus.PAID ? input.userId : null,
           amountPaid: input.amountPaid,
           totalAmount,
           paymentDate,

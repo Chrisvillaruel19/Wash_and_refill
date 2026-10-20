@@ -6,9 +6,11 @@ import {
   updateOrderStatusService,
   cancelOrderService,
   markOrderPaidService,
-  reverseOrderPaymentService,
+  refundOrderService,
   getSalesBreakdownService,
   getMyClaimedTodayService,
+  payOutRefundService,
+  listPendingRefundPayoutsService,
 } from "../services/order/index.js";
 import { JwtPayload } from "../lib/jwt.js";
 import { Role } from "../../generated/prisma/client.js";
@@ -173,18 +175,48 @@ export class OrderController {
     }
   };
 
-  public reversePayment = async (req: Request, res: Response) => {
+  public pendingRefundPayouts = async (req: Request, res: Response) => {
     try {
-      const userId = (req as AuthenticatedRequest).user?.sub as string;
-      const id = req.params.id as string;
-      const result = await reverseOrderPaymentService(userId, id);
+      const result = await listPendingRefundPayoutsService();
       return res.status(result.code).json(result);
     } catch (error) {
-      console.error("OrderController.reversePayment error", error);
+      console.error("OrderController.pendingRefundPayouts error", error);
       return res.status(500).json({
         code: 500,
         status: "error",
-        message: "Unable to reverse payment",
+        message: "Unable to retrieve pending refund payouts",
+      });
+    }
+  };
+
+  public payOutRefund = async (req: Request, res: Response) => {
+    try {
+      const userId = (req as AuthenticatedRequest).user?.sub as string;
+      const result = await payOutRefundService(userId, req.params.refundId as string);
+      return res.status(result.code).json(result);
+    } catch (error) {
+      console.error("OrderController.payOutRefund error", error);
+      return res.status(500).json({
+        code: 500,
+        status: "error",
+        message: "Unable to record the refund payout",
+      });
+    }
+  };
+
+  public refund = async (req: Request, res: Response) => {
+    try {
+      const userId = (req as AuthenticatedRequest).user?.sub as string;
+      const id = req.params.id as string;
+      const { amount, method, reason } = req.body;
+      const result = await refundOrderService(userId, id, { amount, method, reason });
+      return res.status(result.code).json(result);
+    } catch (error) {
+      console.error("OrderController.refund error", error);
+      return res.status(500).json({
+        code: 500,
+        status: "error",
+        message: "Unable to refund order",
       });
     }
   };

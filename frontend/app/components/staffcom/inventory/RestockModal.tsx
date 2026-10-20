@@ -4,6 +4,7 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import { InventoryItem } from "../../../staff/(dashboard)/types";
 import { useEscapeKey } from "../../../lib/useEscapeKey";
+import FieldError from "../../FieldError";
 
 interface RestockModalProps {
   item: InventoryItem;
@@ -20,6 +21,10 @@ export default function RestockModal({ item, onConfirm, onCancel, submitting, er
 
   function handleConfirm() {
     const parsedQuantity = Number(quantity);
+    if (!quantity) {
+      setLocalError("Quantity is required.");
+      return;
+    }
     if (!quantity.trim() || parsedQuantity <= 0 || !Number.isInteger(parsedQuantity)) {
       setLocalError("Quantity must be a whole number greater than zero.");
       return;
@@ -47,13 +52,21 @@ export default function RestockModal({ item, onConfirm, onCancel, submitting, er
           min={1}
           placeholder="0"
           value={quantity}
-          onChange={(e) => setQuantity(e.target.value)}
-          className="w-full border border-gray-300 rounded-lg p-2 mb-6 text-gray-900"
+          onChange={(e) => {
+            setQuantity(e.target.value);
+            setLocalError("");
+          }}
+          aria-invalid={!!localError}
+          aria-describedby={localError ? "restock-quantity-error" : undefined}
+          className={`w-full border rounded-lg p-2 text-gray-900 ${localError ? "border-red-500" : "border-gray-300"}`}
         />
+        <div className="mb-6">
+          <FieldError id="restock-quantity-error" message={localError} />
+        </div>
 
-        {(localError || error) && (
+        {error && (
           <p className="text-red-600 text-sm mb-3 bg-red-50 border border-red-200 rounded-lg py-2 px-3">
-            {localError || error}
+            {error}
           </p>
         )}
 

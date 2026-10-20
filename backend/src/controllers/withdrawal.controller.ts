@@ -4,6 +4,7 @@ import {
   listWithdrawalsService,
   getCurrentBalanceService,
   getAvailableWithdrawalService,
+  getMoneySummaryService,
 } from "../services/withdrawal/index.js";
 import { JwtPayload } from "../lib/jwt.js";
 
@@ -50,6 +51,20 @@ export class WithdrawalController {
         code: 500,
         status: "error",
         message: "Unable to retrieve available withdrawal amounts",
+      });
+    }
+  };
+
+  public summary = async (req: Request, res: Response) => {
+    try {
+      const result = await getMoneySummaryService();
+      return res.status(result.code).json(result);
+    } catch (error) {
+      console.error("WithdrawalController.summary error", error);
+      return res.status(500).json({
+        code: 500,
+        status: "error",
+        message: "Unable to retrieve money summary",
       });
     }
   };

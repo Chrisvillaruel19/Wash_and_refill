@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Clock, RefreshCw, CheckCircle2, Search, Download } from "lucide-react";
 import AdminStatCard from "../../../components/admincom/AdminStatCard";
-import ConfirmReversePaymentModal from "../../../components/admincom/ConfirmReversePaymentModal";
+import RefundOrderModal, { RefundFormData } from "../../../components/admincom/RefundOrderModal";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
 import { useServerPage } from "../../../lib/useServerPage";
@@ -11,11 +11,14 @@ import {
   getOrders,
   getOrdersPage,
   getOrderDetail,
-  reverseOrderPayment,
+  refundOrder,
 } from "../../../lib/services/ordersApi.service";
 import { getAdminDashboard } from "../../../lib/services/dashboard.service";
 import { formatGroupedItems } from "../../../lib/groupItems";
 import { exportOrdersToExcel } from "../../../lib/exportOrdersToExcel";
+import { ApiError } from "../../../lib/apiClient";
+import { paymentLabel, paymentTone, PAYMENT_TEXT_CLASS } from "../../../lib/paymentDisplay";
+import { useAutoRefresh } from "../../../lib/useAutoRefresh";
 import { Order, OrderStatus } from "../../../staff/(dashboard)/types";
 
 const PAGE_SIZE = 8;
@@ -28,13 +31,20 @@ type MonitoringFilter = "All" | "Claimed" | "Unclaimed";
 
 const filters: MonitoringFilter[] = ["All", "Claimed", "Unclaimed"];
 
-function matchesMonitoringFilter(order: Order, filter: MonitoringFilter, searchDate: string) {
+function matchesMonitoringFilter(order: Order, filter: MonitoringFilter, searchText: string) {
   const matchesFilter =
     filter === "All" ||
     (filter === "Claimed" && order.status === "Claimed") ||
     (filter === "Unclaimed" && order.status !== "Claimed" && order.status !== "Cancelled");
 
-  return matchesFilter && order.date.includes(searchDate);
+  if (!matchesFilter) return false;
+  // One box searches everything the table shows: customer name, contact
+  // number, date and staff — case-insensitive, spaces around ignored.
+  const term = searchText.trim().toLowerCase();
+  if (!term) return true;
+  return [order.customer, order.contact, order.date, order.staffName ?? ""].some((field) =>
+    field.toLowerCase().includes(term)
+  );
 }
 
 const statusStyles: Record<OrderStatus, string> = {
@@ -47,18 +57,25 @@ const statusStyles: Record<OrderStatus, string> = {
 
 export default function ClaimMonitoringPage() {
   const [activeFilter, setActiveFilter] = useState<MonitoringFilter>("All");
-  const [searchDate, setSearchDate] = useState("");
+  const [searchText, setSearchText] = useState("");
   const [error, setError] = useState("");
   // GET /orders (list) omits line items to stay lean — populated per-order,
   // bounded to whatever page is currently visible, via GET /orders/:id.
   // Same pattern as Staff Service/Sales.
   const [itemsByOrderId, setItemsByOrderId] = useState<Record<string, string[]>>({});
-  const [pendingReverseId, setPendingReverseId] = useState<string | null>(null);
+  const [refundTarget, setRefundTarget] = useState<Order | null>(null);
   const [actionSubmitting, setActionSubmitting] = useState(false);
   const [actionError, setActionError] = useState("");
-  // Bumped after a payment reversal to force a refetch of whichever data
+  // Bumped after a refund to force a refetch of whichever data
   // source (server page or the lazily-loaded full set below) is active.
   const [reloadKey, setReloadKey] = useState(0);
+
+  // New orders, cancellations and claims from staff show up every 30s and
+  // when returning to the tab — skipped while the refund form is open so
+  // the list doesn't shift underneath it.
+  useAutoRefresh(() => {
+    if (!refundTarget) setReloadKey((k) => k + 1);
+  });
 
   // Pending/In Progress counts are all-time (current backlog); Claimed is
   // shop-wide but scoped to the current business day — all three sourced
@@ -76,7 +93,7 @@ export default function ClaimMonitoringPage() {
       });
   }, [reloadKey]);
 
-  const isFiltering = activeFilter !== "All" || searchDate !== "";
+  const isFiltering = activeFilter !== "All" || searchText !== "";
 
   // Default (unfiltered) browsing — real server-side pagination, one
   // request per page turn, verifiable in the network tab.
@@ -88,7 +105,7 @@ export default function ClaimMonitoringPage() {
     loading: serverLoading,
   } = useServerPage(getDropOffOrdersPage, PAGE_SIZE, !isFiltering, reloadKey);
 
-  // The filter tabs and date search need to reach every historical order,
+  // The filter tabs and search need to reach every historical order,
   // not just whatever page is currently loaded — the backend's page/pageSize
   // support has no filter/search params to push this server-side. Lazily
   // fetched only once a filter or search is actually used, and cached for
@@ -117,13 +134,13 @@ export default function ClaimMonitoringPage() {
   }, [isFiltering, reloadKey]);
 
   const filteredOrders = (fullOrders ?? []).filter((order) =>
-    matchesMonitoringFilter(order, activeFilter, searchDate)
+    matchesMonitoringFilter(order, activeFilter, searchText)
   );
 
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
 
-  // Exports whatever the active tab + date search currently match ("All"
+  // Exports whatever the active tab + search currently match ("All"
   // with no search = every order). Always a fresh fetch with line items
   // included, independent of the table's paging/cache.
   async function handleExport() {
@@ -131,7 +148,7 @@ export default function ClaimMonitoringPage() {
     setExportError("");
     try {
       const orders = await getOrders({ includeItems: true, excludeSelfService: true });
-      const matching = orders.filter((order) => matchesMonitoringFilter(order, activeFilter, searchDate));
+      const matching = orders.filter((order) => matchesMonitoringFilter(order, activeFilter, searchText));
       const today = new Date().toISOString().slice(0, 10);
       await exportOrdersToExcel(matching, `customer-records-${activeFilter.toLowerCase()}-${today}.xlsx`);
     } catch {
@@ -146,7 +163,7 @@ export default function ClaimMonitoringPage() {
     setPage: setClientPage,
     totalPages: clientTotalPages,
     paginatedItems: clientPaginatedItems,
-  } = usePagination(filteredOrders, PAGE_SIZE, `${activeFilter}-${searchDate}`);
+  } = usePagination(filteredOrders, PAGE_SIZE, `${activeFilter}-${searchText}`);
 
   // Unified view regardless of which mode is active, so the render below
   // (and the per-order line-item lookup effect) doesn't need to know which.
@@ -156,16 +173,16 @@ export default function ClaimMonitoringPage() {
   const paginatedItems = isFiltering ? clientPaginatedItems : serverItems;
   const tableLoading = isFiltering ? fullOrdersLoading : serverLoading;
 
-  async function confirmReversePayment() {
-    if (!pendingReverseId) return;
+  async function confirmRefund(data: RefundFormData) {
+    if (!refundTarget) return;
     setActionSubmitting(true);
     setActionError("");
     try {
-      await reverseOrderPayment(pendingReverseId);
+      await refundOrder(refundTarget.id, data);
       setReloadKey((k) => k + 1);
-      setPendingReverseId(null);
-    } catch {
-      setActionError("Unable to reverse this payment. Please try again.");
+      setRefundTarget(null);
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "Unable to refund this order. Please try again.");
     } finally {
       setActionSubmitting(false);
     }
@@ -245,10 +262,11 @@ export default function ClaimMonitoringPage() {
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="Search Date"
-            value={searchDate}
-            onChange={(e) => setSearchDate(e.target.value)}
-            name="monitoring-search-date"
+            placeholder="Search name, contact, date or staff"
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            name="monitoring-search"
+            aria-label="Search orders by customer name, contact number, date or staff"
             autoComplete="off"
             className="w-full pl-9 pr-4 py-1.5 border border-gray-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
           />
@@ -279,6 +297,7 @@ export default function ClaimMonitoringPage() {
                 <th className="p-3 sm:p-4 whitespace-nowrap">Total</th>
                 <th className="p-3 sm:p-4 whitespace-nowrap">Status</th>
                 <th className="p-3 sm:p-4 whitespace-nowrap">Payment</th>
+                <th className="p-3 sm:p-4 whitespace-nowrap">Action</th>
               </tr>
             </thead>
             <tbody className={tableLoading ? "opacity-50" : undefined}>
@@ -303,27 +322,41 @@ export default function ClaimMonitoringPage() {
                     </td>
                     <td className="p-3 sm:p-4 whitespace-nowrap">
                       <span
-                        className={`font-semibold ${order.payStatus === "Paid" ? "text-blue-600" : "text-red-500"}`}
+                        className={`font-semibold ${
+                          paymentTone(order) === "paid" ? "text-blue-600" : PAYMENT_TEXT_CLASS[paymentTone(order)]
+                        }`}
                       >
-                        {order.payStatus === "Paid" ? "Paid" : "Unpaid"}
+                        {paymentLabel(order)}
                       </span>
-                      {order.payStatus === "Paid" && (
+                    </td>
+                    <td className="p-3 sm:p-4 whitespace-nowrap">
+                      {/* Only the Admin refunds, and only cancelled (full amount)
+                          or claimed (partial or full) paid orders, until nothing's left. */}
+                      {order.payStatus === "Paid" && (order.status === "Cancelled" || order.status === "Claimed") ? (
                         <button
                           onClick={() => {
                             setActionError("");
-                            setPendingReverseId(order.id);
+                            setRefundTarget(order);
                           }}
-                          className="ml-3 text-xs font-medium text-red-500 border border-red-300 rounded-lg px-3 py-1 hover:bg-red-50"
+                          className="text-xs font-medium text-red-500 border border-red-300 rounded-lg px-3 py-1 hover:bg-red-50"
                         >
-                          Reverse Payment
+                          Refund
                         </button>
+                      ) : (order.refundToGive ?? 0) === 0 ? (
+                        <span className="text-gray-400">—</span>
+                      ) : null}
+                      {/* An approved cash refund the staff on duty hasn't handed over yet. */}
+                      {(order.refundToGive ?? 0) > 0 && (
+                        <span className="block mt-1 text-xs text-amber-700">
+                          Staff to give ₱{(order.refundToGive ?? 0).toFixed(2)} cash
+                        </span>
                       )}
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-gray-400">
+                  <td colSpan={9} className="p-8 text-center text-gray-400">
                     No orders found.
                   </td>
                 </tr>
@@ -334,10 +367,11 @@ export default function ClaimMonitoringPage() {
       </div>
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
 
-      {pendingReverseId && (
-        <ConfirmReversePaymentModal
-          onConfirm={confirmReversePayment}
-          onCancel={() => setPendingReverseId(null)}
+      {refundTarget && (
+        <RefundOrderModal
+          order={refundTarget}
+          onConfirm={confirmRefund}
+          onCancel={() => setRefundTarget(null)}
           submitting={actionSubmitting}
           error={actionError}
         />

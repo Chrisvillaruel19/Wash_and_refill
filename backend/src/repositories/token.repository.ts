@@ -64,64 +64,6 @@ export class TokenRepository {
 
   }
 
-  // Email ownership verification — same hash-at-rest + expiry + single-use
-  // mechanics as password reset.
-  async createEmailVerificationToken(
-    params: { userId: string; token: string; expiresAt: Date },
-    tx: PrismaClientOrTx = prisma
-  ) {
-    return tx.token.create({
-      data: {
-        userId: params.userId,
-        token: hashToken(params.token),
-        expiresAt: params.expiresAt,
-        type: TokenType.VERIFY_EMAIL,
-      },
-    });
-  }
-
-  async findActiveEmailVerificationToken(token: string, tx: PrismaClientOrTx = prisma) {
-    return tx.token.findFirst({
-      where: {
-        token: hashToken(token),
-        type: TokenType.VERIFY_EMAIL,
-        consumedAt: null,
-        revokedAt: null,
-        expiresAt: { gt: new Date() },
-      },
-    });
-  }
-
-  async findLatestEmailVerificationTokenForUser(userId: string, tx: PrismaClientOrTx = prisma) {
-    return tx.token.findFirst({
-      // Only links still outstanding count toward the resend cooldown — not
-      // used ones, nor revoked ones (superseded, address changed, never
-      // delivered).
-      where: { userId, type: TokenType.VERIFY_EMAIL, revokedAt: null, consumedAt: null },
-      orderBy: { expiresAt: "desc" },
-      select: { expiresAt: true },
-    });
-  }
-
-  // Any link still outstanding for an address that is being replaced (new
-  // link issued, or the email itself changed) must stop working.
-  async revokeOutstandingEmailVerificationTokens(userId: string, tx: PrismaClientOrTx = prisma) {
-    return tx.token.updateMany({
-      where: { userId, type: TokenType.VERIFY_EMAIL, consumedAt: null, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
-  }
-
-  // Conditional consume: only succeeds while the token is still unused and
-  // unrevoked, so two simultaneous uses (or a use racing a revocation)
-  // can't both succeed.
-  async consumeTokenIfActive(id: string, tx: PrismaClientOrTx = prisma) {
-    return tx.token.updateMany({
-      where: { id, consumedAt: null, revokedAt: null },
-      data: { consumedAt: new Date() },
-    });
-  }
-
   async findActiveRefreshToken(token: string): Promise<Token | null> {
     return prisma.token.findFirst({
       where: {

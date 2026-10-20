@@ -20,7 +20,7 @@ export async function deleteInventoryService(userId: string, id: string) {
         userId,
         action: AuditAction.DELETE,
         module: "Inventory",
-        description: `Removed inventory item "${existing.itemName}"`,
+        description: `Removed supply "${existing.itemName}"`,
         oldValue: { itemName: existing.itemName, quantity: existing.quantity },
       });
 

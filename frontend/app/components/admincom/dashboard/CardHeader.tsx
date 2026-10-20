@@ -12,7 +12,7 @@ interface CardHeaderProps {
 export default function CardHeader({ title, linkHref, linkLabel }: CardHeaderProps) {
   return (
     <div className="flex items-center justify-between gap-2 mb-2 -mt-2">
-      <h2 className="text-base sm:text-lg font-bold text-gray-800">{title}</h2>
+      <h2 className="text-base sm:text-lg font-bold text-gray-900">{title}</h2>
       {linkHref && linkLabel && (
         <Link
           href={linkHref}

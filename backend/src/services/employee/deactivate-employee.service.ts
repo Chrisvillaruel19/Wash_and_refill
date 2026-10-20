@@ -1,11 +1,13 @@
 import { prisma } from "../../lib/prisma.js";
 import { UserRepository } from "../../repositories/user.repository.js";
 import { AttendanceRepository } from "../../repositories/attendance.repository.js";
+import { TokenRepository } from "../../repositories/token.repository.js";
 import { AccountStatus, AuditAction } from "../../../generated/prisma/client.js";
 import { writeAuditLog } from "../../lib/audit-log.js";
 
 const userRepository = new UserRepository();
 const attendanceRepository = new AttendanceRepository();
+const tokenRepository = new TokenRepository();
 
 // ACTIVE -> INACTIVE. An inactive account stays on the Employee page (under
 // the "Inactive" tab) but can no longer log in — login/refresh/forgot-password
@@ -30,6 +32,9 @@ export async function deactivateEmployeeService(actorUserId: string, id: string)
       if (openShift) return { clockedIn: true } as const;
 
       const updated = await userRepository.setAccountStatus(id, AccountStatus.INACTIVE, tx);
+      // End every session now: none of their refresh tokens can be used
+      // again, even if the account is later restored (they log in fresh).
+      await tokenRepository.revokeAllActiveRefreshTokensForUser(id, tx);
 
       await writeAuditLog(tx, {
         userId: actorUserId,

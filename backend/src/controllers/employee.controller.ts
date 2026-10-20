@@ -7,7 +7,6 @@ import { archiveEmployeeService } from "../services/employee/archive-employee.se
 import { restoreEmployeeService } from "../services/employee/restore-employee.service.js";
 import { JwtPayload } from "../lib/jwt.js";
 import { UserRepository } from "../repositories/user.repository.js";
-import { sendEmailVerification, verificationRequestResponse } from "../services/auth/email-verification.service.js";
 
 const userRepository = new UserRepository();
 
@@ -96,19 +95,6 @@ export class EmployeeController {
         status: "error",
         message: "Unable to archive employee",
       });
-    }
-  };
-
-  // Admin resends the verification link to a Staff member's current email.
-  public sendVerification = async (req: Request, res: Response) => {
-    try {
-      const employee = await userRepository.findByIdForEmployee(req.params.id as string);
-      if (!employee) return res.status(404).json({ code: 404, status: "error", message: "Employee not found" });
-      const result = verificationRequestResponse(await sendEmailVerification(employee.id));
-      return res.status(result.code).json(result);
-    } catch (error) {
-      console.error("EmployeeController.sendVerification error", error instanceof Error ? error.message : "unknown error");
-      return res.status(500).json({ code: 500, status: "error", message: "Unable to send verification email" });
     }
   };
 

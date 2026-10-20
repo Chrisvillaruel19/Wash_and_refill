@@ -1,7 +1,9 @@
 import { OrderRepository } from "../../repositories/order.repository.js";
+import { RefundRepository } from "../../repositories/refund.repository.js";
 import { getBusinessDayRangeForDate } from "../../lib/business-timezone.js";
 
 const orderRepository = new OrderRepository();
+const refundRepository = new RefundRepository();
 
 interface BreakdownRow {
   id: string;
@@ -18,15 +20,30 @@ export async function getSalesBreakdownService(params: {
   userId?: string;
 }) {
   try {
-    const orders = await orderRepository.findPaidWithDetails({
-      shiftHandoverId: params.shiftHandoverId,
-      userId: params.userId,
-      // dateFrom/dateTo are Manila calendar dates ("YYYY-MM-DD"), not UTC
-      // instants — resolved against the actual Manila business day, same
-      // rule as Attendance/Dashboard's "today" (see business-timezone.ts).
-      paymentDateGte: params.dateFrom ? getBusinessDayRangeForDate(params.dateFrom).start : undefined,
-      paymentDateLt: params.dateTo ? getBusinessDayRangeForDate(params.dateTo).end : undefined,
-    });
+    // dateFrom/dateTo are Manila calendar dates ("YYYY-MM-DD"), not UTC
+    // instants — resolved against the actual Manila business day, same
+    // rule as Attendance/Dashboard's "today" (see business-timezone.ts).
+    const rangeStart = params.dateFrom ? getBusinessDayRangeForDate(params.dateFrom).start : undefined;
+    const rangeEnd = params.dateTo ? getBusinessDayRangeForDate(params.dateTo).end : undefined;
+    const [orders, totalRefunds] = await Promise.all([
+      orderRepository.findPaidWithDetails({
+        shiftHandoverId: params.shiftHandoverId,
+        userId: params.userId,
+        paymentDateGte: rangeStart,
+        paymentDateLt: rangeEnd,
+      }),
+      // Refunds in the same date range — the sales above are never reduced,
+      // so the report shows Sales − Refunds = Net Sales instead:
+      //  - a staff member's own report: the cash refunds they handed to
+      //    customers (same rule as "My shift sales" on their Dashboard);
+      //  - a single shift's report: none (refunds aren't a shift's sales);
+      //  - shop-wide: every claimed-order refund approved in the range.
+      params.shiftHandoverId
+        ? Promise.resolve(0)
+        : params.userId
+          ? refundRepository.sumPaidOutByUserInRange(params.userId, { gte: rangeStart, lt: rangeEnd })
+          : refundRepository.sumSalesRefunds({ createdGte: rangeStart, createdLt: rangeEnd }),
+    ]);
 
     // Same PAID + non-CANCELLED + paymentDate-range order set the breakdown
     // below is already built from — reused as-is (no second query) so a
@@ -79,6 +96,8 @@ export async function getSalesBreakdownService(params: {
         supplyBreakdown: Array.from(supplyTotals.values()),
         totalPaidAmount,
         paidOrderCount,
+        totalRefunds,
+        netSales: totalPaidAmount - totalRefunds,
       },
     };
   } catch (error) {

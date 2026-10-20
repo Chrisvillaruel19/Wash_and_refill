@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { InventoryItem } from "../../staff/(dashboard)/types";
 import { useEscapeKey } from "../../lib/useEscapeKey";
+import { useFieldErrors } from "../../lib/useFieldErrors";
+import FieldError from "../FieldError";
 
 export interface InventoryFormData {
   name: string;
@@ -42,42 +44,44 @@ export default function AdminInventoryFormModal({
   );
   const [unit, setUnit] = useState(initialItem?.unit ?? "");
   const [price, setPrice] = useState(initialItem ? String(initialItem.price) : "");
-  const [error, setError] = useState("");
+  const fields = useFieldErrors<"name" | "currentStock" | "lowStockAlert" | "unit" | "price">("inventory");
+  const base = "w-full border rounded-lg p-2 text-gray-900";
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
     const trimmedName = name.trim();
     const trimmedUnit = unit.trim();
-
-    if (!trimmedName || !trimmedUnit) {
-      setError("Item name and unit are required.");
-      return;
-    }
-    if (trimmedName.length > 100) {
-      setError("Item name must be at most 100 characters.");
-      return;
-    }
-    if (trimmedUnit.length > 20) {
-      setError("Unit must be at most 20 characters.");
-      return;
-    }
     const parsedCurrentStock = Number(currentStock);
     const parsedLowStockAlert = Number(lowStockAlert);
     const parsedPrice = Number(price);
 
-    if (!currentStock.trim() || parsedCurrentStock < 0 || !Number.isInteger(parsedCurrentStock)) {
-      setError("Current stock must be a whole number, zero or greater.");
-      return;
-    }
-    if (!lowStockAlert.trim() || parsedLowStockAlert < 0 || !Number.isInteger(parsedLowStockAlert)) {
-      setError("Low stock alert must be a whole number, zero or greater.");
-      return;
-    }
-    if (!price.trim() || parsedPrice <= 0) {
-      setError("Price must be greater than zero.");
-      return;
-    }
+    const valid = fields.setErrors({
+      name: !name
+        ? "Item name is required."
+        : !trimmedName
+          ? "Invalid item name."
+          : trimmedName.length > 100
+          ? "Item name must be at most 100 characters."
+          : "",
+      currentStock:
+        !currentStock.trim() || parsedCurrentStock < 0 || !Number.isInteger(parsedCurrentStock)
+          ? "Current stock must be a whole number, zero or greater."
+          : "",
+      lowStockAlert:
+        !lowStockAlert.trim() || parsedLowStockAlert < 0 || !Number.isInteger(parsedLowStockAlert)
+          ? "Low stock alert must be a whole number, zero or greater."
+          : "",
+      unit: !unit
+        ? "Unit is required."
+        : !trimmedUnit
+          ? "Invalid unit."
+          : trimmedUnit.length > 20
+          ? "Unit must be at most 20 characters."
+          : "",
+      price: !price.trim() || parsedPrice <= 0 ? "Price must be greater than zero." : "",
+    });
+    if (!valid) return;
 
     onSave({
       name: trimmedName,
@@ -95,25 +99,29 @@ export default function AdminInventoryFormModal({
           {isEdit ? "Edit Item" : "Add Item"}
         </h2>
 
-        {(error || submitError) && (
+        {submitError && (
           <p className="text-red-600 text-sm mb-4 bg-red-50 border border-red-200 rounded-lg py-2 px-3">
-            {error || submitError}
+            {submitError}
           </p>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <div>
             <label htmlFor="inventory-item-name" className="block text-sm text-gray-500 mb-1">Item Name</label>
             <input
               id="inventory-item-name"
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                fields.clear("name");
+              }}
               name="inventory-item-name"
               autoComplete="off"
               maxLength={100}
-              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
+              {...fields.inputProps("name", base)}
             />
+            <FieldError id={fields.errorId("name")} message={fields.errors.name} />
           </div>
 
           {/* Add mode only — existing items change stock via the Restock button. */}
@@ -126,9 +134,13 @@ export default function AdminInventoryFormModal({
               min={0}
               placeholder="0"
               value={currentStock}
-              onChange={(e) => setCurrentStock(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
+              onChange={(e) => {
+                setCurrentStock(e.target.value);
+                fields.clear("currentStock");
+              }}
+              {...fields.inputProps("currentStock", base)}
             />
+            <FieldError id={fields.errorId("currentStock")} message={fields.errors.currentStock} />
           </div>
           )}
 
@@ -140,9 +152,13 @@ export default function AdminInventoryFormModal({
               min={0}
               placeholder="0"
               value={lowStockAlert}
-              onChange={(e) => setLowStockAlert(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
+              onChange={(e) => {
+                setLowStockAlert(e.target.value);
+                fields.clear("lowStockAlert");
+              }}
+              {...fields.inputProps("lowStockAlert", base)}
             />
+            <FieldError id={fields.errorId("lowStockAlert")} message={fields.errors.lowStockAlert} />
           </div>
 
           <div>
@@ -151,12 +167,16 @@ export default function AdminInventoryFormModal({
               id="inventory-item-unit"
               type="text"
               value={unit}
-              onChange={(e) => setUnit(e.target.value)}
+              onChange={(e) => {
+                setUnit(e.target.value);
+                fields.clear("unit");
+              }}
               name="inventory-item-unit"
               autoComplete="off"
               maxLength={20}
-              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
+              {...fields.inputProps("unit", base)}
             />
+            <FieldError id={fields.errorId("unit")} message={fields.errors.unit} />
           </div>
 
           <div>
@@ -168,9 +188,13 @@ export default function AdminInventoryFormModal({
               step={0.01}
               placeholder="0.00"
               value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
+              onChange={(e) => {
+                setPrice(e.target.value);
+                fields.clear("price");
+              }}
+              {...fields.inputProps("price", base)}
             />
+            <FieldError id={fields.errorId("price")} message={fields.errors.price} />
           </div>
 
           <div className="flex justify-end gap-3 pt-2">

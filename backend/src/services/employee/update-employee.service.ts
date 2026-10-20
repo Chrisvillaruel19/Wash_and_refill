@@ -3,11 +3,6 @@ import { UserRepository } from "../../repositories/user.repository.js";
 import { hashPassword } from "../../utils/password.js";
 import { AuditAction, Prisma } from "../../../generated/prisma/client.js";
 import { writeAuditLog } from "../../lib/audit-log.js";
-import { TokenRepository } from "../../repositories/token.repository.js";
-import { sendEmailVerification } from "../auth/email-verification.service.js";
-
-const tokenRepository = new TokenRepository();
-
 const userRepository = new UserRepository();
 
 export async function updateEmployeeService(
@@ -46,15 +41,6 @@ export async function updateEmployeeService(
         tx
       );
 
-      // A new address is unproven: clear verification and kill any link
-      // still outstanding for the old one, in the same transaction as the
-      // change. Other edits leave verification untouched.
-      const emailChanged = !!updates.email && updates.email.toLowerCase() !== existing.email.toLowerCase();
-      if (emailChanged) {
-        await userRepository.setEmailVerifiedAt(id, null, tx);
-        await tokenRepository.revokeOutstandingEmailVerificationTokens(id, tx);
-      }
-
       await writeAuditLog(tx, {
         userId: actorUserId,
         action: AuditAction.UPDATE,
@@ -74,7 +60,7 @@ export async function updateEmployeeService(
         },
       });
 
-      return { employee: updated, emailChanged } as const;
+      return { employee: updated } as const;
     });
 
     if ("notFound" in result) {
@@ -87,19 +73,11 @@ export async function updateEmployeeService(
       return { code: 409, status: "error", message: "Email already registered" };
     }
 
-    // Sent after the transaction commits, to the new address only.
-    const verificationEmailSent = result.emailChanged ? (await sendEmailVerification(id)).sent : undefined;
-
     return {
       code: 200,
       status: "success",
-      message:
-        verificationEmailSent === false
-          ? "Employee updated, but the verification email to the new address could not be sent. Use \"Send verification link\" to try again."
-          : result.emailChanged
-            ? "Employee updated. A verification link was sent to the new email address."
-            : "Employee updated successfully",
-      data: { employee: result.employee, verificationEmailSent },
+      message: "Employee updated successfully",
+      data: { employee: result.employee },
     };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {

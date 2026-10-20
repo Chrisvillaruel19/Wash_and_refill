@@ -56,9 +56,17 @@ interface BackendOrder {
   totalAmount: string;
   createdAt: string;
   shiftHandoverId: string | null;
+  // As typed for this order — what every screen shows (see Order.customerName
+  // in schema.prisma). customer is only the phone-number link.
+  customerName?: string;
+  customerPhone?: string | null;
   customer: { customerName: string; phoneNumber: string | null };
   user?: { id: string; name: string };
   orderDetails?: BackendOrderDetail[];
+  // paidOutAt null = an approved cash refund staff haven't handed over yet.
+  refunds?: { amount: string; method?: string; paidOutAt?: string | null }[];
+  // Who received the payment (null while unpaid) — the sale's owner.
+  paidById?: string | null;
 }
 
 const STATUS_MAP: Record<string, OrderStatus> = {
@@ -73,6 +81,25 @@ const PAY_STATUS_MAP: Record<string, PayStatus> = {
   PAID: "Paid",
   UNPAID: "UnPaid",
 };
+
+function refundedTotal(order: BackendOrder): number {
+  return (order.refunds ?? []).reduce((sum, r) => sum + Number(r.amount), 0);
+}
+
+// Approved cash refunds the staff on duty still has to hand the customer.
+function refundToGiveTotal(order: BackendOrder): number {
+  return (order.refunds ?? []).filter((r) => r.paidOutAt === null).reduce((sum, r) => sum + Number(r.amount), 0);
+}
+
+// The backend keeps a refunded order's payment as PAID (the sale is never
+// edited — see the Refund model); it's shown as "Refunded" once refunds
+// cover the whole total.
+function payStatusOf(order: BackendOrder): PayStatus {
+  const status = PAY_STATUS_MAP[order.paymentStatus] ?? "UnPaid";
+  if (status !== "Paid") return status;
+  const refunded = refundedTotal(order);
+  return refunded > 0 && Math.round(refunded * 100) >= Math.round(Number(order.totalAmount) * 100) ? "Refunded" : "Paid";
+}
 
 const PAYMENT_METHOD_MAP: Record<string, PaymentMethod> = {
   CASH: "Cash",
@@ -111,15 +138,20 @@ function mapOrder(order: BackendOrder): Order {
   const created = new Date(order.createdAt);
   return {
     id: order.id,
-    customer: order.customer.customerName,
-    contact: order.customer.phoneNumber ?? "",
+    customer: order.customerName ?? order.customer.customerName,
+    contact: (order.customerName !== undefined ? order.customerPhone : order.customer.phoneNumber) ?? "",
     time: created.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     date: created.toLocaleDateString(),
     amount: Number(order.totalAmount),
-    payStatus: PAY_STATUS_MAP[order.paymentStatus] ?? "UnPaid",
+    payStatus: payStatusOf(order),
+    refundedAmount: refundedTotal(order),
+    refundToGive: refundToGiveTotal(order),
+    refundMethods: [...new Set((order.refunds ?? []).map((r) => PAYMENT_METHOD_MAP[r.method ?? ""]).filter(Boolean))],
     status: STATUS_MAP[order.status] ?? "Pending",
     items: order.orderDetails?.map(mapOrderDetail),
     staffName: order.user?.name,
+    staffId: order.user?.id,
+    ownerId: order.paidById ?? order.user?.id,
     createdAt: order.createdAt,
     paymentMethod: order.paymentMethod ? PAYMENT_METHOD_MAP[order.paymentMethod] : undefined,
     shiftHandoverId: order.shiftHandoverId,
@@ -215,8 +247,43 @@ export async function markOrderAsPaid(id: string, paymentMethod: PaymentMethod):
   });
 }
 
-export async function reverseOrderPayment(id: string): Promise<void> {
-  await apiClient.patch(`/orders/${id}/reverse-payment`);
+// An approved cash refund waiting for the staff member on duty to hand the
+// customer the cash from the drawer.
+export interface RefundPayout {
+  id: string;
+  amount: number;
+  reason: string;
+  approvedAt: string;
+  approvedBy: string;
+  orderId: string;
+  customerName: string;
+  customerPhone: string | null;
+  orderTotal: number;
+}
+
+export async function getPendingRefundPayouts(): Promise<RefundPayout[]> {
+  const { payouts } = await apiClient.get<{ payouts: RefundPayout[] }>("/orders/refund-payouts");
+  return payouts.map((p) => ({ ...p, amount: Number(p.amount), orderTotal: Number(p.orderTotal) }));
+}
+
+// Staff on duty gave that cash to the customer — it leaves the drawer now
+// and shows on their Shift Handover as "Refunds paid".
+export async function payOutRefund(refundId: string): Promise<void> {
+  await apiClient.post(`/orders/refunds/${refundId}/pay-out`, {});
+}
+
+// Admin only: records one refund for a paid order (partial allowed), paid
+// back the way the customer paid. A claimed order's cash refund is then
+// handed over by the staff on duty; a GCash one comes off the shop's GCash.
+export async function refundOrder(
+  id: string,
+  data: { amount: number; method: PaymentMethod; reason: string }
+): Promise<void> {
+  await apiClient.post(`/orders/${id}/refunds`, {
+    amount: data.amount,
+    method: PAYMENT_METHOD_MAP_TO_BACKEND[data.method],
+    reason: data.reason,
+  });
 }
 
 export interface SalesBreakdownRow {
@@ -236,6 +303,10 @@ export interface SalesBreakdown {
   // createdAt-dated order array (see orderStats.ts).
   totalPaidAmount: number;
   paidOrderCount: number;
+  // Refunds given in the same range/shift (by refund date). totalPaidAmount
+  // is never reduced by them: netSales = totalPaidAmount − totalRefunds.
+  totalRefunds: number;
+  netSales: number;
 }
 
 // Real per-order-detail breakdown from the backend (GET /orders/sales-
@@ -290,8 +361,8 @@ function mapReceipt(order: BackendOrder): OrderReceipt {
     orderNumber: order.id.slice(0, 8).toUpperCase(),
     createdAt: order.createdAt,
     staffName: order.user?.name,
-    customer: order.customer.customerName,
-    contact: order.customer.phoneNumber ?? "",
+    customer: order.customerName ?? order.customer.customerName,
+    contact: (order.customerName !== undefined ? order.customerPhone : order.customer.phoneNumber) ?? "",
     lines: (order.orderDetails ?? []).map((d) => {
       const weight = d.weight != null ? Number(d.weight) : null;
       const parts = [weight !== null ? `${weight} kg` : null, d.quantity > 1 || weight === null ? `×${d.quantity}` : null];
@@ -304,7 +375,7 @@ function mapReceipt(order: BackendOrder): OrderReceipt {
     total,
     amountPaid,
     change: Math.max(0, amountPaid - total),
-    payStatus: PAY_STATUS_MAP[order.paymentStatus] ?? "UnPaid",
+    payStatus: payStatusOf(order),
     paymentMethod: order.paymentMethod ? PAYMENT_METHOD_MAP[order.paymentMethod] : undefined,
   };
 }

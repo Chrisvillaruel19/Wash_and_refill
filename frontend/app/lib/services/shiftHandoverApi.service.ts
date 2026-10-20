@@ -13,6 +13,10 @@ type BackendShiftHandover = {
   digitalSales: string;
   expense: string;
   withdrawal: string;
+  // Cash refunds staff handed to customers from the drawer this shift.
+  cashRefunds?: string;
+  // Stored on newer handovers; null on older ones.
+  drawerStart?: string | null;
   expectedBalance: string;
   actualCashCount: string | null;
   notes: string | null;
@@ -26,6 +30,7 @@ function mapShiftHandover(h: BackendShiftHandover): ShiftHandoverRecord {
   const supplySales = Number(h.supplySales);
   const customServiceSales = Number(h.customServiceSales);
   const withdrawals = Number(h.withdrawal);
+  const refundsPaid = Number(h.cashRefunds ?? 0);
   const expense = Number(h.expense);
   // actualCashCount is required by the create schema, so every real record
   // has it — null is only a defensive DB-nullability edge case, not an
@@ -41,8 +46,10 @@ function mapShiftHandover(h: BackendShiftHandover): ShiftHandoverRecord {
   // just algebraically undoing it for display. GCash (digitalSales) is part
   // of the category totals but never entered expectedBalance, so it has to
   // come back out here — otherwise a GCash shift shows float − GCash.
+  // Newer handovers store their starting cash, so no reversal is needed.
   const cashSales = laundrySales + supplySales + customServiceSales - Number(h.digitalSales);
-  const cashDrawer = expectedCash - cashSales + withdrawals + expense;
+  const cashDrawer =
+    h.drawerStart != null ? Number(h.drawerStart) : expectedCash - cashSales + withdrawals + expense + refundsPaid;
 
   return {
     id: h.id,
@@ -54,6 +61,7 @@ function mapShiftHandover(h: BackendShiftHandover): ShiftHandoverRecord {
     customServiceSales,
     digitalSales: Number(h.digitalSales),
     withdrawals,
+    refundsPaid,
     expense,
     expectedCash,
     actualCashCounted,
@@ -121,6 +129,42 @@ export async function getDefaultStartingCash(): Promise<number> {
 // business logic duplicated here.
 export async function updateDefaultStartingCash(defaultStartingCash: number): Promise<void> {
   await apiClient.patch("/shift-handover/drawer-settings", { defaultStartingCash });
+}
+
+// The open shift's beginning count per supply item — the same rule the
+// handover snapshot uses on submit (keyed by inventory id).
+export async function getInventoryBeginning(): Promise<Map<string, number>> {
+  const { items } = await apiClient.get<{ items: { inventoryId: string; beginningQty: number }[] }>(
+    "/shift-handover/inventory-beginning"
+  );
+  return new Map(items.map((i) => [i.inventoryId, Number(i.beginningQty)]));
+}
+
+export interface PendingWithdrawals {
+  // Cash the Admin took out of the drawer since the last handover.
+  total: number;
+  withdrawals: { id: string; amount: number; reason: string; withdrawalDate: string }[];
+  // Cash refunds staff handed to customers since the last handover.
+  refundsPaidTotal: number;
+  refundsPaid: { id: string; amount: number; reason: string; customerName: string; paidOutAt: string; paidOutBy: string }[];
+  // Approved refunds not handed over yet (still in the drawer).
+  refundsToGiveTotal: number;
+  // Every expense paid from the drawer since the last handover (any staff).
+  expensesTotal: number;
+}
+
+// Everything besides expenses that took cash out of the open drawer since
+// the last handover — part of this shift's expected cash.
+export async function getPendingWithdrawals(): Promise<PendingWithdrawals> {
+  const r = await apiClient.get<PendingWithdrawals>("/shift-handover/pending-withdrawals");
+  return {
+    total: Number(r.total),
+    withdrawals: r.withdrawals.map((w) => ({ ...w, amount: Number(w.amount) })),
+    refundsPaidTotal: Number(r.refundsPaidTotal),
+    refundsPaid: r.refundsPaid.map((p) => ({ ...p, amount: Number(p.amount) })),
+    refundsToGiveTotal: Number(r.refundsToGiveTotal),
+    expensesTotal: Number(r.expensesTotal ?? 0),
+  };
 }
 
 // The response's shiftHandover object has no `staffName` (create doesn't

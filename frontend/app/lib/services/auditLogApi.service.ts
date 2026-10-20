@@ -1,5 +1,6 @@
 import { apiClient } from "../apiClient";
 import { ActivityLog } from "../../staff/(dashboard)/types";
+import { ServerPageResult } from "../useServerPage";
 
 type BackendAuditLog = {
   id: string;
@@ -33,6 +34,51 @@ function mapLog(log: BackendAuditLog, type: ActivityLog["type"]): ActivityLog {
   };
 }
 
+// Logs page "All" tab: every audit entry regardless of type.
+export interface AuditLogEntry {
+  id: string;
+  type: string;
+  message: string;
+  timestamp: string;
+}
+
+const ACTION_LABELS: Record<string, string> = {
+  CREATE: "Created",
+  UPDATE: "Edited",
+  DELETE: "Deleted",
+  ARCHIVE: "Archived",
+  RESTOCK: "Restock",
+  WITHDRAWAL: "Withdrawal",
+  PAYMENT: "Payment",
+  CLAIM: "Claim",
+  LOGIN: "Login",
+  LOGOUT: "Logout",
+  RESET_PASSWORD: "Password reset",
+  REFUND: "Refund",
+};
+
+function mapEntry(log: BackendAuditLog): AuditLogEntry {
+  return {
+    id: log.id,
+    type: ACTION_LABELS[log.action] ?? log.action,
+    message: `${log.performedBy}: ${log.description}`,
+    timestamp: log.createdAt,
+  };
+}
+
+// One server page of every log type — for browsing the full history.
+export async function getAllLogsPage(page: number, pageSize: number): Promise<ServerPageResult<AuditLogEntry>> {
+  const result = await apiClient.get<BackendAuditLogPage>(`/audit-logs?page=${page}&pageSize=${pageSize}`);
+  return { items: result.logs.map(mapEntry), totalPages: result.pagination.totalPages };
+}
+
+// The newest entries of every type, for searching — same cap as the other
+// log tabs (the server returns at most MAX_PAGE_SIZE per request).
+export async function getRecentLogs(): Promise<AuditLogEntry[]> {
+  const result = await apiClient.get<BackendAuditLogPage>(`/audit-logs?pageSize=${MAX_PAGE_SIZE}`);
+  return result.logs.map(mapEntry);
+}
+
 export async function getRestockLogs(): Promise<ActivityLog[]> {
   const result = await apiClient.get<BackendAuditLogPage>(
     `/audit-logs?action=RESTOCK&module=Inventory&pageSize=${MAX_PAGE_SIZE}`
@@ -44,6 +90,14 @@ export async function getRestockLogs(): Promise<ActivityLog[]> {
 export async function getPasswordResetLogs(): Promise<ActivityLog[]> {
   const result = await apiClient.get<BackendAuditLogPage>(
     `/audit-logs?action=RESET_PASSWORD&pageSize=${MAX_PAGE_SIZE}`
+  );
+  return result.logs.map((l) => mapLog(l, "update"));
+}
+
+// Admin refunds from Laundry Monitoring (cancelled or claimed paid orders).
+export async function getRefundLogs(): Promise<ActivityLog[]> {
+  const result = await apiClient.get<BackendAuditLogPage>(
+    `/audit-logs?action=REFUND&module=Order&pageSize=${MAX_PAGE_SIZE}`
   );
   return result.logs.map((l) => mapLog(l, "update"));
 }

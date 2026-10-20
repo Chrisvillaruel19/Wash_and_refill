@@ -24,12 +24,10 @@ export function isValidStatusTransition(current: OrderStatus, target: OrderStatu
   return NEXT_STATUS[current] === target;
 }
 
+// Only PENDING: once the laundry is in progress (or done), the work has
+// started, so the order can only move forward to be paid and claimed.
 export function isCancellable(current: OrderStatus): boolean {
-  return (
-    current === OrderStatus.PENDING ||
-    current === OrderStatus.IN_PROGRESS ||
-    current === OrderStatus.READY
-  );
+  return current === OrderStatus.PENDING;
 }
 
 // Shared shop work, not permanent personal ownership: WRLMS is one

@@ -5,5 +5,4 @@ export { resetPasswordSchema } from "./reset-password.schema.js";
 export { verifyPasswordSchema } from "./verify-password.schema.js";
 export { setRestockPinSchema } from "./set-restock-pin.schema.js";
 export { verifyRestockPinSchema } from "./verify-restock-pin.schema.js";
-export { verifyEmailSchema } from "./verify-email.schema.js";
 

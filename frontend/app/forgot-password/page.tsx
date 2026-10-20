@@ -24,7 +24,7 @@ export default function ForgotPassword() {
 
     const trimmedEmail = email.trim();
     setError("");
-    if (!trimmedEmail) {
+    if (!email) {
       setEmailError("Email is required.");
       return;
     }
@@ -39,8 +39,6 @@ export default function ForgotPassword() {
     setMessage("");
 
     try {
-      // The server says which case applied: reset link sent, or verify the
-      // email first (unverified accounts).
       const responseMessage = await forgotPassword(trimmedEmail);
       setMessage(responseMessage || "A password reset link has been sent to your email.");
       setEmail("");

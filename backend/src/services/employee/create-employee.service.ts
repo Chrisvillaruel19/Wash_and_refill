@@ -3,7 +3,6 @@ import { UserRepository } from "../../repositories/user.repository.js";
 import { hashPassword } from "../../utils/password.js";
 import { AuditAction, Prisma } from "../../../generated/prisma/client.js";
 import { writeAuditLog } from "../../lib/audit-log.js";
-import { sendEmailVerification } from "../auth/email-verification.service.js";
 
 const userRepository = new UserRepository();
 
@@ -50,19 +49,11 @@ export async function createEmployeeService(
       };
     }
 
-    // New accounts start unverified; the link proves the address belongs to
-    // the employee. A failed send doesn't undo the account — the Admin can
-    // resend from Employee Management — and never marks the email verified.
-    const verification = await sendEmailVerification(result.id);
-    const verificationEmailSent = verification.sent;
-
     return {
       code: 201,
       status: "success",
-      message: verificationEmailSent
-        ? "Created account successfully. A verification link was sent to the employee's email."
-        : "Created account successfully, but the verification email could not be sent. Use \"Send verification link\" to try again.",
-      data: { user: result, verificationEmailSent },
+      message: "Created account successfully",
+      data: { user: result },
     };
   } catch (error) {
     // Two simultaneous creates can both pass the checks above; the unique

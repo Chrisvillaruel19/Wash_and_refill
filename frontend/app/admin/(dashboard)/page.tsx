@@ -11,6 +11,7 @@ import BestSellersCard from "../../components/admincom/dashboard/BestSellersCard
 import { peso } from "../../components/admincom/dashboard/format";
 import { AdminDashboardData, getAdminDashboard, getRecentActivity } from "../../lib/services/dashboard.service";
 import { ActivityLog } from "../../staff/(dashboard)/types";
+import { useAutoRefresh } from "../../lib/useAutoRefresh";
 
 // Layout, top to bottom (phones stack everything in this same order):
 //   today's numbers (2×2 on phones, 4 across on desktop)
@@ -34,6 +35,20 @@ export default function AdminDashboardPage() {
     }
     load();
   }, []);
+
+  // Live: sales, refunds and orders from anywhere show up within 30 seconds.
+  // A failed background refresh keeps the last good figures on screen.
+  useAutoRefresh(() => {
+    getAdminDashboard()
+      .then((d) => {
+        setData(d);
+        setError("");
+      })
+      .catch(() => {});
+    getRecentActivity()
+      .then(setActivity)
+      .catch(() => {});
+  });
 
   if (loading) {
     return <p className="text-gray-400 p-6">Loading dashboard...</p>;

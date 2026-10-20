@@ -64,8 +64,8 @@ export async function LogoutService(refreshToken: string) {
         // gate — money that became unclaimed AFTER the shift's own handover
         // was submitted (e.g. a new paid order created afterward) still
         // blocks, exactly as before.
-        const { orders, expenses } = await getUnreportedActivity(token.userId, tx);
-        if (orders.length > 0 || expenses.length > 0) {
+        const { orders, expenses, refundPayouts } = await getUnreportedActivity(token.userId, tx);
+        if (orders.length > 0 || expenses.length > 0 || refundPayouts.length > 0) {
           return { unreportedActivity: true } as const;
         }
 

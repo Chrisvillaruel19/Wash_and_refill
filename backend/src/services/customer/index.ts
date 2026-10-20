@@ -4,3 +4,4 @@ export { getCustomerService } from "./get-customer.service.js";
 export { getCustomerByPhoneService } from "./get-customer-by-phone.service.js";
 export { updateCustomerService } from "./update-customer.service.js";
 export { deleteCustomerService } from "./delete-customer.service.js";
+export { listCustomerSummariesService, getCustomerProfileService } from "./customer-crm.service.js";

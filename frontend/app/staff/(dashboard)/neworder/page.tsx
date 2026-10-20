@@ -18,6 +18,7 @@ import OrderReceiptModal from "../../../components/staffcom/neworder/OrderReceip
 import { useActiveShift } from "../../../lib/useActiveShift";
 import ShiftRequiredNotice from "../../../components/staffcom/ShiftRequiredNotice";
 import { isValidPhone, PHONE_ERROR_MESSAGE, isValidName, NAME_ERROR_MESSAGE } from "../../../lib/validation";
+import { useFieldErrors } from "../../../lib/useFieldErrors";
 
 function calculateCartTotal(items: CartItem[]) {
   return items.reduce((sum, item) => sum + Math.round(item.price * 100) * item.quantity, 0) / 100;
@@ -52,7 +53,9 @@ export default function NewOrderPage() {
   const [loadError, setLoadError] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Server failures only; field problems show under their own field.
   const [submitError, setSubmitError] = useState("");
+  const fields = useFieldErrors<"customerName" | "phone" | "paymentMethod" | "amountPaid">("order");
   const [receipt, setReceipt] = useState<OrderReceipt | null>(null);
   // React state updates aren't guaranteed to re-render before a second click
   // event is dispatched, so the actual re-entrancy guard is this ref (set
@@ -173,29 +176,26 @@ export default function NewOrderPage() {
     if (!ensureCanWork()) return;
 
     const trimmedName = customerName.trim();
-    if (!isValidName(trimmedName)) {
-      setSubmitError(NAME_ERROR_MESSAGE);
-      return;
-    }
     // Contact number is optional; if one is entered it must be valid.
     const trimmedPhone = phoneNumber.trim();
-    if (trimmedPhone && !isValidPhone(trimmedPhone)) {
-      setSubmitError(PHONE_ERROR_MESSAGE);
-      return;
-    }
     // Empty amount = Unpaid order; otherwise it must cover the total (the
     // backend enforces the same rule).
     const total = cartTotal;
-    if (amountPaid > 0 && amountPaid < total) {
-      setSubmitError(
-        `Amount is less than the total (₱${total.toFixed(2)}). Enter the full amount, or leave it empty to save as unpaid.`
-      );
-      return;
-    }
-    if (amountPaid > 0 && !paymentMethod) {
-      setSubmitError("Please select a payment method.");
-      return;
-    }
+    const valid = fields.setErrors({
+      customerName: !customerName
+        ? "Customer name is required."
+        : !isValidName(trimmedName)
+          ? NAME_ERROR_MESSAGE
+          : "",
+      phone: trimmedPhone && !isValidPhone(trimmedPhone) ? PHONE_ERROR_MESSAGE : "",
+      amountPaid:
+        amountPaid > 0 && amountPaid < total
+          ? `Amount is less than the total (₱${total.toFixed(2)}). Enter the full amount, or leave it empty to save as unpaid.`
+          : "",
+      paymentMethod: amountPaid > 0 && !paymentMethod ? "Please select a payment method." : "",
+    });
+    setSubmitError("");
+    if (!valid) return;
 
     isSubmittingRef.current = true;
     setIsSubmitting(true);
@@ -271,8 +271,16 @@ export default function NewOrderPage() {
           <CustomerInfoForm
             customerName={customerName}
             phoneNumber={phoneNumber}
-            onNameChange={setCustomerName}
-            onPhoneChange={setPhoneNumber}
+            onNameChange={(value) => {
+              setCustomerName(value);
+              fields.clear("customerName");
+            }}
+            onPhoneChange={(value) => {
+              setPhoneNumber(value);
+              fields.clear("phone");
+            }}
+            nameError={fields.errors.customerName}
+            phoneError={fields.errors.phone}
           />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -295,14 +303,25 @@ export default function NewOrderPage() {
           <PackageGrid packages={packages} onAdd={handlePackageAdd} />
         </div>
 
-        <div>
+        {/* Desktop: the summary fills this column, top to bottom of the
+            left side (customer info → last package card). */}
+        <div className="lg:relative lg:min-h-[480px]">
           <OrderSummary
             cartItems={cartItems}
             onRemoveItem={removeFromCart}
             paymentMethod={paymentMethod}
-            onPaymentMethodChange={setPaymentMethod}
+            onPaymentMethodChange={(method) => {
+              setPaymentMethod(method);
+              fields.clear("paymentMethod");
+            }}
             amountPaid={amountPaid}
-            onAmountPaidChange={setAmountPaid}
+            onAmountPaidChange={(value) => {
+              setAmountPaid(value);
+              fields.clear("amountPaid");
+              fields.clear("paymentMethod");
+            }}
+            paymentMethodError={fields.errors.paymentMethod}
+            amountPaidError={fields.errors.amountPaid}
             onFinishTransaction={handleFinishTransaction}
             isSubmitting={isSubmitting}
             submitError={submitError}

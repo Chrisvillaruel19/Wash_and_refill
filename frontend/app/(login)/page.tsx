@@ -6,12 +6,17 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { login, restoreSession } from "../lib/auth";
 import { ApiError } from "../lib/apiClient";
+import FieldError from "../components/FieldError";
 
 export default function Home() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  // Shown under each field. `error` above is only for the server's answer
+  // (wrong credentials, account inactive), which isn't about one field.
+  const [usernameError, setUsernameError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Same re-entrancy guard pattern used in New Order: state updates aren't
   // guaranteed to re-render before a second click event fires, so the real
@@ -43,8 +48,26 @@ export default function Home() {
     e.preventDefault();
     if (isSubmittingRef.current) return;
 
-    if (!username.trim() || !password) {
-      setError("Username and password are both required.");
+    // Empty box: required. Only spaces, or a space inside: invalid (no
+    // username has spaces). Anything else is left to the server, which
+    // knows the real accounts — older ones may not match today's rules.
+    const trimmedUsername = username.trim();
+    const nextUsernameError = !username
+      ? "Username is required."
+      : !trimmedUsername || /\s/.test(trimmedUsername)
+        ? "Invalid username."
+        : "";
+    // Passwords can't contain spaces (see isValidPassword), so one with a
+    // space can never be right.
+    const nextPasswordError = !password
+      ? "Password is required."
+      : /\s/.test(password)
+        ? "Invalid password."
+        : "";
+    setUsernameError(nextUsernameError);
+    setPasswordError(nextPasswordError);
+    if (nextUsernameError || nextPasswordError) {
+      setError("");
       return;
     }
 
@@ -53,7 +76,7 @@ export default function Home() {
     setError("");
 
     try {
-      const user = await login(username, password);
+      const user = await login(username.trim(), password);
 
       if (!user) {
         setError("Invalid username or password.");
@@ -115,7 +138,7 @@ export default function Home() {
             </p>
           )}
 
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} noValidate>
             <div className="mb-5">
               <label
                 htmlFor="username"
@@ -126,11 +149,19 @@ export default function Home() {
               <input
                 id="username"
                 type="text"
-                placeholder="Enter your username or email"
+                placeholder="Enter your username"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                onChange={(e) => {
+                  setUsername(e.target.value);
+                  if (usernameError) setUsernameError("");
+                }}
+                aria-invalid={!!usernameError}
+                aria-describedby={usernameError ? "username-error" : undefined}
+                className={`w-full border rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 ${
+                  usernameError ? "border-red-500" : "border-gray-300"
+                }`}
               />
+              <FieldError id="username-error" message={usernameError} />
             </div>
 
             <div className="mb-6">
@@ -145,9 +176,17 @@ export default function Home() {
                 type="password"
                 placeholder="Enter your password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (passwordError) setPasswordError("");
+                }}
+                aria-invalid={!!passwordError}
+                aria-describedby={passwordError ? "password-error" : undefined}
+                className={`w-full border rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 ${
+                  passwordError ? "border-red-500" : "border-gray-300"
+                }`}
               />
+              <FieldError id="password-error" message={passwordError} />
             </div>
 
             <button

@@ -2,12 +2,14 @@ import { prisma } from "../../lib/prisma.js";
 import { UserRepository } from "../../repositories/user.repository.js";
 import { AttendanceRepository } from "../../repositories/attendance.repository.js";
 import { AuditLogRepository } from "../../repositories/audit-log.repository.js";
+import { TokenRepository } from "../../repositories/token.repository.js";
 import { AccountStatus, AuditAction } from "../../../generated/prisma/client.js";
 import { writeAuditLog } from "../../lib/audit-log.js";
 
 const userRepository = new UserRepository();
 const attendanceRepository = new AttendanceRepository();
 const auditLogRepository = new AuditLogRepository();
+const tokenRepository = new TokenRepository();
 
 // An account can only be archived after this long with no activity at all.
 const INACTIVITY_DAYS_BEFORE_ARCHIVE = 30;
@@ -62,6 +64,9 @@ export async function archiveEmployeeService(actorUserId: string, id: string) {
       }
 
       const updated = await userRepository.setAccountStatus(id, AccountStatus.ARCHIVED, tx);
+      // Deactivation already revoked their sessions; repeated here so an
+      // archived account can never be left with a usable refresh token.
+      await tokenRepository.revokeAllActiveRefreshTokensForUser(id, tx);
 
       await writeAuditLog(tx, {
         userId: actorUserId,

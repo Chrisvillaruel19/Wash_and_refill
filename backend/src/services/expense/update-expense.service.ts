@@ -35,7 +35,7 @@ export async function updateExpenseService(
       // computed once and frozen (see ShiftHandover model) — never
       // recomputed later. Editing the expense here would silently desync it
       // from the already-closed handover, exactly the reasoning
-      // reverse-order-payment.service.ts already applies to Order.
+      // cancel-order.service.ts already applies to Order.
       if (existing.shiftHandoverId !== null) {
         return { alreadyClaimed: true } as const;
       }

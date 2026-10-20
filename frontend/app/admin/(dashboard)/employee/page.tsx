@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Users, UserCheck, UserX, Search, Pencil, Archive as ArchiveIcon, MailCheck } from "lucide-react";
+import { Users, UserCheck, UserX, Search, Pencil, Archive as ArchiveIcon } from "lucide-react";
 import {
   Employee,
   getEmployees,
@@ -10,9 +10,7 @@ import {
   deactivateEmployee,
   restoreEmployee,
   archiveEmployee,
-  sendEmployeeVerification,
 } from "../../../lib/services/employeeApi.service";
-import { alertInfo, alertWarning } from "../../../lib/alerts";
 import { ApiError } from "../../../lib/apiClient";
 import EmployeeFormModal, { EmployeeFormData } from "../../../components/admincom/EmployeeFormModal";
 import ConfirmArchiveModal from "../../../components/admincom/ConfirmArchiveModal";
@@ -111,26 +109,11 @@ export default function EmployeePage() {
     `${activeFilter}-${search}`
   );
 
-  // Created/changed emails get a verification link; say whether it went out.
-  function notifyVerificationEmail(sent: boolean | undefined, email: string) {
-    if (sent === true) alertInfo("Verification email sent", `A verification link was sent to ${email}. The address stays unverified until the employee opens it.`);
-    else if (sent === false) alertWarning("Verification email not sent", "The change was saved, but the verification email could not be sent. Use \"Send verification link\" to try again.");
-  }
-
-  async function handleSendVerification(emp: Employee) {
-    setRowError("");
-    try {
-      alertInfo("Verification email", await sendEmployeeVerification(emp.id));
-    } catch (err) {
-      setRowError(err instanceof ApiError ? err.message : "Unable to send the verification email. Please try again.");
-    }
-  }
-
   async function handleAddSave(data: EmployeeFormData) {
     setActionSubmitting(true);
     setActionError("");
     try {
-      const created = await createEmployee({
+      await createEmployee({
         username: data.username,
         password: data.password || "",
         name: data.name,
@@ -140,7 +123,6 @@ export default function EmployeePage() {
       });
       setReloadKey((k) => k + 1);
       setShowAddModal(false);
-      notifyVerificationEmail(created.verificationEmailSent, data.email);
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : "Unable to add employee. Please try again.");
     } finally {
@@ -153,7 +135,7 @@ export default function EmployeePage() {
     setActionSubmitting(true);
     setActionError("");
     try {
-      const updated = await updateEmployee(editTarget.id, {
+      await updateEmployee(editTarget.id, {
         username: data.username,
         name: data.name,
         email: data.email,
@@ -163,7 +145,6 @@ export default function EmployeePage() {
       });
       setReloadKey((k) => k + 1);
       setEditTarget(null);
-      notifyVerificationEmail(updated.verificationEmailSent, data.email);
     } catch (err) {
       setActionError(
         err instanceof ApiError ? err.message : "Unable to update employee. Please try again."
@@ -326,9 +307,6 @@ export default function EmployeePage() {
                   <td className="p-3 whitespace-nowrap text-gray-900">{emp.username}</td>
                   <td className="p-3 whitespace-nowrap text-gray-900">
                     {emp.email}
-                    {!emp.emailVerified && (
-                      <span className="ml-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">Unverified</span>
-                    )}
                   </td>
                   <td className="p-3 whitespace-nowrap text-gray-900">{emp.phone}</td>
                   <td className="p-3 whitespace-nowrap text-gray-900">{emp.hiredDate}</td>
@@ -355,15 +333,6 @@ export default function EmployeePage() {
                       >
                         <Pencil size={18} />
                       </button>
-                      {!emp.emailVerified && (
-                        <button
-                          onClick={() => handleSendVerification(emp)}
-                          className="text-gray-600 hover:text-amber-600"
-                          title="Send verification link"
-                        >
-                          <MailCheck size={18} />
-                        </button>
-                      )}
                       {emp.status === "Active" ? (
                         <button
                           onClick={() => {

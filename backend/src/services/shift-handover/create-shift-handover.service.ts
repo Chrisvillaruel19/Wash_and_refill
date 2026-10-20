@@ -7,9 +7,11 @@ import { ShiftHandoverInventoryRepository } from "../../repositories/shift-hando
 import { OrderRepository } from "../../repositories/order.repository.js";
 import { ExpenseRepository } from "../../repositories/expense.repository.js";
 import { WithdrawalRepository } from "../../repositories/withdrawal.repository.js";
+import { RefundRepository } from "../../repositories/refund.repository.js";
 import { AttendanceRepository } from "../../repositories/attendance.repository.js";
 import { InventoryRepository } from "../../repositories/inventory.repository.js";
 import { getDrawerStart, summarizeOrders } from "./reconciliation.util.js";
+import { getBeginningQuantities } from "./inventory-beginning.util.js";
 import { NoActiveAttendanceError, DuplicateShiftHandoverError } from "./shift-handover-errors.js";
 
 const shiftHandoverRepository = new ShiftHandoverRepository();
@@ -17,6 +19,7 @@ const shiftHandoverInventoryRepository = new ShiftHandoverInventoryRepository();
 const orderRepository = new OrderRepository();
 const expenseRepository = new ExpenseRepository();
 const withdrawalRepository = new WithdrawalRepository();
+const refundRepository = new RefundRepository();
 const attendanceRepository = new AttendanceRepository();
 const inventoryRepository = new InventoryRepository();
 
@@ -66,6 +69,9 @@ export async function createShiftHandoverService(
       const endTime = new Date();
 
       const drawerStart = await getDrawerStart(tx);
+      // Read before this handover exists: the period it reconciles started
+      // when the previous one ended (see getBeginningQuantities below).
+      const previousHandover = await shiftHandoverRepository.findLatestForEarnings(tx);
 
       // The claim step: lock every currently-unclaimed row (across ALL
       // staff — one shared drawer, not a per-staff window) before anyone
@@ -75,6 +81,7 @@ export async function createShiftHandoverService(
       const orderIds = await orderRepository.lockUnclaimedPaidIds(tx);
       const expenseIds = await expenseRepository.lockUnclaimedIds(tx);
       const withdrawalIds = await withdrawalRepository.lockUnclaimedIds(tx);
+      const payoutIds = await refundRepository.lockUnclaimedPayoutIds(tx);
 
       const orders = await orderRepository.findByIds(orderIds, tx);
       const { laundryEarnings, supplySales, customServiceSales, cashSalesTotal, digitalSalesTotal } =
@@ -86,7 +93,13 @@ export async function createShiftHandoverService(
       const withdrawals = await withdrawalRepository.findByIds(withdrawalIds, tx);
       const withdrawalTotal = withdrawals.reduce((sum, w) => sum + Number(w.amount), 0);
 
-      const expectedBalance = drawerStart + cashSalesTotal - withdrawalTotal - expenseTotal;
+      // Cash refunds staff handed to customers from the drawer (claimed
+      // orders, approved by the Admin — see pay-out-refund.service.ts).
+      // Sales stay as they were; the cash just isn't in the drawer anymore.
+      const payouts = await refundRepository.findByIds(payoutIds, tx);
+      const refundsPaidTotal = payouts.reduce((sum, r) => sum + Number(r.amount), 0);
+
+      const expectedBalance = drawerStart + cashSalesTotal - withdrawalTotal - expenseTotal - refundsPaidTotal;
       const actualCashCount = data.actualCashCounted;
 
       // Compared to the nearest centavo, not with raw ===: expectedBalance
@@ -115,6 +128,8 @@ export async function createShiftHandoverService(
           digitalSales: digitalSalesTotal,
           expense: expenseTotal,
           withdrawal: withdrawalTotal,
+          cashRefunds: refundsPaidTotal,
+          drawerStart,
           expectedBalance,
           actualCashCount,
           cashStatus,
@@ -129,6 +144,7 @@ export async function createShiftHandoverService(
       await orderRepository.claim(orderIds, handover.id, tx);
       await expenseRepository.claim(expenseIds, handover.id, tx);
       await withdrawalRepository.claim(withdrawalIds, handover.id, tx);
+      await refundRepository.claim(payoutIds, handover.id, tx);
 
       // Inventory snapshot: mirrors the cash drawer's own "previous ending
       // becomes next beginning" pattern (getDrawerStart above), never a new
@@ -136,17 +152,12 @@ export async function createShiftHandoverService(
       // inside this same locked transaction — reflects every restock and
       // every order consumption already committed by this instant.
       // Beginning = that item's endingQty from its own most recent prior
-      // snapshot (global, any staff — one shared stockroom, same as cash's
-      // one shared drawer), or this same live reading if no prior snapshot
-      // exists yet (first-ever handover for that item — there is no
-      // earlier honest number to use). itemName/unit are frozen here, not
-      // re-read live later, so a future rename/archive of the Inventory row
-      // never changes this historical record.
+      // snapshot, or — if no handover ever counted it — current stock plus
+      // what this period's orders used (see getBeginningQuantities).
+      // itemName/unit are frozen here, not re-read live later, so a future
+      // rename/archive of the Inventory row never changes this record.
       const activeItems = await inventoryRepository.findAllActive(tx);
-      const beginningByItem = await shiftHandoverInventoryRepository.findLatestEndingQtyByInventoryIds(
-        activeItems.map((i) => i.id),
-        tx
-      );
+      const beginningByItem = await getBeginningQuantities(activeItems, previousHandover?.endTime ?? null, tx);
       const inventorySnapshotRows = activeItems.map((item) => ({
         inventoryId: item.id,
         itemName: item.itemName,

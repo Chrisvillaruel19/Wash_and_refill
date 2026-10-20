@@ -9,6 +9,8 @@ import { peso } from "../../components/admincom/dashboard/format";
 import LowStockCard from "../../components/staffcom/dashboard/LowStockCard";
 import OrdersTable from "../../components/staffcom/dashboard/OrdersTable";
 import MyClaimedTodayCard from "../../components/staffcom/dashboard/MyClaimedTodayCard";
+import RefundPayoutsCard from "../../components/staffcom/RefundPayoutsCard";
+import { useAutoRefresh } from "../../lib/useAutoRefresh";
 import { getOrdersPage, getMyClaimedOrdersToday } from "../../lib/services/ordersApi.service";
 import { getStaffDashboard, getRecentActivity, StaffDashboardData } from "../../lib/services/dashboard.service";
 import { Order, ActivityLog } from "./types";
@@ -32,7 +34,9 @@ export default function StaffDashboardPage() {
       try {
         const [dashboard, orderPage, myClaimedToday] = await Promise.all([
           getStaffDashboard(),
-          getOrdersPage(1, 20),
+          // Only this staff member's own orders: ones they received the
+          // payment for, or created and still unpaid (same rule as Services).
+          getOrdersPage(1, 20, true),
           getMyClaimedOrdersToday(),
         ]);
         setData(dashboard);
@@ -57,6 +61,15 @@ export default function StaffDashboardPage() {
     load();
   }, []);
 
+  // Shift sales and counts read fresh — after a refund is given here, and
+  // every 30 seconds (a refund approved or an order paid elsewhere).
+  function refreshStats() {
+    getStaffDashboard()
+      .then(setData)
+      .catch(() => {});
+  }
+  useAutoRefresh(refreshStats);
+
   if (loading) {
     return <p className="text-gray-400 p-6">Loading dashboard...</p>;
   }
@@ -70,13 +83,29 @@ export default function StaffDashboardPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+      <RefundPayoutsCard className="" onPaid={refreshStats} />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
+        {/* Net of cash refunds this staff member handed to customers this
+            shift (e.g. damaged items, approved by the Admin). */}
         <AdminStatCard
           label="My shift sales"
-          value={peso(data.myShiftSales)}
+          // Never shown below ₱0: a refund handed out for another staff
+          // member's (or an older) order can outweigh a quiet shift's sales.
+          // The line below still shows both figures in full.
+          value={peso(Math.max(0, data.myShiftNetSales))}
           icon={Wallet}
           iconColor="text-green-600 bg-green-100"
-          sub={<span className="block">{data.onShift ? "Your paid orders since clock-in" : "Not clocked in"}</span>}
+          sub={
+            !data.onShift ? (
+              <span className="block">Not clocked in</span>
+            ) : data.myShiftRefundsPaid > 0 ? (
+              <span className="block">
+                Sales {peso(data.myShiftSales)} · <span className="text-red-600">Refunds −{peso(data.myShiftRefundsPaid)}</span>
+              </span>
+            ) : (
+              <span className="block">Your paid orders since clock-in</span>
+            )
+          }
         />
         <AdminStatCard
           label="Claimed by you"

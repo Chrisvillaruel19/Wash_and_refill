@@ -17,6 +17,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@neondatabase/serverless": "^1.2.0",
+    "@prisma/adapter-neon": "^7.8.0",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "cookie-parser": "^1.4.7",
@@ -29,6 +31,7 @@
     "morgan": "^1.11.0",
     "nodemailer": "^10.0.13",
     "pg": "^8.22.0",
+    "ws": "^8.22.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -40,6 +43,7 @@
     "@types/node": "^26.1.1",
     "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.20.0",
+    "@types/ws": "^8.18.2",
     "prisma": "^7.8.0",
     "tsc-alias": "^1.9.0",
     "tsx": "^4.23.0",

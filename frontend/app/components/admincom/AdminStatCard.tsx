@@ -12,6 +12,9 @@ interface AdminStatCardProps {
   sub?: ReactNode;
   // Overrides the value's text colour (e.g. red when something needs attention).
   valueClassName?: string;
+  // For narrow cards (e.g. 5 in a row): same design, just a slightly
+  // smaller amount so the full figure fits.
+  compact?: boolean;
 }
 
 export default function AdminStatCard({
@@ -21,18 +24,23 @@ export default function AdminStatCard({
   iconColor,
   href,
   sub,
-  valueClassName = "text-gray-800",
+  valueClassName = "text-gray-900",
+  compact = false,
 }: AdminStatCardProps) {
   const content = (
     <div
-      className={`bg-white rounded-xl shadow-md p-4 sm:p-5 flex items-start justify-between gap-3 h-full ${
+      className={`bg-white rounded-xl shadow-md ring-1 ring-gray-200/80 p-4 sm:p-5 flex items-start justify-between gap-3 h-full ${
         href ? "hover:shadow-lg hover:ring-1 hover:ring-blue-200 transition-shadow" : ""
       }`}
     >
       <div className="min-w-0">
-        <p className="text-gray-500 text-xs sm:text-sm truncate">{label}</p>
-        <p className={`text-lg sm:text-2xl font-bold mt-1 truncate tabular-nums ${valueClassName}`}>{value}</p>
-        {sub && <div className="text-xs text-gray-500 mt-1 leading-snug">{sub}</div>}
+        <p className="text-gray-600 text-xs sm:text-sm truncate">{label}</p>
+        <p
+          className={`${compact ? "text-base sm:text-lg" : "text-lg sm:text-2xl"} font-bold mt-1 truncate tabular-nums ${valueClassName}`}
+        >
+          {value}
+        </p>
+        {sub && <div className="text-xs text-gray-600 mt-1 leading-snug">{sub}</div>}
       </div>
       {/* Hidden on phones — in a half-width card the amount needs the room more than the icon. */}
       <div

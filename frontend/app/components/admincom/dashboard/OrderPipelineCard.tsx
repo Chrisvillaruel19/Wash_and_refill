@@ -30,9 +30,9 @@ export default function OrderPipelineCard({
   const active = pending + inProgress + ready;
 
   return (
-    <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 h-full">
+    <div className="bg-white rounded-xl shadow-md ring-1 ring-gray-200/80 p-4 sm:p-6 h-full">
       <CardHeader title="Order pipeline" linkHref={href} linkLabel="View orders" />
-      <p className="text-sm text-gray-500 mb-4">
+      <p className="text-sm text-gray-600 mb-4">
         <span className="font-semibold text-gray-900">{active}</span> active order{active === 1 ? "" : "s"}
       </p>
 
@@ -56,9 +56,9 @@ export default function OrderPipelineCard({
           <Link
             key={s.key}
             href={href}
-            className="rounded-lg border border-gray-100 p-2 sm:p-3 hover:bg-gray-50 min-h-[44px]"
+            className="rounded-lg border border-gray-200 p-2 sm:p-3 hover:bg-gray-50 min-h-[44px]"
           >
-            <span className="flex items-center gap-1.5 text-xs text-gray-500">
+            <span className="flex items-center gap-1.5 text-xs text-gray-600">
               <span className={`w-2 h-2 rounded-full shrink-0 ${s.dot}`} />
               {s.label}
             </span>
@@ -67,7 +67,7 @@ export default function OrderPipelineCard({
         ))}
       </div>
 
-      <p className="text-sm text-gray-500 mt-4 pt-3 border-t border-gray-100">
+      <p className="text-sm text-gray-600 mt-4 pt-3 border-t border-gray-100">
         {claimedLabel}: <span className="font-semibold text-gray-900">{claimedToday}</span>
       </p>
     </div>

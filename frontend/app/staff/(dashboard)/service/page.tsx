@@ -10,8 +10,11 @@ import ConfirmMarkPaidModal from "../../../components/staffcom/service/ConfirmMa
 import Pagination from "../../../components/staffcom/Pagination";
 import { useActiveShift } from "../../../lib/useActiveShift";
 import ShiftRequiredNotice from "../../../components/staffcom/ShiftRequiredNotice";
+import RefundPayoutsCard from "../../../components/staffcom/RefundPayoutsCard";
 import { usePagination } from "../../../lib/usePagination";
 import { ApiError } from "../../../lib/apiClient";
+import { getCurrentUser, StaffUser } from "../../../lib/auth";
+import { useAutoRefresh } from "../../../lib/useAutoRefresh";
 import {
   getOrders,
   getOrderDetail,
@@ -37,6 +40,12 @@ const filters: ("All" | OrderStatus)[] = [
 export default function ServicePage() {
   const { ensureCanWork } = useActiveShift();
   const [orders, setOrders] = useState<Order[]>([]);
+  // Read after mount (localStorage), same as the page headers.
+  const [currentUser, setCurrentUser] = useState<StaffUser | null>(null);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCurrentUser(getCurrentUser());
+  }, []);
   const [activeFilter, setActiveFilter] = useState<"All" | OrderStatus>("All");
   const [search, setSearch] = useState("");
   const [pendingClaimId, setPendingClaimId] = useState<string | null>(null);
@@ -78,6 +87,15 @@ export default function ServicePage() {
     }
     initialLoad();
   }, []);
+
+  // Picks up changes made elsewhere (an Admin refund, a coworker's order)
+  // every 30s and when returning to the tab. Quiet: a failed background
+  // refresh keeps the current list instead of replacing the page with an error.
+  useAutoRefresh(() => {
+    getOrders({ excludeSelfService: true })
+      .then(setOrders)
+      .catch(() => {});
+  });
 
   // Forward only, one step at a time — the only move the backend allows.
   function advanceStatus(orderId: string) {
@@ -145,18 +163,32 @@ export default function ServicePage() {
     runAction(() => markOrderAsPaid(pendingMarkPaidId, paymentMethod));
   }
 
+  // Claimed and Cancelled orders are personal history: each staff member
+  // sees their own records — orders they received payment for, or created
+  // if unpaid (ownerId; a turned-over unpaid order is the next staff
+  // member's once they collect). The active queue (Pending/In progress/
+  // Ready) stays shared — anyone on shift works it.
+  const isMine = (o: Order) =>
+    !!currentUser?.id && o.ownerId === currentUser.id;
+  const isMyClaimed = (o: Order) => o.status === "Claimed" && isMine(o);
+  const isMyCancelled = (o: Order) => o.status === "Cancelled" && isMine(o);
+
   const counts = {
     Pending: orders.filter((o) => o.status === "Pending").length,
     "In progress": orders.filter((o) => o.status === "In progress").length,
     Ready: orders.filter((o) => o.status === "Ready").length,
-    Claimed: orders.filter((o) => o.status === "Claimed").length,
+    Claimed: orders.filter(isMyClaimed).length,
   };
 
   const filteredOrders = orders.filter((order) => {
   const matchesFilter =
     activeFilter === "All"
       ? order.status !== "Claimed" && order.status !== "Cancelled"
-      : order.status === activeFilter;
+      : activeFilter === "Claimed"
+        ? isMyClaimed(order)
+        : activeFilter === "Cancelled"
+          ? isMyCancelled(order)
+          : order.status === activeFilter;
 
   const matchesSearch =
     order.customer.toLowerCase().includes(search.toLowerCase()) ||
@@ -209,6 +241,7 @@ export default function ServicePage() {
     <div className="p-4 sm:p-6">
       <h1 className="text-2xl font-bold text-gray-800 mb-6">Service Management</h1>
       <ShiftRequiredNotice />
+      <RefundPayoutsCard onPaid={() => void loadOrders()} />
 
       {actionError && !pendingClaimId && !pendingCancelId && !pendingMarkPaidId && (
         <p className="text-red-600 text-sm mb-4 bg-red-50 border border-red-200 rounded-lg py-2 px-3">
@@ -240,7 +273,7 @@ export default function ServicePage() {
         </div>
         <div className="bg-white rounded-xl shadow-md p-4 sm:p-5 flex items-center justify-between">
           <div>
-            <p className="text-gray-500 text-sm">Claimed (all-time)</p>
+            <p className="text-gray-500 text-sm">My claimed (all-time)</p>
             <p className="text-2xl font-bold text-gray-700 mt-1">{counts.Claimed}</p>
           </div>
           <ClipboardCheck size={28} className="text-gray-700 shrink-0" />
@@ -318,6 +351,10 @@ export default function ServicePage() {
 
       {pendingCancelId && (
         <ConfirmCancelModal
+          paid={(() => {
+            const target = orders.find((o) => o.id === pendingCancelId);
+            return target?.payStatus === "Paid" ? { amount: target.amount, method: target.paymentMethod } : undefined;
+          })()}
           onConfirm={confirmCancel}
           onCancel={() => setPendingCancelId(null)}
           submitting={actionSubmitting}

@@ -11,13 +11,13 @@ interface StaffOnDutyCardProps {
 // were on time — from the same Present/Late rules as the Attendance page.
 export default function StaffOnDutyCard({ staff }: StaffOnDutyCardProps) {
   return (
-    <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 h-full">
+    <div className="bg-white rounded-xl shadow-md ring-1 ring-gray-200/80 p-4 sm:p-6 h-full">
       <CardHeader title="Staff on duty today" linkHref="/admin/attendance" linkLabel="Attendance" />
 
       {staff.length === 0 ? (
         <div className="text-center py-6">
-          <p className="text-gray-500 text-sm">No one has timed in yet today.</p>
-          <p className="text-gray-400 text-xs mt-1">Shift starts at 8:00 AM.</p>
+          <p className="text-gray-600 text-sm">No one has timed in yet today.</p>
+          <p className="text-gray-500 text-xs mt-1">Shift starts at 8:00 AM.</p>
         </div>
       ) : (
         <ul className="divide-y divide-gray-100">
@@ -27,7 +27,7 @@ export default function StaffOnDutyCard({ staff }: StaffOnDutyCardProps) {
               <li key={`${s.name}-${i}`} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
                 <div className="min-w-0">
                   <p className="font-medium text-gray-900 truncate">{s.name}</p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-gray-600">
                     In {formatTime(s.timeIn)}
                     {s.timeOut ? ` · Out ${formatTime(s.timeOut)}` : ""}
                   </p>

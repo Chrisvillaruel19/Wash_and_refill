@@ -23,7 +23,7 @@ export default function ShiftInventoryModal({ staffName, timestamp, rows, onClos
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl p-6 sm:p-8 w-full max-w-md max-h-[85vh] flex flex-col">
-        <h2 className="text-xl font-bold mb-1 text-gray-900">Inventory Snapshot</h2>
+        <h2 className="text-xl font-bold mb-1 text-gray-900">Supplies Snapshot</h2>
         <p className="text-sm text-gray-500 mb-4">
           {new Date(timestamp).toLocaleDateString()} — {staffName}
         </p>
@@ -67,7 +67,7 @@ export default function ShiftInventoryModal({ staffName, timestamp, rows, onClos
               ) : (
                 <tr>
                   <td colSpan={4} className="p-4 text-center text-gray-400">
-                    No inventory items recorded for this handover.
+                    No supplies recorded for this handover.
                   </td>
                 </tr>
               )}

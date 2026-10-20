@@ -3,6 +3,7 @@ import { UserRepository } from "../../repositories/user.repository.js";
 import { PackageRepository } from "../../repositories/package.repository.js";
 import { ExpenseRepository } from "../../repositories/expense.repository.js";
 import { AttendanceRepository } from "../../repositories/attendance.repository.js";
+import { RefundRepository } from "../../repositories/refund.repository.js";
 import { lowStockInventoryService } from "../inventory/index.js";
 import { getBusinessDateOnly, getBusinessDayRange } from "../../lib/business-timezone.js";
 import { PaymentMethod, Role } from "../../../generated/prisma/client.js";
@@ -12,6 +13,7 @@ const userRepository = new UserRepository();
 const packageRepository = new PackageRepository();
 const expenseRepository = new ExpenseRepository();
 const attendanceRepository = new AttendanceRepository();
+const refundRepository = new RefundRepository();
 
 const BEST_SELLING_LIMIT = 5;
 const SALES_CHART_DAYS = 7;
@@ -42,6 +44,7 @@ export async function getAdminDashboardService() {
       recentPaidOrders,
       expensesToday,
       todaysAttendance,
+      recentRefunds,
     ] = await Promise.all([
         orderRepository.sumPaidRevenue(todayRange),
         // Shop-wide, today only — every Staff's claims combined, matching
@@ -58,6 +61,7 @@ export async function getAdminDashboardService() {
         orderRepository.findPaidInRange(chartRange),
         expenseRepository.sumInRange(todayRange),
         attendanceRepository.findForDate(getBusinessDateOnly(now)),
+        refundRepository.findSalesRefundsInRange(chartRange),
       ]);
 
     // One pass over the last 7 days of paid orders gives the chart, today's
@@ -79,6 +83,15 @@ export async function getAdminDashboardService() {
         if (order.paymentMethod === PaymentMethod.GCASH) gcashToday += amount;
         else cashToday += amount;
       }
+    }
+    // Refunds come off the chart on the day they were given (never the
+    // original sale's day), matching sumPaidRevenue's net "Total sales
+    // today". The Cash/GCash split stays payments received today — a refund
+    // of an older sale would otherwise push it below zero.
+    for (const refund of recentRefunds) {
+      const key = businessDayKey(refund.createdAt);
+      const amount = Number(refund.amount);
+      if (dailyTotals.has(key)) dailyTotals.set(key, (dailyTotals.get(key) ?? 0) - amount);
     }
     const salesLast7Days = Array.from(dailyTotals, ([date, total]) => ({ date, total }));
     const yesterdaySales = salesLast7Days[salesLast7Days.length - 2]?.total ?? 0;

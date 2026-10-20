@@ -6,7 +6,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { resetPassword } from "../lib/auth";
 import { ApiError } from "../lib/apiClient";
-import { isValidPassword, PASSWORD_ERROR_MESSAGE } from "../lib/validation";
+import { getPasswordError } from "../lib/validation";
+import FieldError from "../components/FieldError";
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams();
@@ -15,6 +16,8 @@ function ResetPasswordForm() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [newPasswordError, setNewPasswordError] = useState("");
+  const [confirmPasswordError, setConfirmPasswordError] = useState("");
   const [success, setSuccess] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isSubmittingRef = useRef(false);
@@ -23,16 +26,18 @@ function ResetPasswordForm() {
     e.preventDefault();
     if (isSubmittingRef.current) return;
 
-    if (!isValidPassword(newPassword)) {
-      setError(PASSWORD_ERROR_MESSAGE);
-      return;
-    }
-    if (!confirmPassword) {
-      setError("Please confirm your new password.");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setError("Passwords do not match.");
+    const nextNewPasswordError = !newPassword
+      ? "New password is required."
+      : getPasswordError(newPassword);
+    const nextConfirmPasswordError = !confirmPassword
+      ? "Please confirm your new password."
+      : newPassword !== confirmPassword
+        ? "Passwords do not match."
+        : "";
+    setNewPasswordError(nextNewPasswordError);
+    setConfirmPasswordError(nextConfirmPasswordError);
+    if (nextNewPasswordError || nextConfirmPasswordError) {
+      setError("");
       return;
     }
 
@@ -95,7 +100,7 @@ function ResetPasswordForm() {
         </p>
       )}
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} noValidate>
         <div className="mb-5">
           <label htmlFor="new-password" className="block mb-1 font-medium text-gray-700">
             New Password
@@ -103,13 +108,21 @@ function ResetPasswordForm() {
           <input
             id="new-password"
             type="password"
-            placeholder="At least 8 characters"
+            placeholder="At least 8 characters, no spaces"
             value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
+            onChange={(e) => {
+              setNewPassword(e.target.value);
+              if (newPasswordError) setNewPasswordError("");
+            }}
             autoComplete="new-password"
             minLength={8}
-            className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+            aria-invalid={!!newPasswordError}
+            aria-describedby={newPasswordError ? "new-password-error" : undefined}
+            className={`w-full border rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 ${
+              newPasswordError ? "border-red-500" : "border-gray-300"
+            }`}
           />
+          <FieldError id="new-password-error" message={newPasswordError} />
         </div>
 
         <div className="mb-6">
@@ -121,11 +134,19 @@ function ResetPasswordForm() {
             type="password"
             placeholder="Re-enter your new password"
             value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
+            onChange={(e) => {
+              setConfirmPassword(e.target.value);
+              if (confirmPasswordError) setConfirmPasswordError("");
+            }}
             autoComplete="new-password"
             minLength={8}
-            className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+            aria-invalid={!!confirmPasswordError}
+            aria-describedby={confirmPasswordError ? "confirm-password-error" : undefined}
+            className={`w-full border rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 ${
+              confirmPasswordError ? "border-red-500" : "border-gray-300"
+            }`}
           />
+          <FieldError id="confirm-password-error" message={confirmPasswordError} />
         </div>
 
         <button

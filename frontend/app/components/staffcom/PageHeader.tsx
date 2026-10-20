@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CircleUserRound } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { getCurrentUser, StaffUser } from "../../lib/auth";
+import ProfileMenu from "../ProfileMenu";
 
 export default function PageHeader() {
   const pathname = usePathname();
@@ -19,7 +19,7 @@ export default function PageHeader() {
     "/staff/neworder": "New Order",
     "/staff/service": "Service",
     "/staff/sales": "Sales",
-    "/staff/inventory": "Inventory",
+    "/staff/inventory": "Supplies",
     "/staff/expense": "Expense",
     "/staff/attendance": "Attendance",
     "/staff/shifthandover": "Shift Handover",
@@ -33,21 +33,7 @@ export default function PageHeader() {
         {title}
       </h1>
 
-      <div className="flex items-center gap-2 sm:gap-3">
-        <CircleUserRound
-          className="w-9 h-9 sm:w-12 sm:h-12 text-[#007CD6] shrink-0"
-          strokeWidth={1.8}
-        />
-
-        <div>
-          <p className="text-sm sm:text-lg font-semibold text-gray-800">
-            {user?.name ?? "Guest"}
-          </p>
-          <p className="text-xs sm:text-sm text-gray-500 capitalize">
-            {user?.role ?? "Staff"}
-          </p>
-        </div>
-      </div>
+      <ProfileMenu name={user?.name ?? "Guest"} role={user?.role ?? "Staff"} />
     </header>
   );
 }

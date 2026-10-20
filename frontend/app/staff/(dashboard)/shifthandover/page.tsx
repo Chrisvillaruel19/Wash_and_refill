@@ -8,13 +8,25 @@ import {
   getShiftHandoversPage,
   getMostRecentShiftHandover,
   createShiftHandover,
+  getPendingWithdrawals,
+  getInventoryBeginning,
+  PendingWithdrawals,
 } from "../../../lib/services/shiftHandoverApi.service";
 import { ApiError } from "../../../lib/apiClient";
 import { Order, ExpenseRecord, InventoryItem, ShiftHandoverRecord } from "../types";
 import Pagination from "../../../components/staffcom/Pagination";
 import { useServerPage } from "../../../lib/useServerPage";
+import { usePagination } from "../../../lib/usePagination";
+import { useAutoRefresh } from "../../../lib/useAutoRefresh";
+import FieldError from "../../../components/FieldError";
+import AdminStatCard from "../../../components/admincom/AdminStatCard";
+import { Wallet, Shirt, Package, Sparkles, Receipt } from "lucide-react";
 
 const PAGE_SIZE = 6;
+const TABLE_PAGE_SIZE = 5;
+
+// "₱1,110.00" — thousands grouped, so big amounts stay readable.
+const peso = (n: number) => `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 interface DropOffRow {
   name: string;
@@ -50,6 +62,41 @@ function describeCashDifference(difference: number) {
   return { label: "Balanced", className: "text-gray-500" };
 }
 
+// One row of the Expected Cash breakdown; with children, the row opens to
+// list what it's made of.
+function CashLine({
+  label,
+  value,
+  sign,
+  children,
+}: {
+  label: string;
+  value: number;
+  sign?: "+" | "−";
+  children?: React.ReactNode;
+}) {
+  const amount = `${sign ? `${sign} ` : ""}₱${value.toFixed(2)}`;
+  if (!children) {
+    return (
+      <div className="flex justify-between px-3 py-2 border-b border-gray-100 text-gray-700">
+        <span>{label}</span>
+        <span>{amount}</span>
+      </div>
+    );
+  }
+  return (
+    <details className="border-b border-gray-100 text-gray-700">
+      <summary className="flex justify-between px-3 py-2 cursor-pointer select-none">
+        <span>
+          {label} <span className="text-xs text-blue-600">(details)</span>
+        </span>
+        <span>{amount}</span>
+      </summary>
+      <ul className="px-3 pb-2 space-y-0.5 text-xs text-gray-500">{children}</ul>
+    </details>
+  );
+}
+
 export default function ShiftHandover() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
@@ -69,7 +116,9 @@ export default function ShiftHandover() {
   // Raw text, not a number: an empty field must stay distinguishable from a
   // genuinely counted ₱0 so a blank count can't be submitted as zero.
   const [actualCashInput, setActualCashInput] = useState("");
-  const [actualCashMissing, setActualCashMissing] = useState(false);
+  // Shown under their own fields; submitError is only for server failures.
+  const [actualCashError, setActualCashError] = useState("");
+  const [notesError, setNotesError] = useState("");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -119,12 +168,37 @@ export default function ShiftHandover() {
       }
     }
     load();
+    refreshPendingWithdrawals();
   }, []);
 
+  // Cash the Admin took out of the drawer this shift (earnings or a
+  // claimed order's refund) — read live so Expected Cash matches the drawer.
+  const [pendingWithdrawals, setPendingWithdrawals] = useState<PendingWithdrawals | null>(null);
+  function refreshPendingWithdrawals() {
+    getPendingWithdrawals()
+      .then(setPendingWithdrawals)
+      .catch(() => {});
+  }
+
+  // Live: sales, expenses and Admin withdrawals/refunds made while this page
+  // is open show up within 30 seconds (the typed count and notes stay).
+  useAutoRefresh(() => {
+    refreshPendingWithdrawals();
+    getOrders().then(setOrders).catch(() => {});
+    getExpenses().then(setExpenses).catch(() => {});
+  });
+
+  // Beginning counts for the "Beginning → Now" table (null = not loaded).
+  const [beginningQty, setBeginningQty] = useState<Map<string, number> | null>(null);
+
   useEffect(() => {
+    // Stock and its beginning count move together (a new item, a first
+    // handover), so they're always refreshed as a pair.
     const refreshInventory = () => {
       void getInventory().then(setInventory).catch(() => {});
+      void getInventoryBeginning().then(setBeginningQty).catch(() => {});
     };
+    refreshInventory();
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") refreshInventory();
     };
@@ -151,8 +225,12 @@ export default function ShiftHandover() {
   // "Unclaimed" mirrors the backend's own lockUnclaimedPaidIds filter
   // exactly (paid, not cancelled, shiftHandoverId null) — this is the one
   // shared drawer's pending activity, from any staff member, not just mine.
+  // Cancelled orders never count: their cash was taken out of the drawer
+  // and set aside for the refund. A claimed order that was later refunded
+  // ("Refunded") was still a sale — the refund is its own transaction
+  // (never part of a shift — the Admin pays refunds).
   const unclaimedPaidOrders = orders.filter(
-    (o) => !o.shiftHandoverId && o.payStatus === "Paid" && o.status !== "Cancelled"
+    (o) => !o.shiftHandoverId && o.status !== "Cancelled" && (o.payStatus === "Paid" || o.payStatus === "Refunded")
   );
 
   // GET /orders (list) omits line items to stay lean — populated per unclaimed
@@ -190,39 +268,47 @@ export default function ShiftHandover() {
     .filter((l) => l.type === "SERVICE")
     .reduce((sum, l) => sum + l.subtotal, 0);
 
-  const cashSalesTotal = unclaimedPaidOrders
-    .filter((o) => (o.paymentMethod ?? "Cash") === "Cash")
-    .reduce((sum, o) => sum + o.amount, 0);
-  const totalSales = unclaimedPaidOrders.reduce((sum, o) => sum + o.amount, 0);
-  const digitalSalesTotal = totalSales - cashSalesTotal;
+  const isCash = (o: { paymentMethod?: string }) => (o.paymentMethod ?? "Cash") === "Cash";
+  const cashSalesTotal = unclaimedPaidOrders.filter(isCash).reduce((sum, o) => sum + o.amount, 0);
+  const digitalSalesTotal = unclaimedPaidOrders.filter((o) => !isCash(o)).reduce((sum, o) => sum + o.amount, 0);
 
   const dropOffSummary = buildDropOffSummary(allUnclaimedLines);
 
-  // GET /expenses is self-scoped server-side for Staff (only their own) —
-  // this really is "my pending expenses," not a filtering shortcut.
+  // 5 supplies per page, so a long supply list never stretches the page.
+  const {
+    page: suppliesPage,
+    setPage: setSuppliesPage,
+    totalPages: suppliesTotalPages,
+    paginatedItems: pagedSupplies,
+  } = usePagination(inventory, TABLE_PAGE_SIZE);
+
+  // Every expense paid from the shared drawer since the last handover, any
+  // staff — the same total the server subtracts on submit. GET /expenses
+  // only returns this staff member's own, so that's just the fallback until
+  // the server total loads.
   const myUnclaimedExpenses = expenses.filter((e) => !e.shiftHandoverId);
-  const expenseTotal = myUnclaimedExpenses.reduce((sum, e) => sum + e.amount, 0);
+  const expenseTotal =
+    pendingWithdrawals?.expensesTotal ?? myUnclaimedExpenses.reduce((sum, e) => sum + e.amount, 0);
 
   // Fixed cash float, always — the shop remits earnings/excess out via
   // Withdrawal at handover, so every new shift begins with this same
   // Admin-configured amount, never the previous shift's actualCashCounted.
   const drawerStart = defaultStartingCash;
 
-  // This shift's beginning quantity per item = that item's endingQty on the
-  // most recent submitted handover (matches the backend's own rule exactly —
-  // see create-shift-handover.service.ts). Items missing from that snapshot
-  // (no previous handover yet, or the item was added after it) fall back to
-  // the item's current live stock, same as the backend's own fallback —
-  // never a fabricated number, never Staff-entered.
-  const beginningQtyByInventoryId = new Map(
-    (mostRecentHandover?.inventorySnapshot ?? []).map((row) => [row.inventoryId, row.endingQty])
-  );
+  // This shift's beginning quantity per item, computed server-side by the
+  // same rule the snapshot uses on submit (inventory-beginning.util.ts):
+  // the last handover's ending count, or — if none counted the item — stock
+  // plus what this period's orders used. Until it loads, the last snapshot.
+  const beginningQtyByInventoryId =
+    beginningQty ??
+    new Map((mostRecentHandover?.inventorySnapshot ?? []).map((row) => [row.inventoryId, row.endingQty]));
 
-  // Withdrawals aren't visible to Staff (GET /withdrawals is Admin-only) —
-  // excluded from this preview by necessity, disclosed below. The actual
-  // submission is still fully correct: the backend recomputes this figure
-  // itself from real data, including any pending withdrawals.
-  const expectedCash = drawerStart + cashSalesTotal - expenseTotal;
+  // Same formula the backend uses on submit (it recomputes it itself from
+  // real data): starting cash + cash sales − expenses − cash the Admin took
+  // out − cash refunds handed to customers this shift.
+  const drawerWithdrawalTotal = pendingWithdrawals?.total ?? 0;
+  const refundsPaidTotal = pendingWithdrawals?.refundsPaidTotal ?? 0;
+  const expectedCash = drawerStart + cashSalesTotal - expenseTotal - drawerWithdrawalTotal - refundsPaidTotal;
   const hasActualCash = actualCashInput.trim() !== "";
   const actualCashCounted = hasActualCash ? Number(actualCashInput) : 0;
   const shortage = actualCashCounted - expectedCash;
@@ -230,24 +316,19 @@ export default function ShiftHandover() {
   async function handleSubmit() {
     if (isSubmittingRef.current) return;
 
-    if (!hasActualCash) {
-      setActualCashMissing(true);
-      setSubmitError("Please enter the Actual Cash Counted before submitting.");
-      return;
-    }
-    if (!Number.isFinite(actualCashCounted)) {
-      setSubmitError("Actual cash counted must be a valid amount.");
-      return;
-    }
-    if (actualCashCounted < 0) {
-      setSubmitError("Actual cash counted cannot be negative.");
-      return;
-    }
+    const nextActualCashError = !actualCashInput
+      ? "Actual cash counted is required."
+      : !hasActualCash || !Number.isFinite(actualCashCounted)
+        ? "Actual cash counted must be a valid amount."
+        : actualCashCounted < 0
+          ? "Actual cash counted cannot be negative."
+          : "";
     const trimmedNotes = notes.trim();
-    if (trimmedNotes.length > 500) {
-      setSubmitError("Notes must be at most 500 characters.");
-      return;
-    }
+    const nextNotesError = trimmedNotes.length > 500 ? "Notes must be at most 500 characters." : "";
+    setActualCashError(nextActualCashError);
+    setNotesError(nextNotesError);
+    setSubmitError("");
+    if (nextActualCashError || nextNotesError) return;
 
     isSubmittingRef.current = true;
     setIsSubmitting(true);
@@ -268,6 +349,8 @@ export default function ShiftHandover() {
       setMostRecentHandover(recentHandover.record);
       setDefaultStartingCash(recentHandover.defaultStartingCash);
       setReloadKey((k) => k + 1);
+      refreshPendingWithdrawals();
+      getInventoryBeginning().then(setBeginningQty).catch(() => {});
       setActualCashInput("");
       setNotes("");
       setHandoverSubmittedThisShift(true);
@@ -297,121 +380,195 @@ export default function ShiftHandover() {
 
   return (
     <div className="p-4 sm:p-6">
-      <h1 className="text-2xl font-bold text-gray-800 mb-1">Shift Handover</h1>
-      <p className="text-gray-500 mb-6">Attendance, Stock Inventory & Cash Management</p>
+      <h1 className="text-2xl font-bold text-gray-900 mb-1">Shift Handover</h1>
+      <p className="text-gray-600 mb-6">Count your drawer and supplies, then submit at the end of your shift.</p>
 
-      <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 mb-6">
-        <h2 className="text-lg font-bold text-gray-900 mb-4">Current Shift Summary</h2>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
-          <div>
-            <p className="text-sm text-gray-500">Cash drawer</p>
-            <p className="text-lg font-bold text-gray-900">₱{drawerStart.toFixed(2)}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Laundry sales</p>
-            <p className="text-lg font-bold text-gray-900">₱{laundrySales.toFixed(2)}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Supply sales</p>
-            <p className="text-lg font-bold text-gray-900">₱{supplySales.toFixed(2)}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Custom service sales</p>
-            <p className="text-lg font-bold text-gray-900">₱{customServiceSales.toFixed(2)}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Expense</p>
-            <p className="text-lg font-bold text-gray-900">₱{expenseTotal.toFixed(2)}</p>
-            <p className="text-xs text-gray-400">Yours only</p>
-          </div>
+      {/* This shift's money at a glance — same cards as the Dashboard. */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
+        <AdminStatCard
+          compact
+          label="Starting cash"
+          value={peso(drawerStart)}
+          icon={Wallet}
+          iconColor="text-sky-600 bg-sky-100"
+          sub="In the drawer at shift start"
+        />
+        <AdminStatCard
+          compact
+          label="Laundry sales"
+          value={peso(laundrySales)}
+          icon={Shirt}
+          iconColor="text-blue-600 bg-blue-100"
+          sub="Drop-off packages"
+        />
+        <AdminStatCard
+          compact
+          label="Supply sales"
+          value={peso(supplySales)}
+          icon={Package}
+          iconColor="text-emerald-600 bg-emerald-100"
+          sub="Detergent, Downy, etc."
+        />
+        <AdminStatCard
+          compact
+          label="Custom service sales"
+          value={peso(customServiceSales)}
+          icon={Sparkles}
+          iconColor="text-violet-600 bg-violet-100"
+          sub="Per-kg services"
+        />
+        <div className="col-span-2 lg:col-span-1">
+          <AdminStatCard
+          compact
+            label="Expenses"
+            value={peso(expenseTotal)}
+            icon={Receipt}
+            iconColor="text-amber-600 bg-amber-100"
+            sub="Paid from the drawer"
+          />
         </div>
+      </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          <div>
-            <h3 className="font-semibold text-gray-900 mb-1">Inventory (Beginning → Now)</h3>
-            <p className="text-xs text-gray-500 mb-3">
-              Beginning comes from the last submitted handover&apos;s ending count. Your ending
-              count when you submit will become the next shift&apos;s beginning.
-            </p>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead>
-                  <tr className="text-gray-700 border-b bg-gray-50">
-                    <th className="p-2 whitespace-nowrap">Item</th>
-                    <th className="p-2 whitespace-nowrap">Unit</th>
-                    <th className="p-2 whitespace-nowrap">Beginning</th>
-                    <th className="p-2 whitespace-nowrap">Now</th>
-                    <th className="p-2 whitespace-nowrap">Unit Price</th>
-                    <th className="p-2 whitespace-nowrap">Total Value</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {inventory.map((item) => (
-                    <tr key={item.id} className="border-b last:border-0">
-                      <td className="p-2 whitespace-nowrap text-gray-900">{item.name}</td>
-                      <td className="p-2 whitespace-nowrap text-gray-900">{item.unit}</td>
-                      <td className="p-2 whitespace-nowrap text-gray-900">
-                        {beginningQtyByInventoryId.get(item.id) ?? item.currentStock}
-                      </td>
-                      <td className="p-2 whitespace-nowrap text-gray-900">{item.currentStock}</td>
-                      <td className="p-2 whitespace-nowrap text-gray-900">₱{item.price}</td>
-                      <td className="p-2 whitespace-nowrap text-gray-900">
-                        ₱{(item.currentStock * item.price).toFixed(2)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div>
-            <h3 className="font-semibold text-gray-900 mb-3">Drop off Summary</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead>
-                  <tr className="text-gray-700 border-b bg-gray-50">
-                    <th className="p-2 whitespace-nowrap">Pack Name</th>
-                    <th className="p-2 whitespace-nowrap">Price</th>
-                    <th className="p-2 whitespace-nowrap">Total orders</th>
-                    <th className="p-2 whitespace-nowrap">Total price</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dropOffSummary.length > 0 ? (
-                    dropOffSummary.map((p) => (
-                      <tr key={p.name} className="border-b last:border-0">
-                        <td className="p-2 whitespace-nowrap text-gray-900">{p.name}</td>
-                        <td className="p-2 whitespace-nowrap text-gray-900">₱{p.price.toFixed(2)}</td>
-                        <td className="p-2 whitespace-nowrap text-gray-900">{p.totalOrders}</td>
-                        <td className="p-2 whitespace-nowrap text-gray-900">
-                          ₱{p.totalPrice.toFixed(2)}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <div className="bg-white rounded-xl shadow-md ring-1 ring-gray-200/80 p-4 sm:p-6">
+          <h2 className="text-lg font-bold text-gray-900">Supplies (Beginning → Now)</h2>
+          <p className="text-xs text-gray-600 mt-0.5 mb-4">
+            Beginning is the last handover&apos;s ending count. Your count when you submit becomes the next
+            shift&apos;s beginning.
+          </p>
+          <div className="overflow-x-auto rounded-lg border border-gray-200">
+            <table className="w-full text-sm tabular-nums">
+              <thead>
+                <tr className="bg-gray-50 text-gray-600 text-xs uppercase tracking-wide">
+                  <th className="p-3 text-left font-semibold whitespace-nowrap">Item</th>
+                  <th className="p-3 text-left font-semibold whitespace-nowrap">Unit</th>
+                  <th className="p-3 text-right font-semibold whitespace-nowrap">Unit price</th>
+                  <th className="p-3 text-right font-semibold whitespace-nowrap">Beginning</th>
+                  <th className="p-3 text-right font-semibold whitespace-nowrap">Now</th>
+                  <th className="p-3 text-right font-semibold whitespace-nowrap">Used</th>
+                  <th className="p-3 text-right font-semibold whitespace-nowrap">Value now</th>
+                </tr>
+              </thead>
+              <tbody>
+                {inventory.length > 0 ? (
+                  pagedSupplies.map((item) => {
+                    const beginning = beginningQtyByInventoryId.get(item.id) ?? item.currentStock;
+                    const used = beginning - item.currentStock;
+                    return (
+                      <tr key={item.id} className="border-t border-gray-100">
+                        <td className="p-3 text-gray-900 whitespace-nowrap">{item.name}</td>
+                        <td className="p-3 text-gray-700 whitespace-nowrap">{item.unit}</td>
+                        <td className="p-3 text-right text-gray-900 whitespace-nowrap">₱{item.price.toFixed(2)}</td>
+                        <td className="p-3 text-right text-gray-900">{beginning}</td>
+                        <td className="p-3 text-right text-gray-900 font-semibold">{item.currentStock}</td>
+                        <td className={`p-3 text-right ${used > 0 ? "text-red-600 font-medium" : "text-gray-500"}`}>
+                          {used > 0 ? `−${used}` : used < 0 ? `+${-used}` : "0"}
+                        </td>
+                        <td className="p-3 text-right text-gray-900 whitespace-nowrap">
+                          ₱{(item.currentStock * item.price).toFixed(2)}
                         </td>
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={4} className="p-4 text-center text-gray-400">
-                        No drop-off orders yet.
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={7} className="p-4 text-center text-gray-500">
+                      No supplies yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <Pagination page={suppliesPage} totalPages={suppliesTotalPages} onPageChange={setSuppliesPage} />
+        </div>
+
+        <div className="bg-white rounded-xl shadow-md ring-1 ring-gray-200/80 p-4 sm:p-6">
+          <h2 className="text-lg font-bold text-gray-900">Drop-off Summary</h2>
+          <p className="text-xs text-gray-600 mt-0.5 mb-4">Packages paid for this shift.</p>
+          <div className="overflow-x-auto rounded-lg border border-gray-200">
+            <table className="w-full text-sm tabular-nums">
+              <thead>
+                <tr className="bg-gray-50 text-gray-600 text-xs uppercase tracking-wide">
+                  <th className="p-3 text-left font-semibold">Package</th>
+                  <th className="p-3 text-right font-semibold">Price</th>
+                  <th className="p-3 text-right font-semibold">Orders</th>
+                  <th className="p-3 text-right font-semibold">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dropOffSummary.length > 0 ? (
+                  dropOffSummary.map((p) => (
+                    <tr key={p.name} className="border-t border-gray-100">
+                      <td className="p-3 text-gray-900">{p.name}</td>
+                      <td className="p-3 text-right text-gray-900 whitespace-nowrap">₱{p.price.toFixed(2)}</td>
+                      <td className="p-3 text-right text-gray-900">{p.totalOrders}</td>
+                      <td className="p-3 text-right text-gray-900 font-semibold whitespace-nowrap">
+                        ₱{p.totalPrice.toFixed(2)}
                       </td>
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="p-4 text-center text-gray-500">
+                      No drop-off orders yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
+      <div className="bg-white rounded-xl shadow-md ring-1 ring-gray-200/80 p-4 sm:p-6">
         <h2 className="text-lg font-bold text-gray-900 mb-4">Cash Reconciliation</h2>
 
-        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg py-2 px-3 mb-4">
-          Expected Cash below reflects only your own pending expenses and excludes any pending
-          withdrawals — those aren&apos;t visible to your role. Both are still correctly included in
-          the actual reconciliation once you submit.
-        </p>
+        {/* How Expected Cash is reached, top to bottom — same formula the
+            server uses on submit. Lines that took cash out list their items
+            in a collapsible row so the sum stays readable. */}
+        <div className="border border-gray-200 rounded-lg mb-4 text-sm tabular-nums">
+          <CashLine label="Starting cash" value={drawerStart} />
+          <CashLine label="Cash sales" value={cashSalesTotal} sign="+" />
+          {expenseTotal > 0 && <CashLine label="Expenses" value={expenseTotal} sign="−" />}
+          {refundsPaidTotal > 0 && (
+            <CashLine label="Refunds given to customers" value={refundsPaidTotal} sign="−">
+              {pendingWithdrawals?.refundsPaid.map((p) => (
+                <li key={p.id} className="flex justify-between gap-3">
+                  <span>
+                    {new Date(p.paidOutAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} · {p.customerName} —{" "}
+                    {p.reason}
+                  </span>
+                  <span>₱{p.amount.toFixed(2)}</span>
+                </li>
+              ))}
+            </CashLine>
+          )}
+          {drawerWithdrawalTotal > 0 && (
+            <CashLine label="Taken out by Admin" value={drawerWithdrawalTotal} sign="−">
+              {pendingWithdrawals?.withdrawals.map((w) => (
+                <li key={w.id} className="flex justify-between gap-3">
+                  <span>
+                    {new Date(w.withdrawalDate).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} · {w.reason}
+                  </span>
+                  <span>₱{w.amount.toFixed(2)}</span>
+                </li>
+              ))}
+            </CashLine>
+          )}
+          <div className="flex justify-between px-3 py-2 bg-gray-50 font-semibold text-gray-900 rounded-b-lg">
+            <span>Expected cash in drawer</span>
+            <span>₱{expectedCash.toFixed(2)}</span>
+          </div>
+        </div>
+
+        {pendingWithdrawals && pendingWithdrawals.refundsToGiveTotal > 0 && (
+          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg py-2 px-3 mb-4">
+            ₱{pendingWithdrawals.refundsToGiveTotal.toFixed(2)} in approved refunds hasn&apos;t been given to customers yet
+            (see Refunds to give on your Dashboard). That cash is still in the drawer, so count it — whoever is on duty
+            when the customer comes will give it.
+          </p>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-4">
           <div>
@@ -429,22 +586,18 @@ export default function ShiftHandover() {
               step={0.01}
               placeholder="0.00"
               required
-              aria-invalid={actualCashMissing}
+              aria-invalid={!!actualCashError}
+              aria-describedby={actualCashError ? "shift-actual-cash-error" : undefined}
               value={actualCashInput}
               onChange={(e) => {
                 setActualCashInput(e.target.value);
-                if (e.target.value.trim() !== "") {
-                  setActualCashMissing(false);
-                  setSubmitError("");
-                }
+                setActualCashError("");
               }}
               className={`w-full border rounded-lg p-2 text-gray-900 ${
-                actualCashMissing ? "border-red-500 ring-1 ring-red-500" : "border-gray-300"
+                actualCashError ? "border-red-500 ring-1 ring-red-500" : "border-gray-300"
               }`}
             />
-            {actualCashMissing && (
-              <p className="text-red-600 text-xs mt-1">Required — enter the cash you counted.</p>
-            )}
+            <FieldError id="shift-actual-cash-error" message={actualCashError} />
           </div>
           <div>
             <p className="text-sm text-gray-500">
@@ -459,7 +612,7 @@ export default function ShiftHandover() {
             )}
           </div>
           <div>
-            <p className="text-sm text-gray-500">GCash / digital (excluded above)</p>
+            <p className="text-sm text-gray-500">GCash sales (not in drawer)</p>
             <p className="text-xl font-bold text-gray-900">₱{digitalSalesTotal.toFixed(2)}</p>
           </div>
         </div>
@@ -469,11 +622,17 @@ export default function ShiftHandover() {
           <textarea
             id="shift-notes"
             value={notes}
-            onChange={(e) => setNotes(e.target.value)}
+            onChange={(e) => {
+              setNotes(e.target.value);
+              setNotesError("");
+            }}
             rows={2}
             maxLength={500}
-            className="w-full border border-gray-300 rounded-lg p-2 text-gray-900 resize-none"
+            aria-invalid={!!notesError}
+            aria-describedby={notesError ? "shift-notes-error" : undefined}
+            className={`w-full border rounded-lg p-2 text-gray-900 resize-none ${notesError ? "border-red-500" : "border-gray-300"}`}
           />
+          <FieldError id="shift-notes-error" message={notesError} />
         </div>
 
         {submitError && (

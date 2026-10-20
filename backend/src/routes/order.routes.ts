@@ -12,6 +12,8 @@ import {
   markOrderPaidSchema,
   listOrdersSchema,
   getSalesBreakdownSchema,
+  refundOrderSchema,
+  refundIdParamSchema,
 } from "../schema/order/index.js";
 import { Role } from "../../generated/prisma/client.js";
 
@@ -53,6 +55,22 @@ router.get(
   orderController.getMyClaimedToday
 );
 
+// Approved cash refunds (claimed orders) waiting for the staff member on
+// duty to hand the cash to the customer — every signed-in user sees them.
+// Same "/:id" ordering reasoning as above.
+router.get("/refund-payouts", authMiddleware.execute, orderController.pendingRefundPayouts);
+
+// Staff on duty gave that cash from the drawer.
+router.post(
+  "/refunds/:refundId/pay-out",
+  authMiddleware.execute,
+  requireRole(Role.STAFF),
+  requireActiveShift,
+  mutationLimiter,
+  validateSchema(refundIdParamSchema),
+  orderController.payOutRefund
+);
+
 router.get(
   "/:id",
   authMiddleware.execute,
@@ -90,14 +108,17 @@ router.patch(
   orderController.markAsPaid
 );
 
-// Reverse Payment: Admin only — the one Order mutation that IS role-gated,
-// since undoing a payment is a correction action, not routine staff work.
-router.patch(
-  "/:id/reverse-payment",
+// Refund: Admin only — the one Order mutation that IS role-gated, since
+// handing money back is an Admin decision, not routine staff work (Staff
+// can only cancel Pending orders). Each call records one refund
+// transaction (partial refunds allowed), hence POST.
+router.post(
+  "/:id/refunds",
   authMiddleware.execute,
   requireRole(Role.ADMIN),
-  validateSchema(idParamSchema),
-  orderController.reversePayment
+  mutationLimiter,
+  validateSchema(refundOrderSchema),
+  orderController.refund
 );
 
 export default router;

@@ -71,8 +71,15 @@ export function isValidEmail(value: string): boolean {
   return EMAIL_PATTERN.test(value.trim());
 }
 
-export const PASSWORD_ERROR_MESSAGE = "Password must be at least 8 characters.";
-
 export function isValidPassword(value: string): boolean {
-  return value.length >= 8;
+  return getPasswordError(value) === "";
+}
+
+// The exact reason a password is rejected, worded like the backend's Zod
+// passwordRule (backend/src/schema/common/validation-rules.ts) so the
+// message under the field matches what the server would say. "" = valid.
+export function getPasswordError(value: string): string {
+  if (/\s/.test(value)) return "Password cannot contain spaces.";
+  if (value.length < 8) return "Password must be at least 8 characters.";
+  return "";
 }

@@ -2,6 +2,7 @@
 
 import { ShoppingCart, X } from "lucide-react";
 import { CartItem, PaymentMethod } from "../../../staff/(dashboard)/neworder/types";
+import FieldError from "../../FieldError";
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-PH", {
@@ -23,6 +24,8 @@ interface OrderSummaryProps {
   onFinishTransaction: () => void;
   isSubmitting: boolean;
   submitError?: string;
+  paymentMethodError?: string;
+  amountPaidError?: string;
 }
 
 export default function OrderSummary({
@@ -35,15 +38,23 @@ export default function OrderSummary({
   onFinishTransaction,
   isSubmitting,
   submitError,
+  paymentMethodError,
+  amountPaidError,
 }: OrderSummaryProps) {
   const total = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const change = amountPaid - total;
   // Empty amount = saved as Unpaid; a partial amount is rejected on submit.
   const isUnpaid = amountPaid <= 0;
   const isShort = !isUnpaid && change < 0;
+  // Every order is a laundry job (drop-off or self service): a package or
+  // supplies alone have nothing to wash. The server rejects it too.
+  const missingLaundryService = cartItems.length > 0 && !cartItems.some((item) => item.sourceType === "SERVICE");
 
   return (
-    <div className="bg-white rounded-xl shadow-md overflow-hidden flex flex-col h-fit lg:sticky lg:top-4">
+    // Desktop: stretched to the full height of the left column (see the
+    // wrapper in neworder/page.tsx); the cart list takes the spare room and
+    // scrolls inside when it's longer. Phones: sized to its content.
+    <div className="bg-white rounded-xl shadow-md overflow-hidden flex flex-col h-fit lg:absolute lg:inset-0 lg:h-auto">
       <div className="bg-blue-600 text-white flex items-center gap-2 px-4 sm:px-5 py-3">
         <ShoppingCart size={18} />
         <span className="font-semibold">Order Summary</span>
@@ -51,7 +62,7 @@ export default function OrderSummary({
 
       {/* Capped height so a long cart scrolls inside the list instead of
           stretching the whole Order Summary card. */}
-      <div className="flex-1 p-4 sm:p-5 space-y-3 overflow-y-auto min-h-[150px] sm:min-h-[200px] max-h-[320px]">
+      <div className="flex-1 p-4 sm:p-5 space-y-3 overflow-y-auto min-h-[150px] sm:min-h-[200px] max-h-[320px] lg:min-h-0 lg:max-h-none">
         {cartItems.length > 0 ? (
           cartItems.map((item) => (
             <div
@@ -90,7 +101,7 @@ export default function OrderSummary({
       </div>
 
       <div className="p-4 sm:p-5 border-t border-gray-100">
-        <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="grid grid-cols-2 gap-3 mb-4 items-start">
           <div>
             <label htmlFor="order-payment-method" className="flex items-center min-h-5 text-xs sm:text-sm text-gray-600 mb-1 whitespace-nowrap">
               Payment Method
@@ -99,7 +110,9 @@ export default function OrderSummary({
               id="order-payment-method"
               value={paymentMethod}
               onChange={(e) => onPaymentMethodChange(e.target.value as PaymentMethod)}
-              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
+              aria-invalid={!!paymentMethodError}
+              aria-describedby={paymentMethodError ? "order-payment-method-error" : undefined}
+              className={`w-full border rounded-lg p-2 text-gray-900 ${paymentMethodError ? "border-red-500" : "border-gray-300"}`}
             >
               <option value="" disabled>
                 Select
@@ -107,6 +120,7 @@ export default function OrderSummary({
               <option value="Cash">Cash</option>
               <option value="GCash">GCash</option>
             </select>
+            <FieldError id="order-payment-method-error" message={paymentMethodError} />
           </div>
           <div>
             <label htmlFor="order-amount-paid" className="flex items-center min-h-5 text-xs sm:text-sm text-gray-600 mb-1 whitespace-nowrap">
@@ -120,8 +134,14 @@ export default function OrderSummary({
               placeholder="0"
               value={amountPaid || ""}
               onChange={(e) => onAmountPaidChange(Number(e.target.value) || 0)}
-              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
+              aria-invalid={!!amountPaidError}
+              aria-describedby={amountPaidError ? "order-amount-paid-error" : undefined}
+              className={`w-full border rounded-lg p-2 text-gray-900 ${amountPaidError ? "border-red-500" : "border-gray-300"}`}
             />
+          </div>
+          {/* Spans both columns: the amount message is too long for one. */}
+          <div className="col-span-2 -mt-2 empty:hidden">
+            {amountPaidError && <FieldError id="order-amount-paid-error" message={amountPaidError} />}
           </div>
         </div>
 
@@ -146,10 +166,17 @@ export default function OrderSummary({
           </p>
         )}
 
+        {missingLaundryService && (
+          <p className="text-amber-800 text-sm mb-3 bg-amber-50 border border-amber-200 rounded-lg py-2 px-3" role="alert">
+            Add at least one laundry service (e.g. Clothes or Self Service). A package or supplies alone has nothing to
+            wash.
+          </p>
+        )}
+
         <button
           type="button"
           onClick={onFinishTransaction}
-          disabled={cartItems.length === 0 || isShort || (!isUnpaid && !paymentMethod) || isSubmitting}
+          disabled={cartItems.length === 0 || missingLaundryService || isSubmitting}
           className="w-full bg-blue-600 text-white rounded-lg py-3 font-semibold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
         >
           {isSubmitting ? "Processing..." : "Finish Transaction"}

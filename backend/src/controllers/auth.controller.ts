@@ -12,11 +12,6 @@ import {
 import { toMilliseconds, TokenExpiry, JwtPayload } from "../lib/jwt.js";
 import { ENV } from "../config/env.js";
 import { UserRepository } from "../repositories/user.repository.js";
-import {
-  sendEmailVerification,
-  verifyEmailService,
-  verificationRequestResponse,
-} from "../services/auth/email-verification.service.js";
 
 const userRepository = new UserRepository();
 
@@ -206,24 +201,6 @@ export class AuthController {
   // reopened browser: identity and role come from the database for the
   // verified token's user (not the token's possibly stale role claim), and
   // an account deactivated since login is refused here rather than restored.
-  // Opened from the emailed link (via the /verify-email page).
-  public verifyEmail = async (req: Request, res: Response) => {
-    const result = await verifyEmailService(req.body.token);
-    return res.status(result.code).json(result);
-  };
-
-  // A signed-in user (Admin or Staff) asking for a link to their own email.
-  public requestEmailVerification = async (req: Request, res: Response) => {
-    try {
-      const authReq = req as AuthenticatedRequest;
-      const result = verificationRequestResponse(await sendEmailVerification(authReq.user?.sub as string));
-      return res.status(result.code).json(result);
-    } catch (error) {
-      console.error("AuthController.requestEmailVerification error", error instanceof Error ? error.message : "unknown error");
-      return res.status(500).json({ code: 500, status: "error", message: "Unable to send verification email" });
-    }
-  };
-
   public me = async (req: Request, res: Response) => {
     try {
       const authReq = req as AuthenticatedRequest;
@@ -234,7 +211,7 @@ export class AuthController {
       return res.status(200).json({
         code: 200,
         status: "success",
-        data: { id: user.id, username: user.username, name: user.name, role: user.role, emailVerified: !!user.emailVerifiedAt },
+        data: { id: user.id, username: user.username, name: user.name, role: user.role },
       });
     } catch (error) {
       console.error("AuthController.me error", error);

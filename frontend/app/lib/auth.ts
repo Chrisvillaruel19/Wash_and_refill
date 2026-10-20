@@ -2,12 +2,13 @@ import { apiClient, setAccessToken, ApiError, CURRENT_USER_KEY, hasAccessToken, 
 import { clockIn } from "./services/attendanceApi.service";
 
 export interface StaffUser {
+  // Account id — used to pick out this user's own orders. Optional because a
+  // session saved before it was added won't have it until the next check.
+  id?: string;
   username: string;
   password: string;
   name: string;
   role: "staff" | "admin";
-  // From the server (/auth/me); undefined until a session check has run.
-  emailVerified?: boolean;
 }
 
 // Backend's Role enum is "STAFF" | "ADMIN"; every existing page/hook reads
@@ -27,6 +28,7 @@ export async function login(username: string, password: string): Promise<StaffUs
     setAccessToken(result.accessToken);
 
     const user: StaffUser = {
+      id: result.user.id,
       username: result.user.username,
       // Never store the real password client-side — this field exists only
       // for StaffUser's own shape; nothing reads it.
@@ -110,8 +112,8 @@ async function doRestoreSession(): Promise<StaffUser | null> {
   }
 
   try {
-    const me = await apiClient.get<{ username: string; name: string; role: string; emailVerified?: boolean }>("/auth/me");
-    const user: StaffUser = { username: me.username, password: "", name: me.name, role: mapRole(me.role), emailVerified: me.emailVerified };
+    const me = await apiClient.get<{ id: string; username: string; name: string; role: string }>("/auth/me");
+    const user: StaffUser = { id: me.id, username: me.username, password: "", name: me.name, role: mapRole(me.role) };
     if (typeof window !== "undefined") localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
     return user;
   } catch (error) {
@@ -121,16 +123,6 @@ async function doRestoreSession(): Promise<StaffUser | null> {
     }
     throw error;
   }
-}
-
-// Email ownership verification — the token comes from the emailed link.
-export async function verifyEmail(token: string): Promise<string> {
-  return apiClient.postMessage("/auth/verify-email", { token });
-}
-
-// Sends a verification link to the signed-in user's own email.
-export async function requestMyEmailVerification(): Promise<string> {
-  return apiClient.postMessage("/auth/email-verification/request");
 }
 
 // Synchronous by design, matching every existing call site

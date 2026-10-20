@@ -46,10 +46,10 @@ export async function clockOutService(userId: string, role: Role | undefined, id
 
       // Cross-module business rule completed alongside Shift Handover
       // (approved exception to Attendance being otherwise frozen): a staff
-      // member cannot clock out while orders or expenses from this shift
-      // remain unreported.
-      const { orders, expenses } = await getUnreportedActivity(existing.userId, tx);
-      if (orders.length > 0 || expenses.length > 0) {
+      // member cannot clock out while orders, expenses or refund payouts
+      // from this shift remain unreported.
+      const { orders, expenses, refundPayouts } = await getUnreportedActivity(existing.userId, tx);
+      if (orders.length > 0 || expenses.length > 0 || refundPayouts.length > 0) {
         return { unreportedActivity: true } as const;
       }
 

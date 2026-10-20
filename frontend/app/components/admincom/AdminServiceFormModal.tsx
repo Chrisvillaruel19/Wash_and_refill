@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { ServiceItem, ServiceCategory } from "../../staff/(dashboard)/neworder/types";
 import { useEscapeKey } from "../../lib/useEscapeKey";
+import { useFieldErrors } from "../../lib/useFieldErrors";
+import FieldError from "../FieldError";
 import { SELF_SERVICE_CATEGORY_ID, SELF_SERVICE_KG_PER_PRICE } from "../../staff/(dashboard)/neworder/data";
 
 export interface ServiceFormData {
@@ -36,26 +38,27 @@ export default function AdminServiceFormModal({
   const [pricePerKg, setPricePerKg] = useState(
     initialService ? String(initialService.pricePerKg) : ""
   );
-  const [error, setError] = useState("");
+  const fields = useFieldErrors<"categoryId" | "name" | "pricePerKg">("service");
+  const base = "w-full border rounded-lg p-2 text-gray-900";
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
     const trimmedName = name.trim();
-
-    if (!trimmedName || !categoryId) {
-      setError("Type and name are required.");
-      return;
-    }
-    if (trimmedName.length > 100) {
-      setError("Service name must be at most 100 characters.");
-      return;
-    }
     const parsedPricePerKg = Number(pricePerKg);
-    if (!pricePerKg.trim() || parsedPricePerKg <= 0) {
-      setError("Price must be greater than zero.");
-      return;
-    }
+
+    const valid = fields.setErrors({
+      categoryId: categoryId ? "" : "Type is required.",
+      name: !name
+        ? "Name is required."
+        : !trimmedName
+          ? "Invalid name."
+          : trimmedName.length > 100
+          ? "Service name must be at most 100 characters."
+          : "",
+      pricePerKg: !pricePerKg.trim() || parsedPricePerKg <= 0 ? "Price must be greater than zero." : "",
+    });
+    if (!valid) return;
 
     onSave({ categoryId, name: trimmedName, pricePerKg: parsedPricePerKg });
   }
@@ -74,20 +77,23 @@ export default function AdminServiceFormModal({
           </p>
         )}
 
-        {(error || submitError) && (
+        {submitError && (
           <p className="text-red-600 text-sm mb-4 bg-red-50 border border-red-200 rounded-lg py-2 px-3">
-            {error || submitError}
+            {submitError}
           </p>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <div>
             <label htmlFor="service-type" className="block text-sm text-gray-500 mb-1">Type</label>
             <select
               id="service-type"
               value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
+              onChange={(e) => {
+                setCategoryId(e.target.value);
+                fields.clear("categoryId");
+              }}
+              {...fields.inputProps("categoryId", base)}
             >
               <option value="" disabled>
                 Select a type
@@ -98,6 +104,7 @@ export default function AdminServiceFormModal({
                 </option>
               ))}
             </select>
+            <FieldError id={fields.errorId("categoryId")} message={fields.errors.categoryId} />
           </div>
 
           <div>
@@ -106,12 +113,16 @@ export default function AdminServiceFormModal({
               id="service-name"
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                fields.clear("name");
+              }}
               name="service-name"
               autoComplete="off"
               maxLength={100}
-              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
+              {...fields.inputProps("name", base)}
             />
+            <FieldError id={fields.errorId("name")} message={fields.errors.name} />
           </div>
 
           <div>
@@ -124,9 +135,13 @@ export default function AdminServiceFormModal({
               min={0.01}
               step={0.01}
               value={pricePerKg}
-              onChange={(e) => setPricePerKg(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg p-2 text-gray-900"
+              onChange={(e) => {
+                setPricePerKg(e.target.value);
+                fields.clear("pricePerKg");
+              }}
+              {...fields.inputProps("pricePerKg", base)}
             />
+            <FieldError id={fields.errorId("pricePerKg")} message={fields.errors.pricePerKg} />
           </div>
 
           <div className="flex justify-end gap-3 pt-2">

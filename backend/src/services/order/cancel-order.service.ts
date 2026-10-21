@@ -3,7 +3,7 @@ import { OrderRepository } from "../../repositories/order.repository.js";
 import { InventoryRepository } from "../../repositories/inventory.repository.js";
 import { refreshStockStatus } from "../inventory/stock-status.util.js";
 import { isCancellable, canModifyOrder } from "./order-status-flow.util.js";
-import { OrderStatus, AuditAction, Role } from "../../../generated/prisma/client.js";
+import { OrderStatus, AuditAction, Role, PaymentStatus, PaymentMethod } from "../../../generated/prisma/client.js";
 import { writeAuditLog } from "../../lib/audit-log.js";
 
 const orderRepository = new OrderRepository();
@@ -68,7 +68,13 @@ export async function cancelOrderService(userId: string, id: string, actorRole?:
         userId,
         action: AuditAction.UPDATE,
         module: "Order",
-        description: `Cancelled order (was ${existing.status}), supplies restored`,
+        // Starts with "Cancelled order" — the Admin Logs' "Cancellations &
+        // Refunds" tab finds these entries by that prefix.
+        description: `Cancelled order for ${existing.customerName} (₱${Number(existing.totalAmount).toFixed(2)}, ${
+          existing.paymentStatus === PaymentStatus.PAID
+            ? `paid by ${existing.paymentMethod === PaymentMethod.GCASH ? "GCash" : "cash"} — refund owed`
+            : "unpaid"
+        }), was ${existing.status}, supplies restored`,
         oldValue: { status: existing.status },
         newValue: { status: OrderStatus.CANCELLED },
       });

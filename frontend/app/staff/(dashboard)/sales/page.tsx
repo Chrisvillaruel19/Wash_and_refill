@@ -211,34 +211,37 @@ export default function SalesPage() {
         onDateToChange={setDateTo}
       />
 
-      <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 mb-6">
+      {/* Same table style as the sales records below. */}
+      <div className="bg-white rounded-xl shadow-md ring-1 ring-gray-200/80 p-4 sm:p-6 mb-6">
         <h2 className="text-lg font-bold text-gray-900 mb-4">Package Sales Breakdown</h2>
         {breakdownError && (
           <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg py-2 px-3 mb-4">
             {breakdownError}
           </p>
         )}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
+        <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <table className="w-full text-sm text-left tabular-nums">
             <thead>
-              <tr className="text-gray-700 border-b bg-gray-50">
-                <th className="p-2 whitespace-nowrap">Package</th>
-                <th className="p-2 whitespace-nowrap">Qty Sold</th>
-                <th className="p-2 whitespace-nowrap">Total</th>
+              <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <th className="px-4 py-3 whitespace-nowrap">Package</th>
+                <th className="px-4 py-3 whitespace-nowrap text-right">Qty sold</th>
+                <th className="px-4 py-3 whitespace-nowrap text-right">Total</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-100">
               {packageBreakdown.length > 0 ? (
                 packageBreakdown.map((p) => (
-                  <tr key={p.id} className="border-b last:border-0">
-                    <td className="p-2 whitespace-nowrap text-gray-900">{p.name}</td>
-                    <td className="p-2 whitespace-nowrap text-gray-900">{p.totalQuantity}</td>
-                    <td className="p-2 whitespace-nowrap text-gray-900">₱{p.totalAmount.toFixed(2)}</td>
+                  <tr key={p.id}>
+                    <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-900">{p.name}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-right text-gray-700">{p.totalQuantity}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-right font-semibold text-gray-900">
+                      ₱{p.totalAmount.toFixed(2)}
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={3} className="p-4 text-center text-gray-400">
+                  <td colSpan={3} className="px-4 py-6 text-center text-sm text-gray-500">
                     No drop-off orders yet.
                   </td>
                 </tr>

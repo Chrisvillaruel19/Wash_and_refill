@@ -131,12 +131,6 @@ export default function CustomerProfileModal({
                 />
               </div>
 
-              {profile.namesUsed.length > 1 && (
-                <p className="text-xs text-gray-500">
-                  Names used on their orders: <span className="text-gray-700">{profile.namesUsed.join(", ")}</span>
-                </p>
-              )}
-
               <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <h3 className="px-4 py-3 text-sm font-semibold text-gray-800 border-b border-gray-100">
                   Order history ({profile.orders.length})

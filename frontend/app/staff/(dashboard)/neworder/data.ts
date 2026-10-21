@@ -13,7 +13,7 @@ export function kgPerPrice(categoryId: string) {
 }
 
 export const serviceCategories: ServiceCategory[] = [
-  { id: "clothes", name: "Clothes", icon: "Shirt" },
-  { id: "dryclean", name: "Dry Clean 7days", icon: "Shirt" },
-  { id: SELF_SERVICE_CATEGORY_ID, name: "Self Service", icon: "LayoutGrid" },
+  { id: "clothes", name: "Full Service", icon: "Shirt" },
+  { id: "dryclean", name: "Dry Clean", icon: "Sparkles", note: "7 days" },
+  { id: SELF_SERVICE_CATEGORY_ID, name: "Self Service", icon: "WashingMachine" },
 ];

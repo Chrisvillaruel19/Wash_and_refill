@@ -128,7 +128,7 @@ export default function AdminExpensesPage() {
         </div>
 
         <div className="relative w-full sm:w-auto">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
           <input
             type="text"
             placeholder="Search date or staff"
@@ -136,7 +136,7 @@ export default function AdminExpensesPage() {
             onChange={(e) => setSearch(e.target.value)}
             name="admin-expense-search"
             autoComplete="off"
-            className="w-full sm:w-auto pl-9 pr-4 py-1.5 border border-gray-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+            className="w-full sm:w-auto border border-gray-300 rounded-lg py-2 pl-9 pr-3 bg-white text-gray-900 placeholder:text-gray-500 text-sm"
           />
         </div>
       </div>
@@ -145,7 +145,7 @@ export default function AdminExpensesPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead>
-              <tr className="text-gray-700 border-b bg-gray-50">
+              <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
                 <th className="p-3 sm:p-4 whitespace-nowrap">Date</th>
                 <th className="p-3 sm:p-4 whitespace-nowrap">Staff</th>
                 <th className="p-3 sm:p-4 whitespace-nowrap">Category</th>
@@ -157,7 +157,7 @@ export default function AdminExpensesPage() {
             <tbody className={tableLoading ? "opacity-50" : undefined}>
               {paginatedItems.length > 0 ? (
                 paginatedItems.map((e) => (
-                  <tr key={e.id} className="border-b last:border-0">
+                  <tr key={e.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/70 transition-colors">
                     <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">
                       {new Date(e.timestamp).toLocaleDateString()}{" "}
                       {new Date(e.timestamp).toLocaleTimeString([], {

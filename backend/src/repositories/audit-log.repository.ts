@@ -3,6 +3,14 @@ import { Prisma, AuditAction } from "../../generated/prisma/client.js";
 
 type PrismaClientOrTx = typeof prisma | Prisma.TransactionClient;
 
+function listWhere(params: { action?: AuditAction; module?: string; descriptionPrefix?: string }) {
+  return {
+    ...(params.action ? { action: params.action } : {}),
+    ...(params.module ? { module: params.module } : {}),
+    ...(params.descriptionPrefix ? { description: { startsWith: params.descriptionPrefix } } : {}),
+  };
+}
+
 export class AuditLogRepository {
   // Only ever called through lib/audit-log.ts's writeAuditLog — services
   // never construct an AuditLog record directly.
@@ -45,13 +53,10 @@ export class AuditLogRepository {
 
   // Module 10's own browsable listing — paginated, filterable, newest first.
   async findAll(
-    params: { action?: AuditAction; module?: string; page: number; pageSize: number },
+    params: { action?: AuditAction; module?: string; descriptionPrefix?: string; page: number; pageSize: number },
     tx: PrismaClientOrTx = prisma
   ) {
-    const where = {
-      ...(params.action ? { action: params.action } : {}),
-      ...(params.module ? { module: params.module } : {}),
-    };
+    const where = listWhere(params);
     return tx.auditLog.findMany({
       where,
       include: { user: { select: { id: true, name: true } } },
@@ -61,11 +66,10 @@ export class AuditLogRepository {
     });
   }
 
-  async count(params: { action?: AuditAction; module?: string }, tx: PrismaClientOrTx = prisma) {
-    const where = {
-      ...(params.action ? { action: params.action } : {}),
-      ...(params.module ? { module: params.module } : {}),
-    };
-    return tx.auditLog.count({ where });
+  async count(
+    params: { action?: AuditAction; module?: string; descriptionPrefix?: string },
+    tx: PrismaClientOrTx = prisma
+  ) {
+    return tx.auditLog.count({ where: listWhere(params) });
   }
 }

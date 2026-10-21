@@ -46,9 +46,18 @@ export default function OrderSummary({
   // Empty amount = saved as Unpaid; a partial amount is rejected on submit.
   const isUnpaid = amountPaid <= 0;
   const isShort = !isUnpaid && change < 0;
-  // Every order is a laundry job (drop-off or self service): a package or
-  // supplies alone have nothing to wash. The server rejects it too.
-  const missingLaundryService = cartItems.length > 0 && !cartItems.some((item) => item.sourceType === "SERVICE");
+  // A laundry job (drop-off or self service), or a supply sale — supplies
+  // only, paid now, straight to Sales like self service. A package without a
+  // laundry service has nothing to wash; the server rejects it too.
+  const hasLaundryService = cartItems.some((item) => item.sourceType === "SERVICE");
+  const hasPackage = cartItems.some((item) => item.sourceType === "PACKAGE");
+  const missingLaundryService = cartItems.length > 0 && !hasLaundryService && hasPackage;
+  // Self Service lines carry no service type (Wash & Dry, Wash only…);
+  // drop-off lines always do. The two are separate orders — the server
+  // rejects a mix too.
+  const mixesSelfAndDropOff =
+    cartItems.some((item) => item.sourceType === "SERVICE" && !item.serviceType) &&
+    cartItems.some((item) => item.sourceType === "SERVICE" && !!item.serviceType);
 
   return (
     // Desktop: stretched to the full height of the left column (see the
@@ -168,15 +177,20 @@ export default function OrderSummary({
 
         {missingLaundryService && (
           <p className="text-amber-800 text-sm mb-3 bg-amber-50 border border-amber-200 rounded-lg py-2 px-3" role="alert">
-            Add at least one laundry service (e.g. Clothes or Self Service). A package or supplies alone has nothing to
-            wash.
+            Add at least one laundry service (e.g. Full Service or Self Service). A package has nothing to wash without one.
+          </p>
+        )}
+
+        {mixesSelfAndDropOff && (
+          <p className="text-amber-800 text-sm mb-3 bg-amber-50 border border-amber-200 rounded-lg py-2 px-3" role="alert">
+            Self Service and drop-off laundry can&apos;t be in the same order. Create them as separate orders.
           </p>
         )}
 
         <button
           type="button"
           onClick={onFinishTransaction}
-          disabled={cartItems.length === 0 || missingLaundryService || isSubmitting}
+          disabled={cartItems.length === 0 || missingLaundryService || mixesSelfAndDropOff || isSubmitting}
           className="w-full bg-blue-600 text-white rounded-lg py-3 font-semibold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
         >
           {isSubmitting ? "Processing..." : "Finish Transaction"}

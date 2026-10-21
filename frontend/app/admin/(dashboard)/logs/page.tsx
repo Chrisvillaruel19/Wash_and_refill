@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 import {
   getRestockLogs,
   getEditedLogs,
@@ -21,6 +21,17 @@ import { useServerPage } from "../../../lib/useServerPage";
 const PAGE_SIZE = 8;
 
 type LogTab = "all" | "restock" | "expense" | "edited" | "withdrawal" | "password" | "refund";
+
+// What the search box looks through on each tab (its placeholder).
+const SEARCH_HINT: Record<LogTab, string> = {
+  all: "all logs",
+  restock: "restocks",
+  expense: "expenses",
+  edited: "edits",
+  withdrawal: "withdrawals",
+  password: "password resets",
+  refund: "cancellations & refunds",
+};
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString();
@@ -256,7 +267,7 @@ export default function AdminLogsPage() {
           : activeTab === "password"
           ? "Password Reset Logs"
           : activeTab === "refund"
-          ? "Refund Logs"
+          ? "Cancellations & Refunds"
           : "Edited Logs"}
       </h1>
       <p className="text-gray-500 mb-6">
@@ -265,7 +276,7 @@ export default function AdminLogsPage() {
           : "Activity log entries — shown as recorded, not reconstructed into extra columns."}
       </p>
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-5 gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-5 gap-3">
         <div className="flex gap-2 flex-wrap">
           <button
             onClick={() => setActiveTab("all")}
@@ -335,21 +346,32 @@ export default function AdminLogsPage() {
                 : "text-gray-600 border-gray-300 hover:bg-gray-50"
             }`}
           >
-            View Refund Logs
+            View Cancellations & Refunds
           </button>
         </div>
 
-        <div className="relative w-full sm:max-w-xs">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <div className="relative w-full sm:w-72 shrink-0">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
           <input
             type="text"
-            placeholder="Search"
+            placeholder={`Search ${SEARCH_HINT[activeTab]}…`}
+            aria-label={`Search ${SEARCH_HINT[activeTab]}`}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             name="logs-search"
             autoComplete="off"
-            className="w-full pl-9 pr-4 py-1.5 border border-gray-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+            className="w-full border border-gray-300 rounded-lg py-2 pl-9 pr-9 bg-white text-gray-900 placeholder:text-gray-500 text-sm"
           />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              aria-label="Clear search"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -359,7 +381,7 @@ export default function AdminLogsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
                 <thead>
-                  <tr className="text-gray-700 border-b bg-gray-50">
+                  <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
                     <th className="p-3 whitespace-nowrap">Date</th>
                     <th className="p-3 whitespace-nowrap">Time</th>
                     <th className="p-3 whitespace-nowrap">Type</th>
@@ -369,7 +391,7 @@ export default function AdminLogsPage() {
                 <tbody className={allTableLoading ? "opacity-50" : undefined}>
                   {allItems.length > 0 ? (
                     allItems.map((l) => (
-                      <tr key={l.id} className="border-b last:border-0">
+                      <tr key={l.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/70 transition-colors">
                         <td className="p-3 whitespace-nowrap text-gray-900">{formatDate(l.timestamp)}</td>
                         <td className="p-3 whitespace-nowrap text-gray-900">{formatTime(l.timestamp)}</td>
                         <td className="p-3 whitespace-nowrap text-gray-900">{l.type}</td>
@@ -399,7 +421,7 @@ export default function AdminLogsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
                 <thead>
-                  <tr className="text-gray-700 border-b bg-gray-50">
+                  <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
                     <th className="p-3 whitespace-nowrap">Date</th>
                     <th className="p-3 whitespace-nowrap">Time</th>
                     <th className="p-3 whitespace-nowrap">Staff</th>
@@ -411,7 +433,7 @@ export default function AdminLogsPage() {
                 <tbody className={expenseTableLoading ? "opacity-50" : undefined}>
                   {paginatedExpenses.length > 0 ? (
                     paginatedExpenses.map((e) => (
-                      <tr key={e.id} className="border-b last:border-0">
+                      <tr key={e.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/70 transition-colors">
                         <td className="p-3 whitespace-nowrap text-gray-900">{formatDate(e.timestamp)}</td>
                         <td className="p-3 whitespace-nowrap text-gray-900">{formatTime(e.timestamp)}</td>
                         <td className="p-3 whitespace-nowrap text-gray-900">{e.submittedBy}</td>
@@ -441,7 +463,7 @@ export default function AdminLogsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
                 <thead>
-                  <tr className="text-gray-700 border-b bg-gray-50">
+                  <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
                     <th className="p-3 whitespace-nowrap">Date</th>
                     <th className="p-3 whitespace-nowrap">Time</th>
                     <th className="p-3 whitespace-nowrap">Admin</th>
@@ -452,7 +474,7 @@ export default function AdminLogsPage() {
                 <tbody>
                   {paginatedWithdrawals.length > 0 ? (
                     paginatedWithdrawals.map((w) => (
-                      <tr key={w.id} className="border-b last:border-0">
+                      <tr key={w.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/70 transition-colors">
                         <td className="p-3 whitespace-nowrap text-gray-900">{formatDate(w.timestamp)}</td>
                         <td className="p-3 whitespace-nowrap text-gray-900">{formatTime(w.timestamp)}</td>
                         <td className="p-3 whitespace-nowrap text-gray-900">{w.adminName}</td>
@@ -483,7 +505,7 @@ export default function AdminLogsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
                 <thead>
-                  <tr className="text-gray-700 border-b bg-gray-50">
+                  <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
                     <th className="p-3 whitespace-nowrap">Date</th>
                     <th className="p-3 whitespace-nowrap">Time</th>
                     <th className="p-3">Details</th>
@@ -492,7 +514,7 @@ export default function AdminLogsPage() {
                 <tbody>
                   {paginatedActivity.length > 0 ? (
                     paginatedActivity.map((l) => (
-                      <tr key={l.id} className="border-b last:border-0">
+                      <tr key={l.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/70 transition-colors">
                         <td className="p-3 whitespace-nowrap text-gray-900">{formatDate(l.timestamp)}</td>
                         <td className="p-3 whitespace-nowrap text-gray-900">{formatTime(l.timestamp)}</td>
                         <td className="p-3 text-gray-900">{l.message}</td>

@@ -111,13 +111,15 @@ export async function createOrderService(input: {
       }[] = [];
       const consumptionDeltas = new Map<string, number>();
       // Self-service order = at least one Self Service line and no drop-off
-      // service lines (Clothes, Dry Clean…). Packages/supplies don't change
+      // service lines (Full Service, Dry Clean…). Packages/supplies don't change
       // it — they're the detergent etc. the customer uses at the machine.
       let selfServiceLines = 0;
       let dropOffServiceLines = 0;
+      let packageLines = 0;
 
       for (const item of input.items) {
         if (item.type === "PACKAGE") {
+          packageLines++;
           const pkg = await packageRepository.findById(item.packageId, tx);
           if (!pkg || !pkg.status) {
             throw new OrderValidationError(`Package not found or inactive: ${item.packageId}`);
@@ -189,12 +191,23 @@ export async function createOrderService(input: {
         }
       }
 
-      // Every order is a laundry job — drop-off or self service. A package
-      // (the wash's detergent etc.) or supplies alone have nothing to wash,
-      // and would sit in Service Management forever.
-      if (selfServiceLines + dropOffServiceLines === 0) {
+      // A laundry job (drop-off or self service), or a counter sale of
+      // supplies only (detergent, Downy… bought to take home). A package is
+      // the wash's own detergent, so without a laundry service it has
+      // nothing to wash and would sit in Service Management forever.
+      // Self service (the customer runs the machines, done now) and drop-off
+      // (staff wash it, released later) are separate transactions — one
+      // order can't be both.
+      if (selfServiceLines > 0 && dropOffServiceLines > 0) {
         throw new OrderValidationError(
-          "Add at least one laundry service (e.g. Clothes or Self Service). A package or supplies alone has nothing to wash."
+          "Self Service and drop-off laundry can't be in the same order. Create them as separate orders."
+        );
+      }
+      const hasLaundryService = selfServiceLines + dropOffServiceLines > 0;
+      const isSupplySale = !hasLaundryService && packageLines === 0;
+      if (!hasLaundryService && !isSupplySale) {
+        throw new OrderValidationError(
+          "Add at least one laundry service (e.g. Full Service or Self Service). A package has nothing to wash without one."
         );
       }
 
@@ -244,13 +257,15 @@ export async function createOrderService(input: {
       const paymentStatus = input.amountPaid >= totalAmount ? PaymentStatus.PAID : PaymentStatus.UNPAID;
       const paymentDate = paymentStatus === PaymentStatus.PAID ? new Date() : null;
 
-      // Self-service orders never enter the Service Management queue (the
-      // customer runs the machines themselves), so there is no later step
-      // where an unpaid one could be collected — they must be paid now.
-      const isSelfService = selfServiceLines > 0 && dropOffServiceLines === 0;
+      // Self-service orders and supply sales never enter the Service
+      // Management queue (the customer runs the machines themselves, or takes
+      // the supplies home now), so there is no later step where an unpaid one
+      // could be collected — they must be paid now. A supply sale is handled
+      // exactly like a self-service order: created CLAIMED, only in Sales.
+      const isSelfService = (selfServiceLines > 0 && dropOffServiceLines === 0) || isSupplySale;
       if (isSelfService && paymentStatus !== PaymentStatus.PAID) {
         throw new OrderValidationError(
-          `Self service orders must be paid in full now (₱${totalAmount.toFixed(2)}).`
+          `${isSupplySale ? "Supply sales" : "Self service orders"} must be paid in full now (₱${totalAmount.toFixed(2)}).`
         );
       }
 

@@ -414,7 +414,7 @@ export default function AdminCatalogPage() {
 
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-5 gap-3">
             <div className="relative w-full sm:max-w-xs">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
               <input
                 type="text"
                 placeholder="Search type or item name"
@@ -422,7 +422,7 @@ export default function AdminCatalogPage() {
                 onChange={(e) => setServiceSearch(e.target.value)}
                 name="service-search"
                 autoComplete="off"
-                className="w-full pl-9 pr-4 py-1.5 border border-gray-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                className="w-full border border-gray-300 rounded-lg py-2 pl-9 pr-3 bg-white text-gray-900 placeholder:text-gray-500 text-sm"
               />
             </div>
             <button
@@ -440,7 +440,7 @@ export default function AdminCatalogPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
                 <thead>
-                  <tr className="text-gray-700 border-b bg-gray-50">
+                  <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
                     <th className="p-3 sm:p-4 whitespace-nowrap">Type</th>
                     <th className="p-3 sm:p-4 whitespace-nowrap">Name</th>
                     <th className="p-3 sm:p-4 whitespace-nowrap">Price</th>
@@ -453,7 +453,7 @@ export default function AdminCatalogPage() {
                       const categoryName =
                         serviceCategories.find((c) => c.id === svc.categoryId)?.name ?? svc.categoryId;
                       return (
-                        <tr key={svc.id} className="border-b last:border-0">
+                        <tr key={svc.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/70 transition-colors">
                           <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">{categoryName}</td>
                           <td className="p-3 sm:p-4 font-medium whitespace-nowrap text-gray-900">
                             {svc.name}
@@ -508,15 +508,15 @@ export default function AdminCatalogPage() {
         <>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-5 gap-3">
             <div className="relative w-full sm:max-w-xs">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
               <input
                 type="text"
-                placeholder="Search Item"
+                placeholder="Search item"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 name="catalog-search"
                 autoComplete="off"
-                className="w-full pl-9 pr-4 py-1.5 border border-gray-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                className="w-full border border-gray-300 rounded-lg py-2 pl-9 pr-3 bg-white text-gray-900 placeholder:text-gray-500 text-sm"
               />
             </div>
             <button
@@ -542,7 +542,7 @@ export default function AdminCatalogPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
                 <thead>
-                  <tr className="text-gray-700 border-b bg-gray-50">
+                  <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
                     <th className="p-3 sm:p-4 whitespace-nowrap">Item Name</th>
                     <th className="p-3 sm:p-4 whitespace-nowrap">Current Stock</th>
                     <th className="p-3 sm:p-4 whitespace-nowrap">Low Stock Alert</th>
@@ -557,7 +557,7 @@ export default function AdminCatalogPage() {
                     paginatedItems.map((item) => {
                       const isLow = item.currentStock <= item.lowStockAlert;
                       return (
-                        <tr key={item.id} className="border-b last:border-0">
+                        <tr key={item.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/70 transition-colors">
                           <td className="p-3 sm:p-4 font-medium whitespace-nowrap text-gray-900">
                             {item.name}
                           </td>
@@ -636,7 +636,7 @@ export default function AdminCatalogPage() {
         <>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-5 gap-3">
             <div className="relative w-full sm:max-w-xs">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
               <input
                 type="text"
                 placeholder="Search item name"
@@ -644,7 +644,7 @@ export default function AdminCatalogPage() {
                 onChange={(e) => setPackageSearch(e.target.value)}
                 name="package-search"
                 autoComplete="off"
-                className="w-full pl-9 pr-4 py-1.5 border border-gray-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                className="w-full border border-gray-300 rounded-lg py-2 pl-9 pr-3 bg-white text-gray-900 placeholder:text-gray-500 text-sm"
               />
             </div>
             <button

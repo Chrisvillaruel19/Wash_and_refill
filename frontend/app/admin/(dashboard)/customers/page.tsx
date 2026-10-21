@@ -161,7 +161,7 @@ export default function CustomersPage() {
           </div>
           <div className="flex flex-col sm:flex-row gap-2 sm:ml-auto w-full sm:w-auto">
             <div className="relative w-full sm:w-72">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
               <input
                 type="text"
                 value={search}
@@ -169,7 +169,7 @@ export default function CustomersPage() {
                 placeholder="Search name or phone number"
                 aria-label="Search customers by name or phone number"
                 autoComplete="off"
-                className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-full text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-gray-300 rounded-lg py-2 pl-9 pr-3 bg-white text-gray-900 placeholder:text-gray-500 text-sm"
               />
             </div>
             <div className="relative">

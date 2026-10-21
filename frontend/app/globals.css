@@ -74,3 +74,23 @@ input[type="number"]::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
+
+/* Short scrolling lists (e.g. the service search on New Order): a thin,
+   see-through scrollbar with no arrow buttons. */
+.list-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.18) transparent;
+}
+.list-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+.list-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.list-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 9999px;
+}
+.list-scroll::-webkit-scrollbar-button {
+  display: none;
+}

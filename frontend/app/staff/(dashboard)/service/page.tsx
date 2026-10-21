@@ -10,7 +10,6 @@ import ConfirmMarkPaidModal from "../../../components/staffcom/service/ConfirmMa
 import Pagination from "../../../components/staffcom/Pagination";
 import { useActiveShift } from "../../../lib/useActiveShift";
 import ShiftRequiredNotice from "../../../components/staffcom/ShiftRequiredNotice";
-import RefundPayoutsCard from "../../../components/staffcom/RefundPayoutsCard";
 import { usePagination } from "../../../lib/usePagination";
 import { ApiError } from "../../../lib/apiClient";
 import { getCurrentUser, StaffUser } from "../../../lib/auth";
@@ -241,7 +240,6 @@ export default function ServicePage() {
     <div className="p-4 sm:p-6">
       <h1 className="text-2xl font-bold text-gray-800 mb-6">Service Management</h1>
       <ShiftRequiredNotice />
-      <RefundPayoutsCard onPaid={() => void loadOrders()} />
 
       {actionError && !pendingClaimId && !pendingCancelId && !pendingMarkPaidId && (
         <p className="text-red-600 text-sm mb-4 bg-red-50 border border-red-200 rounded-lg py-2 px-3">
@@ -298,7 +296,7 @@ export default function ServicePage() {
         </div>
 
         <div className="relative w-full sm:w-auto">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
           <input
             type="text"
             placeholder="Search name or contact"
@@ -306,7 +304,7 @@ export default function ServicePage() {
             onChange={(e) => setSearch(e.target.value)}
             name="service-order-search"
             autoComplete="off"
-            className="w-full sm:w-auto pl-9 pr-4 py-1.5 border border-gray-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+            className="w-full sm:w-auto border border-gray-300 rounded-lg py-2 pl-9 pr-3 bg-white text-gray-900 placeholder:text-gray-500 text-sm"
           />
         </div>
       </div>

@@ -89,7 +89,9 @@ export async function getCustomerProfileService(id: string) {
       data: {
         customer: {
           id: customer.id,
-          name: orders[0]?.customerName ?? customer.customerName,
+          // The name saved on their first order — later orders keep their
+          // own names in the order history.
+          name: customer.customerName,
           phoneNumber: customer.phoneNumber,
           createdAt: customer.createdAt,
         },

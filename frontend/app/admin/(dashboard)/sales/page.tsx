@@ -69,7 +69,7 @@ function MoneySummaryCard({ summary }: { summary: MoneySummary }) {
       <div className="overflow-x-auto">
         <table className="w-full text-sm tabular-nums">
           <thead>
-            <tr className="text-gray-700 border-b bg-gray-50">
+            <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
               <th className="p-2 text-left font-semibold">Today</th>
               <th className="p-2 text-right font-semibold">Cash</th>
               <th className="p-2 text-right font-semibold">GCash</th>
@@ -81,7 +81,7 @@ function MoneySummaryCard({ summary }: { summary: MoneySummary }) {
               const v = summary[r.key];
               const fmt = (n: number) => (r.sign && n > 0 ? `${r.sign} ${peso(n)}` : peso(n));
               return (
-                <tr key={r.key} className={`border-b last:border-0 ${r.strong ? "bg-gray-50/60" : ""}`}>
+                <tr key={r.key} className={`border-b border-gray-100 last:border-0 ${r.strong ? "bg-gray-50/60" : ""}`}>
                   <td className="p-2">
                     <span className={`block text-gray-900 ${r.strong ? "font-semibold" : ""}`}>{r.label}</span>
                     <span className="block text-xs text-gray-500">{r.hint}</span>
@@ -375,7 +375,7 @@ export default function AdminSalesPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead>
-              <tr className="text-gray-700 border-b bg-gray-50">
+              <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
                 <th className="p-2 whitespace-nowrap">Pack Name</th>
                 <th className="p-2 whitespace-nowrap">Qty Sold</th>
                 <th className="p-2 whitespace-nowrap">Total</th>
@@ -384,7 +384,7 @@ export default function AdminSalesPage() {
             <tbody>
               {dropOffSummary.length > 0 ? (
                 dropOffSummary.map((p) => (
-                  <tr key={p.id} className="border-b last:border-0">
+                  <tr key={p.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/70 transition-colors">
                     <td className="p-2 whitespace-nowrap text-gray-900">{p.name}</td>
                     <td className="p-2 whitespace-nowrap text-gray-900">{p.totalQuantity}</td>
                     <td className="p-2 whitespace-nowrap text-gray-900">₱{p.totalAmount.toFixed(2)}</td>
@@ -407,7 +407,7 @@ export default function AdminSalesPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead>
-              <tr className="text-gray-700 border-b bg-gray-50">
+              <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
                 <th className="p-2 whitespace-nowrap">Item Name</th>
                 <th className="p-2 whitespace-nowrap">Qty Sold</th>
                 <th className="p-2 whitespace-nowrap">Total</th>
@@ -416,7 +416,7 @@ export default function AdminSalesPage() {
             <tbody>
               {supplySummary.length > 0 ? (
                 supplySummary.map((s) => (
-                  <tr key={s.id} className="border-b last:border-0">
+                  <tr key={s.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/70 transition-colors">
                     <td className="p-2 whitespace-nowrap text-gray-900">{s.name}</td>
                     <td className="p-2 whitespace-nowrap text-gray-900">{s.totalQuantity}</td>
                     <td className="p-2 whitespace-nowrap text-gray-900">₱{s.totalAmount.toFixed(2)}</td>
@@ -447,7 +447,7 @@ export default function AdminSalesPage() {
           <div className="overflow-x-auto border border-gray-200 rounded-lg">
             <table className="w-full text-sm whitespace-nowrap">
               <thead>
-                <tr className="bg-gray-50 border-b text-gray-600 text-xs uppercase tracking-wide">
+                <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
                   <th className="p-3 text-left font-semibold">Date</th>
                   <th className="p-3 text-left font-semibold">Staff</th>
                   <th className="p-3 text-right font-semibold">Laundry</th>
@@ -458,7 +458,8 @@ export default function AdminSalesPage() {
                   <th className="p-3 text-right font-semibold">Expense</th>
                   <th className="p-3 text-right font-semibold">Starting Cash</th>
                   <th className="p-3 text-right font-semibold">Withdrawal</th>
-                  <th className="p-3 text-right font-semibold">Refunds Paid</th>
+                  <th className="p-3 text-right font-semibold">Cash Refunds</th>
+                  <th className="p-3 text-right font-semibold">GCash Refunds</th>
                   <th className="p-3 text-right font-semibold">Expected Cash</th>
                   <th className="p-3 text-right font-semibold">Cash Counted</th>
                   <th className="p-3 text-right font-semibold">Over / Short</th>
@@ -483,7 +484,7 @@ export default function AdminSalesPage() {
                           toggle();
                         }
                       }}
-                      className={`border-b last:border-0 cursor-pointer transition-colors ${
+                      className={`border-b border-gray-100 last:border-0 cursor-pointer transition-colors ${
                         selected ? "bg-blue-50 outline outline-2 -outline-offset-2 outline-blue-500" : "hover:bg-gray-50"
                       }`}
                     >
@@ -495,19 +496,19 @@ export default function AdminSalesPage() {
                       <td className="p-3 text-right text-gray-900 font-medium">
                         {peso(h.laundrySales + h.supplySales + (h.customServiceSales ?? 0))}
                       </td>
-                      {/* GCash after the refunds sent during that shift. */}
-                      <td className="p-3 text-right text-gray-900">
-                        {peso((h.digitalSales ?? 0) - (h.gcashRefunds ?? 0))}
-                        {(h.gcashRefunds ?? 0) > 0 && (
-                          <span className="block text-xs text-red-600 whitespace-nowrap">
-                            −{peso(h.gcashRefunds ?? 0)} refunded
-                          </span>
-                        )}
-                      </td>
+                      {/* GCash sales; the GCash sent back is its own column. */}
+                      <td className="p-3 text-right text-gray-900">{peso(h.digitalSales ?? 0)}</td>
                       <td className="p-3 text-right text-gray-900">{peso(h.expense)}</td>
                       <td className="p-3 text-right text-gray-900">{peso(h.cashDrawer)}</td>
                       <td className="p-3 text-right text-gray-900">{peso(h.withdrawals)}</td>
                       <td className="p-3 text-right text-gray-900">{peso(h.refundsPaid ?? 0)}</td>
+                      <td
+                        className={`p-3 text-right whitespace-nowrap ${
+                          (h.gcashRefunds ?? 0) > 0 ? "text-red-600" : "text-gray-900"
+                        }`}
+                      >
+                        {(h.gcashRefunds ?? 0) > 0 ? `−${peso(h.gcashRefunds ?? 0)}` : peso(0)}
+                      </td>
                       <td className="p-3 text-right text-gray-900 font-medium">{peso(h.expectedCash)}</td>
                       <td className="p-3 text-right text-gray-900 font-medium">{peso(h.actualCashCounted)}</td>
                       <td
@@ -555,7 +556,7 @@ export default function AdminSalesPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead>
-              <tr className="text-gray-700 border-b bg-gray-50">
+              <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
                 <th className="p-2 whitespace-nowrap">Date</th>
                 <th className="p-2 whitespace-nowrap">Time</th>
                 <th className="p-2 whitespace-nowrap">Admin</th>
@@ -567,7 +568,7 @@ export default function AdminSalesPage() {
             <tbody>
               {withdrawals.length > 0 ? (
                 pagedWithdrawals.map((w) => (
-                  <tr key={w.id} className="border-b last:border-0">
+                  <tr key={w.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/70 transition-colors">
                     <td className="p-2 whitespace-nowrap text-gray-900">
                       {new Date(w.timestamp).toLocaleDateString()}
                     </td>
@@ -587,8 +588,15 @@ export default function AdminSalesPage() {
                       >
                         {w.source}
                       </span>
+                      {/* The shift's date only when it isn't the withdrawal's own
+                          date (already in the Date column), e.g. yesterday's shift. */}
                       {w.fromShift
-                        ? `${w.fromShift.staffName}'s shift, ${new Date(w.fromShift.endTime).toLocaleDateString()}`
+                        ? new Date(w.fromShift.endTime).toDateString() === new Date(w.timestamp).toDateString()
+                          ? `${w.fromShift.staffName}'s shift`
+                          : `${w.fromShift.staffName}'s shift (${new Date(w.fromShift.endTime).toLocaleDateString([], {
+                              month: "short",
+                              day: "numeric",
+                            })})`
                         : w.source === "GCash"
                           ? "GCash balance"
                           : "Open shift drawer"}

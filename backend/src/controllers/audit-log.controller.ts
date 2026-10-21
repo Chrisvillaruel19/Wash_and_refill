@@ -9,8 +9,9 @@ export class AuditLogController {
       const pageSize = Math.min(Number(req.query.pageSize) || 20, 100);
       const action = req.query.action as AuditAction | undefined;
       const module = req.query.module as string | undefined;
+      const descriptionPrefix = req.query.descriptionPrefix as string | undefined;
 
-      const result = await listAuditLogsService({ page, pageSize, action, module });
+      const result = await listAuditLogsService({ page, pageSize, action, module, descriptionPrefix });
       return res.status(result.code).json(result);
     } catch (error) {
       console.error("AuditLogController.list error", error);

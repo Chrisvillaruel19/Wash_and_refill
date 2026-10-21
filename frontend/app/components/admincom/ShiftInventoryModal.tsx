@@ -31,7 +31,7 @@ export default function ShiftInventoryModal({ staffName, timestamp, rows, onClos
         <div className="overflow-y-auto flex-1 -mx-2 px-2">
           <table className="w-full text-sm text-left tabular-nums">
             <thead className="sticky top-0 bg-white">
-              <tr className="text-gray-700 border-b bg-gray-50">
+              <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
                 <th className="p-2 whitespace-nowrap">Item</th>
                 <th className="p-2 whitespace-nowrap text-right">Beginning</th>
                 <th className="p-2 whitespace-nowrap text-right">Ending</th>
@@ -45,7 +45,7 @@ export default function ShiftInventoryModal({ staffName, timestamp, rows, onClos
                   // shift, so "used" can't be read off the two counts.
                   const used = row.beginningQty - row.endingQty;
                   return (
-                    <tr key={row.itemName} className="border-b last:border-0">
+                    <tr key={row.itemName} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/70 transition-colors">
                       <td className="p-2 whitespace-nowrap text-gray-900">
                         {row.itemName}
                         <span className="text-gray-400"> ({row.unit})</span>

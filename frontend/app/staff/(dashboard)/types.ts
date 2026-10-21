@@ -3,6 +3,8 @@ export interface LowStockItem {
   name: string;
   quantityRemaining: number;
   unit: string;
+  // The stock level that triggers the low-stock alert (set in Supplies).
+  lowStockAlert?: number;
 }
 
 export interface ActivityLog {
@@ -151,6 +153,9 @@ export interface ShiftHandoverRecord {
   // only, already excluded from expectedCash below (digital payments never
   // touch the physical drawer). Optional for the same legacy-record reason.
   digitalSales?: number;
+  // GCash refunds this handover reconciled — its GCash after refunds is
+  // digitalSales − gcashRefunds. Never part of the drawer math.
+  gcashRefunds?: number;
   withdrawals: number;
   // Cash refunds staff handed to customers from the drawer this shift
   // (approved by the Admin) — part of expectedCash, never of sales.

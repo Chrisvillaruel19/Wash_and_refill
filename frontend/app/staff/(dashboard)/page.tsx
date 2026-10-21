@@ -99,9 +99,8 @@ export default function StaffDashboardPage() {
             !data.onShift ? (
               <span className="block">Not clocked in</span>
             ) : data.myShiftRefundsPaid > 0 ? (
-              <span className="block">
-                Sales {peso(data.myShiftSales)} · <span className="text-red-600">Refunds −{peso(data.myShiftRefundsPaid)}</span>
-              </span>
+              // The amounts are on the Shift Handover (Refunds (Cash) / (GCash)).
+              <span className="block">After refunds</span>
             ) : (
               <span className="block">Your paid orders since clock-in</span>
             )

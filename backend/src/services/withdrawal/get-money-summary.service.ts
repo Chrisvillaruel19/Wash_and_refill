@@ -1,12 +1,14 @@
 import { OrderRepository } from "../../repositories/order.repository.js";
 import { RefundRepository } from "../../repositories/refund.repository.js";
 import { WithdrawalRepository } from "../../repositories/withdrawal.repository.js";
+import { ExpenseRepository } from "../../repositories/expense.repository.js";
 import { getBusinessDayRange } from "../../lib/business-timezone.js";
 import { getAvailableToWithdraw } from "./earnings.util.js";
 
 const orderRepository = new OrderRepository();
 const refundRepository = new RefundRepository();
 const withdrawalRepository = new WithdrawalRepository();
+const expenseRepository = new ExpenseRepository();
 
 const toCents = (n: number) => Math.round(n * 100);
 
@@ -17,14 +19,16 @@ const toCents = (n: number) => Math.round(n * 100);
 //   refunds   — claimed-order refunds given today (cancelled orders were
 //               never sales, so their refunds aren't here)
 //   net       — sales − refunds = Today's Sales
+//   expenses  — paid from the drawer today (always cash)
 //   withdrawn — earnings the Admin took today (refund payouts excluded)
 //   available — what can be withdrawn right now (all days, not just today)
 export async function getMoneySummaryService() {
   try {
     const today = getBusinessDayRange(new Date());
-    const [sales, refunds, withdrawn, available] = await Promise.all([
+    const [sales, refunds, expenses, withdrawn, available] = await Promise.all([
       orderRepository.sumPaidByMethodInRange(today),
       refundRepository.sumSalesRefundsByMethodInRange(today),
+      expenseRepository.sumInRange(today),
       withdrawalRepository.sumEarningsInRange(today),
       getAvailableToWithdraw(),
     ]);
@@ -41,6 +45,7 @@ export async function getMoneySummaryService() {
         sales: row(sales.cash, sales.gcash),
         refunds: row(refunds.cash, refunds.gcash),
         net: row((toCents(sales.cash) - toCents(refunds.cash)) / 100, (toCents(sales.gcash) - toCents(refunds.gcash)) / 100),
+        expenses: row(expenses, 0),
         withdrawn: row(withdrawn.cash, withdrawn.gcash),
         available: row(available.cash.total, available.gcash.total),
       },

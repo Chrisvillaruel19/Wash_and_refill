@@ -111,6 +111,8 @@ export interface MoneySummary {
   sales: MoneyRow;
   refunds: MoneyRow;
   net: MoneyRow;
+  // Paid from the drawer today (always cash).
+  expenses: MoneyRow;
   withdrawn: MoneyRow;
   available: MoneyRow;
 }
@@ -122,6 +124,8 @@ export async function getMoneySummary(): Promise<MoneySummary> {
     sales: row(r.sales),
     refunds: row(r.refunds),
     net: row(r.net),
+    // An older backend doesn't send it yet — shown as ₱0.00.
+    expenses: row(r.expenses ?? { cash: 0, gcash: 0, total: 0 }),
     withdrawn: row(r.withdrawn),
     available: row(r.available),
   };

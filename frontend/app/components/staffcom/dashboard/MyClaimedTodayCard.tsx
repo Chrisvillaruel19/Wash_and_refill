@@ -32,20 +32,36 @@ function initials(name: string) {
   return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
 }
 
-function SummaryTile({ label, value, tone }: { label: string; value: string; tone: string }) {
+function SummaryTile({ label, value, tone, note }: { label: string; value: string; tone: string; note?: string }) {
   return (
     <div className={`rounded-lg px-3 py-2 ${tone}`}>
       <p className="text-xs font-medium opacity-80">{label}</p>
       <p className="text-base font-bold tabular-nums">{value}</p>
+      {note && <p className="text-[11px] opacity-75 tabular-nums">{note}</p>}
     </div>
   );
 }
 
+// What the shop kept from an order: its amount minus the refunds already
+// given back (a cash refund still waiting to be handed over is still in the
+// drawer, so it isn't taken off yet — same as "My shift sales").
+function keptAmount(order: Order) {
+  const given = Math.max(0, (order.refundedAmount ?? 0) - (order.refundToGive ?? 0));
+  return order.amount - given;
+}
+
 export default function MyClaimedTodayCard({ orders }: MyClaimedTodayCardProps) {
-  const total = orders.reduce((sum, order) => sum + order.amount, 0);
-  // No recorded method = Cash, same as everywhere else.
-  const gcash = orders.filter((o) => o.paymentMethod === "GCash").reduce((sum, o) => sum + o.amount, 0);
-  const cash = total - gcash;
+  // No recorded method = Cash, same as everywhere else. Refunds go back by
+  // the same method, so each total is shown after its own refunds.
+  const isGcash = (o: Order) => o.paymentMethod === "GCash";
+  const sumOf = (list: Order[], amountOf: (o: Order) => number) => list.reduce((sum, o) => sum + amountOf(o), 0);
+  const gcash = sumOf(orders.filter(isGcash), keptAmount);
+  const cash = sumOf(orders, keptAmount) - gcash;
+  const grossTotal = sumOf(orders, (o) => o.amount);
+  const grossGcash = sumOf(orders.filter(isGcash), (o) => o.amount);
+  const grossCash = grossTotal - grossGcash;
+  // "of ₱600.00" under a tile only when refunds changed it.
+  const before = (gross: number, net: number) => (gross !== net ? `of ${peso(gross)}` : undefined);
   const { page, setPage, totalPages, paginatedItems } = usePagination(orders, PAGE_SIZE);
 
   return (
@@ -54,9 +70,11 @@ export default function MyClaimedTodayCard({ orders }: MyClaimedTodayCardProps) 
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
         <SummaryTile label="Released" value={String(orders.length)} tone="bg-sky-50 text-sky-800" />
-        <SummaryTile label="Total" value={peso(total)} tone="bg-green-50 text-green-800" />
-        <SummaryTile label="Cash" value={peso(cash)} tone="bg-gray-50 text-gray-800" />
-        <SummaryTile label="GCash" value={peso(gcash)} tone="bg-blue-50 text-blue-800" />
+        {/* What was released, in full — Cash and GCash next to it show
+            what's left after refunds. */}
+        <SummaryTile label="Total" value={peso(grossTotal)} tone="bg-green-50 text-green-800" />
+        <SummaryTile label="Cash" value={peso(cash)} note={before(grossCash, cash)} tone="bg-slate-100 text-slate-800" />
+        <SummaryTile label="GCash" value={peso(gcash)} note={before(grossGcash, gcash)} tone="bg-blue-50 text-blue-800" />
       </div>
 
       {orders.length > 0 ? (

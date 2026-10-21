@@ -1,10 +1,11 @@
 import { prisma } from "../../lib/prisma.js";
-import { Prisma, PaymentMethod, OrderStatus } from "../../../generated/prisma/client.js";
+import { Prisma, PaymentMethod, OrderStatus, WithdrawalSource } from "../../../generated/prisma/client.js";
 import { OrderRepository } from "../../repositories/order.repository.js";
 import { ExpenseRepository } from "../../repositories/expense.repository.js";
 import { WithdrawalRepository } from "../../repositories/withdrawal.repository.js";
 import { DrawerStateRepository } from "../../repositories/drawer-state.repository.js";
 import { RefundRepository } from "../../repositories/refund.repository.js";
+import { ShiftHandoverRepository } from "../../repositories/shift-handover.repository.js";
 
 type PrismaClientOrTx = typeof prisma | Prisma.TransactionClient;
 
@@ -13,6 +14,7 @@ const expenseRepository = new ExpenseRepository();
 const withdrawalRepository = new WithdrawalRepository();
 const drawerStateRepository = new DrawerStateRepository();
 const refundRepository = new RefundRepository();
+const shiftHandoverRepository = new ShiftHandoverRepository();
 
 // The drawer's starting balance for a new reconciliation: always the
 // Admin-configured fixed cash float (DrawerState.defaultStartingCash),
@@ -29,6 +31,34 @@ const refundRepository = new RefundRepository();
 export async function getDrawerStart(tx: PrismaClientOrTx = prisma): Promise<number> {
   const drawerState = await drawerStateRepository.get(tx);
   return Number(drawerState.defaultStartingCash);
+}
+
+// What the drawer really holds when a new shift starts — the starting point
+// of that shift's expected cash: the last handover's count minus the sales
+// the Admin has withdrawn from it since. Equals the starting cash when the
+// Admin took out every peso of sales; more when some weren't withdrawn yet;
+// less when a refund or expense used part of the starting cash (new cash
+// sales fill that back first — see getAvailableToWithdraw). The first
+// handover ever starts from the starting cash. Only the handover uses this:
+// the starting cash itself (getDrawerStart) stays the fixed amount that is
+// never withdrawable.
+export async function getShiftStartingCash(
+  tx: PrismaClientOrTx = prisma
+): Promise<{ startingCash: number; float: number; carriedOver: number }> {
+  const [float, latest] = await Promise.all([getDrawerStart(tx), shiftHandoverRepository.findLatestForEarnings(tx)]);
+  if (!latest) return { startingCash: float, float, carriedOver: 0 };
+
+  const withdrawn = await withdrawalRepository.sumEarningsWithdrawn([latest.id], tx);
+  const takenCents = Math.round(
+    Number(withdrawn.find((w) => w.source === WithdrawalSource.CASH)?._sum.amount ?? 0) * 100
+  );
+  const counted = latest.actualCashCount !== null ? Number(latest.actualCashCount) : Number(latest.expectedBalance);
+  const startingCents = Math.round(counted * 100) - takenCents;
+  return {
+    startingCash: startingCents / 100,
+    float,
+    carriedOver: (startingCents - Math.round(float * 100)) / 100,
+  };
 }
 
 type UnclaimedOrder = Awaited<ReturnType<OrderRepository["findUnclaimedPaid"]>>[number];

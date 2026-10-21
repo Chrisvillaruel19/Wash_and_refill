@@ -108,6 +108,27 @@ export class RefundRepository {
     return Number(result._sum.amount ?? 0);
   }
 
+  // GCash refunds given in the range on orders this staff member took the
+  // payment for — they come off the shop's GCash, never a drawer, so no one
+  // "pays them out", but they still reduce that staff member's shift sales.
+  async sumGcashRefundsOnUserOrders(
+    userId: string,
+    params: { gte?: Date; lt?: Date },
+    tx: PrismaClientOrTx = prisma
+  ): Promise<number> {
+    const result = await tx.refund.aggregate({
+      where: {
+        method: "GCASH",
+        ...(params.gte || params.lt
+          ? { createdAt: { ...(params.gte ? { gte: params.gte } : {}), ...(params.lt ? { lt: params.lt } : {}) } }
+          : {}),
+        order: { paidById: userId, status: { not: "CANCELLED" } },
+      },
+      _sum: { amount: true },
+    });
+    return Number(result._sum.amount ?? 0);
+  }
+
   async findUnclaimedPayoutsForUser(userId: string, tx: PrismaClientOrTx = prisma) {
     return tx.refund.findMany({ where: { ...unclaimedPayout, paidOutById: userId }, select: { id: true } });
   }
@@ -120,6 +141,50 @@ export class RefundRepository {
       FOR UPDATE
     `;
     return rows.map((r) => r.id);
+  }
+
+  // GCash refunds not yet reconciled by a Shift Handover, on orders that
+  // counted as sales. They never touch the drawer (the Admin sends them from
+  // the shop's GCash) — the handover only shows its GCash after refunds.
+  // `since` = the previous handover's end: refunds from before it belong to
+  // shifts already closed, so they're never swept into this one.
+  async findUnclaimedGcashRefunds(since: Date | null, tx: PrismaClientOrTx = prisma) {
+    return tx.refund.findMany({
+      where: {
+        method: PaymentMethod.GCASH,
+        paidOutById: null,
+        shiftHandoverId: null,
+        ...notCancelledOrder,
+        ...(since ? { createdAt: { gt: since } } : {}),
+      },
+      select: { id: true, amount: true, reason: true, createdAt: true, order: { select: { customerName: true } } },
+      orderBy: { createdAt: "asc" },
+    });
+  }
+
+  // Same rows as findUnclaimedGcashRefunds with `since` = the latest
+  // handover's end (read in SQL, before the new handover exists), locked for
+  // the handover's claim.
+  async lockUnclaimedGcashRefundIds(tx: Prisma.TransactionClient): Promise<string[]> {
+    const rows = await tx.$queryRaw<{ id: string }[]>`
+      SELECT r.id FROM "Refund" r JOIN "Order" o ON o.id = r."orderId"
+      WHERE r.method = 'GCASH' AND r."paidOutById" IS NULL AND r."shiftHandoverId" IS NULL
+        AND o.status <> 'CANCELLED'
+        AND r."createdAt" > COALESCE((SELECT max("endTime") FROM "ShiftHandover"), '-infinity'::timestamp)
+      FOR UPDATE OF r
+    `;
+    return rows.map((r) => r.id);
+  }
+
+  // GCash refunds each handover reconciled (handover id → total).
+  async sumGcashByHandover(handoverIds: string[], tx: PrismaClientOrTx = prisma): Promise<Map<string, number>> {
+    if (handoverIds.length === 0) return new Map();
+    const rows = await tx.refund.groupBy({
+      by: ["shiftHandoverId"],
+      where: { method: PaymentMethod.GCASH, paidOutById: null, shiftHandoverId: { in: handoverIds } },
+      _sum: { amount: true },
+    });
+    return new Map(rows.map((r) => [r.shiftHandoverId as string, Number(r._sum.amount ?? 0)]));
   }
 
   async findByIds(ids: string[], tx: PrismaClientOrTx = prisma) {

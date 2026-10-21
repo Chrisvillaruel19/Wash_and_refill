@@ -56,6 +56,7 @@ function MoneySummaryCard({ summary }: { summary: MoneySummary }) {
     { label: "Sales", hint: "Payments received today", key: "sales" },
     { label: "Refunds", hint: "Claimed orders refunded today", key: "refunds", sign: "−" },
     { label: "Net sales", hint: "= Today's Sales", key: "net", strong: true },
+    { label: "Expenses", hint: "Paid from the drawer today", key: "expenses", sign: "−" },
     { label: "Withdrawn", hint: "Earnings taken out today (refunds not included)", key: "withdrawn" },
     { label: "Available to withdraw", hint: "Right now, from all days · starting cash excluded", key: "available", strong: true },
   ];
@@ -494,7 +495,15 @@ export default function AdminSalesPage() {
                       <td className="p-3 text-right text-gray-900 font-medium">
                         {peso(h.laundrySales + h.supplySales + (h.customServiceSales ?? 0))}
                       </td>
-                      <td className="p-3 text-right text-gray-900">{peso(h.digitalSales ?? 0)}</td>
+                      {/* GCash after the refunds sent during that shift. */}
+                      <td className="p-3 text-right text-gray-900">
+                        {peso((h.digitalSales ?? 0) - (h.gcashRefunds ?? 0))}
+                        {(h.gcashRefunds ?? 0) > 0 && (
+                          <span className="block text-xs text-red-600 whitespace-nowrap">
+                            −{peso(h.gcashRefunds ?? 0)} refunded
+                          </span>
+                        )}
+                      </td>
                       <td className="p-3 text-right text-gray-900">{peso(h.expense)}</td>
                       <td className="p-3 text-right text-gray-900">{peso(h.cashDrawer)}</td>
                       <td className="p-3 text-right text-gray-900">{peso(h.withdrawals)}</td>

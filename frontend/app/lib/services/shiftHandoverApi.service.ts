@@ -15,6 +15,8 @@ type BackendShiftHandover = {
   withdrawal: string;
   // Cash refunds staff handed to customers from the drawer this shift.
   cashRefunds?: string;
+  // GCash refunds this handover reconciled (never part of the drawer).
+  gcashRefunds?: number | string;
   // Stored on newer handovers; null on older ones.
   drawerStart?: string | null;
   expectedBalance: string;
@@ -60,6 +62,7 @@ function mapShiftHandover(h: BackendShiftHandover): ShiftHandoverRecord {
     supplySales,
     customServiceSales,
     digitalSales: Number(h.digitalSales),
+    gcashRefunds: Number(h.gcashRefunds ?? 0),
     withdrawals,
     refundsPaid,
     expense,
@@ -151,6 +154,15 @@ export interface PendingWithdrawals {
   refundsToGiveTotal: number;
   // Every expense paid from the drawer since the last handover (any staff).
   expensesTotal: number;
+  // What the drawer held when this shift started: the starting cash, plus
+  // sales not yet withdrawn (carriedOver > 0) or minus what a refund or
+  // expense used of it (carriedOver < 0). null until the backend has it.
+  startingCash: number | null;
+  startingCashFloat: number | null;
+  startingCashCarriedOver: number;
+  // GCash refunds since the last handover (this shift's GCash after them).
+  gcashRefundsTotal: number;
+  gcashRefunds: { id: string; amount: number; reason: string; customerName: string; createdAt: string }[];
 }
 
 // Everything besides expenses that took cash out of the open drawer since
@@ -164,6 +176,11 @@ export async function getPendingWithdrawals(): Promise<PendingWithdrawals> {
     refundsPaid: r.refundsPaid.map((p) => ({ ...p, amount: Number(p.amount) })),
     refundsToGiveTotal: Number(r.refundsToGiveTotal),
     expensesTotal: Number(r.expensesTotal ?? 0),
+    startingCash: r.startingCash != null ? Number(r.startingCash) : null,
+    startingCashFloat: r.startingCashFloat != null ? Number(r.startingCashFloat) : null,
+    startingCashCarriedOver: Number(r.startingCashCarriedOver ?? 0),
+    gcashRefundsTotal: Number(r.gcashRefundsTotal ?? 0),
+    gcashRefunds: (r.gcashRefunds ?? []).map((g) => ({ ...g, amount: Number(g.amount) })),
   };
 }
 

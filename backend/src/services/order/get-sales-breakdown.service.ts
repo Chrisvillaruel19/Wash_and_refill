@@ -35,13 +35,17 @@ export async function getSalesBreakdownService(params: {
       // Refunds in the same date range — the sales above are never reduced,
       // so the report shows Sales − Refunds = Net Sales instead:
       //  - a staff member's own report: the cash refunds they handed to
-      //    customers (same rule as "My shift sales" on their Dashboard);
+      //    customers plus GCash refunds on orders they took payment for
+      //    (same rule as "My shift sales" on their Dashboard);
       //  - a single shift's report: none (refunds aren't a shift's sales);
       //  - shop-wide: every claimed-order refund approved in the range.
       params.shiftHandoverId
         ? Promise.resolve(0)
         : params.userId
-          ? refundRepository.sumPaidOutByUserInRange(params.userId, { gte: rangeStart, lt: rangeEnd })
+          ? Promise.all([
+              refundRepository.sumPaidOutByUserInRange(params.userId, { gte: rangeStart, lt: rangeEnd }),
+              refundRepository.sumGcashRefundsOnUserOrders(params.userId, { gte: rangeStart, lt: rangeEnd }),
+            ]).then(([cash, gcash]) => (Math.round(cash * 100) + Math.round(gcash * 100)) / 100)
           : refundRepository.sumSalesRefunds({ createdGte: rangeStart, createdLt: rangeEnd }),
     ]);
 

@@ -1,8 +1,10 @@
 import { ShiftHandoverRepository } from "../../repositories/shift-handover.repository.js";
 import { DrawerStateRepository } from "../../repositories/drawer-state.repository.js";
+import { RefundRepository } from "../../repositories/refund.repository.js";
 
 const shiftHandoverRepository = new ShiftHandoverRepository();
 const drawerStateRepository = new DrawerStateRepository();
+const refundRepository = new RefundRepository();
 
 // Shared visibility (approved): every authenticated user sees every
 // handover — one physical drawer, not private per-user data.
@@ -14,9 +16,13 @@ export async function listShiftHandoversService(params: { page: number; pageSize
       drawerStateRepository.get(),
     ]);
 
+    // GCash refunds each handover reconciled — its GCash is shown after them.
+    const gcashRefunds = await refundRepository.sumGcashByHandover(records.map((r) => r.id));
+
     const shiftHandovers = records.map(({ user, inventorySnapshot, ...record }) => ({
       ...record,
       staffName: user.name,
+      gcashRefunds: gcashRefunds.get(record.id) ?? 0,
       inventorySnapshot: inventorySnapshot.map(({ inventoryId, itemName, unit, beginningQty, endingQty }) => ({
         inventoryId,
         itemName,

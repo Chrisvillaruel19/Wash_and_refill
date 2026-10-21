@@ -290,10 +290,25 @@ export default function ShiftHandover() {
   const expenseTotal =
     pendingWithdrawals?.expensesTotal ?? myUnclaimedExpenses.reduce((sum, e) => sum + e.amount, 0);
 
-  // Fixed cash float, always — the shop remits earnings/excess out via
-  // Withdrawal at handover, so every new shift begins with this same
-  // Admin-configured amount, never the previous shift's actualCashCounted.
-  const drawerStart = defaultStartingCash;
+  // What the drawer held when this shift started, from the server (the
+  // same figure it uses on submit): the last count minus the sales the
+  // Admin withdrew from it since. The starting cash when every sale was
+  // withdrawn; more when some weren't; less when a refund or expense used
+  // part of it. The fixed starting cash is only the fallback until it loads.
+  const drawerStart = pendingWithdrawals?.startingCash ?? defaultStartingCash;
+  const startingFloat = pendingWithdrawals?.startingCashFloat ?? defaultStartingCash;
+  const carriedOver = pendingWithdrawals?.startingCashCarriedOver ?? 0;
+  const startingCashNote =
+    carriedOver > 0
+      ? `${peso(startingFloat)} + ${peso(carriedOver)} sales not yet withdrawn`
+      : carriedOver < 0
+        ? `${peso(-carriedOver)} below the ${peso(startingFloat)} starting cash`
+        : "In the drawer at shift start";
+
+  // GCash never touches the drawer; shown after the refunds the Admin sent
+  // from the shop's GCash since the last handover.
+  const gcashRefundsTotal = pendingWithdrawals?.gcashRefundsTotal ?? 0;
+  const gcashAfterRefunds = digitalSalesTotal - gcashRefundsTotal;
 
   // This shift's beginning quantity per item, computed server-side by the
   // same rule the snapshot uses on submit (inventory-beginning.util.ts):
@@ -391,7 +406,7 @@ export default function ShiftHandover() {
           value={peso(drawerStart)}
           icon={Wallet}
           iconColor="text-sky-600 bg-sky-100"
-          sub="In the drawer at shift start"
+          sub={startingCashNote}
         />
         <AdminStatCard
           compact
@@ -528,11 +543,30 @@ export default function ShiftHandover() {
             server uses on submit. Lines that took cash out list their items
             in a collapsible row so the sum stays readable. */}
         <div className="border border-gray-200 rounded-lg mb-4 text-sm tabular-nums">
-          <CashLine label="Starting cash" value={drawerStart} />
+          {carriedOver !== 0 ? (
+            <CashLine label="Starting cash" value={drawerStart}>
+              <li className="flex justify-between gap-3">
+                <span>Starting cash</span>
+                <span>₱{startingFloat.toFixed(2)}</span>
+              </li>
+              <li className="flex justify-between gap-3">
+                <span>{carriedOver > 0 ? "Sales not yet withdrawn by Admin" : "Used by a refund or expense (new cash sales fill it back first)"}</span>
+                <span>
+                  {carriedOver > 0 ? "+" : "−"} ₱{Math.abs(carriedOver).toFixed(2)}
+                </span>
+              </li>
+            </CashLine>
+          ) : (
+            <CashLine label="Starting cash" value={drawerStart} />
+          )}
           <CashLine label="Cash sales" value={cashSalesTotal} sign="+" />
-          {expenseTotal > 0 && <CashLine label="Expenses" value={expenseTotal} sign="−" />}
+          <CashLine label="GCash sales" value={digitalSalesTotal} sign="+" />
+          <div className="flex justify-between px-3 py-2 border-b border-gray-100 font-semibold text-gray-900">
+            <span>Total</span>
+            <span>₱{(drawerStart + cashSalesTotal + digitalSalesTotal).toFixed(2)}</span>
+          </div>
           {refundsPaidTotal > 0 && (
-            <CashLine label="Refunds given to customers" value={refundsPaidTotal} sign="−">
+            <CashLine label="Refunds (Cash)" value={refundsPaidTotal} sign="−">
               {pendingWithdrawals?.refundsPaid.map((p) => (
                 <li key={p.id} className="flex justify-between gap-3">
                   <span>
@@ -544,6 +578,20 @@ export default function ShiftHandover() {
               ))}
             </CashLine>
           )}
+          {gcashRefundsTotal > 0 && (
+            <CashLine label="Refunds (GCash)" value={gcashRefundsTotal} sign="−">
+              {pendingWithdrawals?.gcashRefunds.map((g) => (
+                <li key={g.id} className="flex justify-between gap-3">
+                  <span>
+                    {new Date(g.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} · {g.customerName} —{" "}
+                    {g.reason}
+                  </span>
+                  <span>₱{g.amount.toFixed(2)}</span>
+                </li>
+              ))}
+            </CashLine>
+          )}
+          {expenseTotal > 0 && <CashLine label="Expenses" value={expenseTotal} sign="−" />}
           {drawerWithdrawalTotal > 0 && (
             <CashLine label="Taken out by Admin" value={drawerWithdrawalTotal} sign="−">
               {pendingWithdrawals?.withdrawals.map((w) => (
@@ -555,6 +603,17 @@ export default function ShiftHandover() {
                 </li>
               ))}
             </CashLine>
+          )}
+          {/* GCash goes to the shop's GCash, never the drawer: what's left of
+              it after refunds comes back out here, so the lines always add up
+              to the cash really in the drawer. Hidden when nothing is left
+              (every GCash sale refunded). */}
+          {Math.round(gcashAfterRefunds * 100) !== 0 && (
+            <CashLine
+              label="GCash kept (in GCash, not the drawer)"
+              value={Math.abs(gcashAfterRefunds)}
+              sign={gcashAfterRefunds > 0 ? "−" : "+"}
+            />
           )}
           <div className="flex justify-between px-3 py-2 bg-gray-50 font-semibold text-gray-900 rounded-b-lg">
             <span>Expected cash in drawer</span>
@@ -570,7 +629,7 @@ export default function ShiftHandover() {
           </p>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
           <div>
             <p className="text-sm text-gray-500">Expected Cash</p>
             <p className="text-xl font-bold text-gray-900">₱{expectedCash.toFixed(2)}</p>
@@ -610,10 +669,6 @@ export default function ShiftHandover() {
             ) : (
               <p className="text-xl font-bold text-gray-400">—</p>
             )}
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">GCash sales (not in drawer)</p>
-            <p className="text-xl font-bold text-gray-900">₱{digitalSalesTotal.toFixed(2)}</p>
           </div>
         </div>
 

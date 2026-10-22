@@ -181,6 +181,9 @@ export default function NewOrderPage() {
     // Empty amount = Unpaid order; otherwise it must cover the total (the
     // backend enforces the same rule).
     const total = cartTotal;
+    // Supplies only (no laundry service or package): a supply purchase the
+    // customer takes home now — it can't be saved as unpaid.
+    const isSupplySale = !cartItems.some((item) => item.sourceType === "SERVICE" || item.sourceType === "PACKAGE");
     const valid = fields.setErrors({
       customerName: !customerName
         ? "Customer name is required."
@@ -189,10 +192,12 @@ export default function NewOrderPage() {
           : "",
       phone: trimmedPhone && !isValidPhone(trimmedPhone) ? PHONE_ERROR_MESSAGE : "",
       amountPaid:
-        amountPaid > 0 && amountPaid < total
-          ? `Amount is less than the total (₱${total.toFixed(2)}). Enter the full amount, or leave it empty to save as unpaid.`
-          : "",
-      paymentMethod: amountPaid > 0 && !paymentMethod ? "Please select a payment method." : "",
+        isSupplySale && amountPaid < total
+          ? "Supply purchase should be paid in full now."
+          : amountPaid > 0 && amountPaid < total
+            ? `Amount is less than the total (₱${total.toFixed(2)}). Enter the full amount, or leave it empty to save as unpaid.`
+            : "",
+      paymentMethod: (amountPaid > 0 || isSupplySale) && !paymentMethod ? "Please select a payment method." : "",
     });
     setSubmitError("");
     if (!valid) return;

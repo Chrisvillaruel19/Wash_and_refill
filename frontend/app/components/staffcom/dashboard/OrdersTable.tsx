@@ -67,7 +67,7 @@ export default function OrdersTable({ orders }: OrdersTableProps) {
         </div>
 
         <div className="relative w-full sm:w-64">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
           <input
             type="text"
             placeholder="Search name or contact"
@@ -75,7 +75,7 @@ export default function OrdersTable({ orders }: OrdersTableProps) {
             onChange={(e) => setSearch(e.target.value)}
             name="dashboard-order-search"
             autoComplete="off"
-            className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+            className="w-full border border-gray-300 rounded-lg py-2 pl-9 pr-3 bg-white text-gray-900 placeholder:text-gray-500 text-sm"
           />
         </div>
       </div>
@@ -83,7 +83,7 @@ export default function OrdersTable({ orders }: OrdersTableProps) {
       <div className="overflow-x-auto border border-gray-200 rounded-lg">
         <table className="w-full text-sm whitespace-nowrap">
           <thead>
-            <tr className="bg-gray-50 border-b text-gray-600 text-xs uppercase tracking-wide">
+            <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
               <th className="p-3 text-left font-semibold">Customer</th>
               <th className="p-3 text-left font-semibold">Contact</th>
               <th className="p-3 text-left font-semibold">Date</th>
@@ -95,7 +95,7 @@ export default function OrdersTable({ orders }: OrdersTableProps) {
           <tbody>
             {displayedOrders.length > 0 ? (
               displayedOrders.map((order) => (
-                <tr key={order.id} className="border-b last:border-0 hover:bg-gray-50">
+                <tr key={order.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
                   <td className="p-3 font-medium text-gray-900">{order.customer}</td>
                   <td className="p-3 text-gray-600">{order.contact}</td>
                   <td className="p-3 text-gray-600">

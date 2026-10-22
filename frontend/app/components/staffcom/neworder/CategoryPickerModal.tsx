@@ -1,6 +1,6 @@
 "use client";
 
-import { X, Shirt, Layers, LayoutGrid, Square } from "lucide-react";
+import { X, Shirt, Layers, LayoutGrid, Square, Sparkles, WashingMachine } from "lucide-react";
 import { ServiceCategory } from "../../../staff/(dashboard)/neworder/types";
 import { useEscapeKey } from "../../../lib/useEscapeKey";
 
@@ -9,6 +9,8 @@ const iconMap: Record<string, React.ElementType> = {
   Layers,
   LayoutGrid,
   Square,
+  Sparkles,
+  WashingMachine,
 };
 
 interface CategoryPickerModalProps {
@@ -45,10 +47,13 @@ export default function CategoryPickerModal({
               <button
                 key={category.id}
                 onClick={() => onSelect(category)}
-                className="flex items-center gap-3 border border-gray-300 rounded-lg p-4 hover:border-blue-500 hover:bg-blue-50 transition-colors text-left"
+                className="group flex items-center gap-3 min-h-[64px] border border-gray-300 rounded-lg px-4 py-3 hover:border-blue-500 hover:bg-blue-50 transition-colors text-left"
               >
-                <Icon size={22} className="text-gray-700 shrink-0" />
-                <span className="font-medium text-gray-800">{category.name}</span>
+                <Icon size={22} strokeWidth={1.75} className="text-gray-600 group-hover:text-blue-600 shrink-0" />
+                <span className="min-w-0">
+                  <span className="block font-medium text-gray-800">{category.name}</span>
+                  {category.note && <span className="block text-xs text-gray-500">{category.note}</span>}
+                </span>
               </button>
             );
           })}

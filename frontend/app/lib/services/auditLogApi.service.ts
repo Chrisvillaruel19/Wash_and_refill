@@ -94,12 +94,19 @@ export async function getPasswordResetLogs(): Promise<ActivityLog[]> {
   return result.logs.map((l) => mapLog(l, "update"));
 }
 
-// Admin refunds from Laundry Monitoring (cancelled or claimed paid orders).
+// Cancellations & Refunds, newest first: who cancelled an order, the Admin's
+// refunds (cancelled or claimed paid orders) and the cash refunds staff
+// handed over — one place to follow an order from cancelled to refunded.
 export async function getRefundLogs(): Promise<ActivityLog[]> {
-  const result = await apiClient.get<BackendAuditLogPage>(
-    `/audit-logs?action=REFUND&module=Order&pageSize=${MAX_PAGE_SIZE}`
+  const [refunds, cancellations] = await Promise.all([
+    apiClient.get<BackendAuditLogPage>(`/audit-logs?action=REFUND&module=Order&pageSize=${MAX_PAGE_SIZE}`),
+    apiClient.get<BackendAuditLogPage>(
+      `/audit-logs?action=UPDATE&module=Order&descriptionPrefix=${encodeURIComponent("Cancelled order")}&pageSize=${MAX_PAGE_SIZE}`
+    ),
+  ]);
+  return [...refunds.logs.map((l) => mapLog(l, "update")), ...cancellations.logs.map((l) => mapLog(l, "delete"))].sort(
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
   );
-  return result.logs.map((l) => mapLog(l, "update"));
 }
 
 export async function getEditedLogs(): Promise<ActivityLog[]> {

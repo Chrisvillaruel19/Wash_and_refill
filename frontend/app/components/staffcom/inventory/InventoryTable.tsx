@@ -21,15 +21,15 @@ export default function InventoryTable({
   return (
     <div>
       <div className="relative mb-6 max-w-md">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
         <input
           type="text"
-          placeholder="Search Item name"
+          placeholder="Search item name"
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           name="inventory-search"
           autoComplete="off"
-          className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+          className="w-full border border-gray-300 rounded-lg py-2 pl-9 pr-3 bg-white text-gray-900 placeholder:text-gray-500 text-sm"
         />
       </div>
 
@@ -37,7 +37,7 @@ export default function InventoryTable({
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead>
-              <tr className="text-gray-700 border-b bg-gray-50">
+              <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
                 <th className="p-3 sm:p-4 whitespace-nowrap">Item Name</th>
                 <th className="p-3 sm:p-4 whitespace-nowrap">Beginning</th>
                 <th className="p-3 sm:p-4 whitespace-nowrap">Current Stock</th>
@@ -53,7 +53,7 @@ export default function InventoryTable({
                 items.map((item) => {
                   const isLow = item.currentStock <= item.lowStockAlert;
                   return (
-                    <tr key={item.id} className="border-b last:border-0">
+                    <tr key={item.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/70 transition-colors">
                       <td className="p-3 sm:p-4 font-medium whitespace-nowrap text-gray-900">{item.name}</td>
                       <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">
                         {beginningStockById[item.id] ?? item.currentStock}

@@ -163,7 +163,7 @@ export default function Attendance() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead>
-              <tr className="text-gray-700 border-b bg-gray-50">
+              <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
                 <th className="p-3 whitespace-nowrap">Date</th>
                 <th className="p-3 whitespace-nowrap">Staff</th>
                 <th className="p-3 whitespace-nowrap">Time in</th>
@@ -175,7 +175,7 @@ export default function Attendance() {
             <tbody>
               {paginatedItems.length > 0 ? (
                 paginatedItems.map((r) => (
-                  <tr key={r.id} className="border-b last:border-0">
+                  <tr key={r.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/70 transition-colors">
                     <td className="p-3 whitespace-nowrap text-gray-900">{r.date}</td>
                     <td className="p-3 whitespace-nowrap text-gray-900">{r.staffName}</td>
                     <td className="p-3 whitespace-nowrap text-gray-900">{formatTime(r.timeIn)}</td>

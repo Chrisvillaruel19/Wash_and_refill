@@ -17,6 +17,13 @@ function initials(name: string) {
 // Who timed in today (one Staff per day, 8 AM–5 PM shift) and whether they
 // were on time — from the same Present/Late rules as the Attendance page.
 export default function StaffOnDutyCard({ staff }: StaffOnDutyCardProps) {
+  // Whoever is on duty right now first, then the rest newest time-in first.
+  const timeInOf = (s: StaffOnDuty) => (s.timeIn ? new Date(s.timeIn).getTime() : 0);
+  const sorted = [...staff].sort((a, b) => {
+    const onDutyFirst = Number(!a.timeOut) - Number(!b.timeOut);
+    return onDutyFirst !== 0 ? -onDutyFirst : timeInOf(b) - timeInOf(a);
+  });
+
   return (
     <div className="bg-white rounded-xl shadow-md ring-1 ring-gray-200/80 p-4 sm:p-6 h-full flex flex-col">
       <CardHeader title="Staff on duty today" linkHref="/admin/attendance" linkLabel="Attendance" />
@@ -29,7 +36,7 @@ export default function StaffOnDutyCard({ staff }: StaffOnDutyCardProps) {
         </div>
       ) : (
         <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200">
-          {staff.map((s, i) => {
+          {sorted.map((s, i) => {
             const onDuty = !s.timeOut;
             return (
               <li key={`${s.name}-${i}`} className="flex items-center gap-3 px-3 py-2.5">

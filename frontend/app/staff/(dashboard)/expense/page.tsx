@@ -158,15 +158,15 @@ export default function Expense() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3">
         <h2 className="text-lg font-bold text-gray-900">Expense History</h2>
         <div className="relative w-full sm:w-auto sm:max-w-xs">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
           <input
             type="text"
-            placeholder="Search Date"
+            placeholder="Search date"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             name="expense-search-date"
             autoComplete="off"
-            className="w-full pl-9 pr-4 py-1.5 border border-gray-300 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+            className="w-full border border-gray-300 rounded-lg py-2 pl-9 pr-3 bg-white text-gray-900 placeholder:text-gray-500 text-sm"
           />
         </div>
       </div>

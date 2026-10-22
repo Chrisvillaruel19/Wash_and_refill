@@ -27,7 +27,7 @@ export default function ReceiptViewerModal({ expense, onClose }: ReceiptViewerMo
         className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 py-3 border-b">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200">
           <h2 className="font-bold text-gray-900">Expense Receipt</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600" aria-label="Close">
             <X size={20} />
@@ -43,7 +43,7 @@ export default function ReceiptViewerModal({ expense, onClose }: ReceiptViewerMo
           />
         </div>
 
-        <dl className="px-5 py-3 text-sm grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 border-t">
+        <dl className="px-5 py-3 text-sm grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 border-t border-gray-200">
           <dt className="text-gray-500">Amount</dt>
           <dd className="text-gray-900 font-semibold">₱{expense.amount.toFixed(2)}</dd>
           <dt className="text-gray-500">Category</dt>

@@ -2,6 +2,8 @@ export interface ServiceCategory {
   id: string;
   name: string;
   icon: string;
+  // Small gray line under the name on the picker (e.g. "7 days").
+  note?: string;
 }
 
 export interface ServiceItemOption {

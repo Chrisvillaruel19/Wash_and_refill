@@ -19,7 +19,7 @@ export default function OrdersTable({ orders, onAdvance, onCancel, onMarkAsPaid 
     <div className="bg-white rounded-xl shadow-md overflow-hidden">
       <table className="w-full text-sm text-left">
         <thead>
-          <tr className="text-gray-600 border-b bg-gray-50 text-xs uppercase tracking-wide">
+          <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
             <th className="p-3 font-semibold">Customer</th>
             <th className="p-3 font-semibold">Items</th>
             <th className="p-3 font-semibold text-right">Amount</th>
@@ -32,7 +32,7 @@ export default function OrdersTable({ orders, onAdvance, onCancel, onMarkAsPaid 
             const { canCancel, isUnpaid, needsPaymentToRelease, primary } = getOrderActionState(order);
             const refundAction = cancelledRefundAction(order);
             return (
-              <tr key={order.id} className="border-b last:border-0 align-top hover:bg-gray-50/60">
+              <tr key={order.id} className="border-b border-gray-100 last:border-0 align-top hover:bg-gray-50/60">
                 <td className="p-3">
                   <p className="font-semibold text-gray-900 break-words">{order.customer}</p>
                   <p className="text-gray-500">{order.contact}</p>

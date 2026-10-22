@@ -24,6 +24,7 @@ export default function RefundPayoutsCard({ onPaid, className = "mb-6" }: { onPa
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [payingId, setPayingId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [open, setOpen] = useState(false);
   // Only the staff member on an open shift (clocked in, no handover yet)
   // can give one — the server refuses anyone else. Shown while checking.
   const { state: shiftState } = useActiveShift();
@@ -60,15 +61,33 @@ export default function RefundPayoutsCard({ onPaid, className = "mb-6" }: { onPa
 
   if (payouts.length === 0) return null;
 
+  const totalToGive = payouts.reduce((sum, p) => sum + p.amount, 0);
+  const summary =
+    payouts.length === 1
+      ? `1 refund to give — ${peso(payouts[0].amount)} cash to ${payouts[0].customerName}`
+      : `${payouts.length} refunds to give — ${peso(totalToGive)} cash total`;
+
+  // One line until opened, so it barely moves the dashboard.
   return (
-    <div className={`bg-amber-50 border border-amber-300 rounded-xl p-4 sm:p-5 ${className}`}>
-      <div className="flex items-center gap-2 mb-1">
-        <HandCoins size={20} className="text-amber-700 shrink-0" />
-        <h2 className="text-base font-bold text-amber-900">Refunds to give ({payouts.length})</h2>
+    <div className={`bg-amber-50 border border-amber-300 rounded-xl ${className}`}>
+      <div className="flex items-center gap-2 px-4 py-2">
+        <HandCoins size={18} className="text-amber-700 shrink-0" aria-hidden="true" />
+        <p className="min-w-0 flex-1 truncate text-sm font-semibold text-amber-900">{summary}</p>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className="shrink-0 rounded-lg px-3 py-1 text-sm font-semibold text-amber-800 hover:bg-amber-100"
+        >
+          {open ? "Hide" : "View"}
+        </button>
       </div>
+
+      {open && (
+        <div className="border-t border-amber-200 px-4 pb-4 pt-3">
       <p className="text-xs text-amber-800 mb-3">
-        The Admin approved these refunds. When the customer comes, give them the cash from the drawer, then press
-        &quot;Mark as given&quot; — it comes off your shift sales, and your Shift Handover will expect that much less cash.
+        When the customer comes, give them the cash from the drawer, then press &quot;Mark as given&quot; — it comes
+        off your shift sales and your Shift Handover&apos;s expected cash.
       </p>
       {!onShift && (
         <p className="text-xs text-gray-700 bg-white border border-amber-200 rounded-lg py-2 px-3 mb-3">
@@ -133,6 +152,8 @@ export default function RefundPayoutsCard({ onPaid, className = "mb-6" }: { onPa
         ))}
       </ul>
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+        </div>
+      )}
     </div>
   );
 }

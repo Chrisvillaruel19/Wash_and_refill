@@ -610,7 +610,11 @@ export default function ShiftHandover() {
               (every GCash sale refunded). */}
           {Math.round(gcashAfterRefunds * 100) !== 0 && (
             <CashLine
-              label="GCash kept (in GCash, not the drawer)"
+              label={
+                gcashAfterRefunds > 0
+                  ? "Less: GCash (not in drawer)"
+                  : "GCash refunded for an earlier sale (not from drawer)"
+              }
               value={Math.abs(gcashAfterRefunds)}
               sign={gcashAfterRefunds > 0 ? "−" : "+"}
             />
@@ -722,7 +726,7 @@ export default function ShiftHandover() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead>
-                <tr className="text-gray-700 border-b bg-gray-50">
+                <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
                   <th className="p-2 whitespace-nowrap">Date</th>
                   <th className="p-2 whitespace-nowrap">Staff</th>
                   <th className="p-2 whitespace-nowrap">Expected Cash</th>
@@ -732,7 +736,7 @@ export default function ShiftHandover() {
               </thead>
               <tbody className={historyLoading ? "opacity-50" : undefined}>
                 {history.map((h) => (
-                  <tr key={h.id} className="border-b last:border-0">
+                  <tr key={h.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/70 transition-colors">
                     <td className="p-2 whitespace-nowrap text-gray-900">
                       {new Date(h.timestamp).toLocaleString([], {
                         dateStyle: "short",

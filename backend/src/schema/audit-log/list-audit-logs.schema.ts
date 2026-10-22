@@ -7,5 +7,7 @@ export const listAuditLogsSchema = z.object({
     pageSize: z.coerce.number().int().positive().max(100).default(20),
     action: z.enum(AuditAction, { message: "Invalid audit action" }).optional(),
     module: z.string().min(1).optional(),
+    // Entries whose description starts with this (e.g. "Cancelled order").
+    descriptionPrefix: z.string().min(1).max(100).optional(),
   }),
 });

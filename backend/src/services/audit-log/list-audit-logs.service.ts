@@ -8,11 +8,16 @@ export async function listAuditLogsService(params: {
   pageSize: number;
   action?: AuditAction;
   module?: string;
+  descriptionPrefix?: string;
 }) {
   try {
     const [records, total] = await Promise.all([
       auditLogRepository.findAll(params),
-      auditLogRepository.count({ action: params.action, module: params.module }),
+      auditLogRepository.count({
+        action: params.action,
+        module: params.module,
+        descriptionPrefix: params.descriptionPrefix,
+      }),
     ]);
 
     const logs = records.map(({ user, ...log }) => ({

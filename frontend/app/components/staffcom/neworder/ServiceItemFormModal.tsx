@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { Search } from "lucide-react";
 import { ServiceCategory, ServiceItemOption, ServiceType } from "../../../staff/(dashboard)/neworder/types";
 import { useEscapeKey } from "../../../lib/useEscapeKey";
 import { SELF_SERVICE_CATEGORY_ID, kgPerPrice } from "../../../staff/(dashboard)/neworder/data";
@@ -35,6 +36,13 @@ export default function ServiceItemFormModal({
   const isSelfService = category.id === SELF_SERVICE_CATEGORY_ID;
   // Catalog price covers this many kg (5 for Self Service, else 1).
   const priceKg = kgPerPrice(category.id);
+
+  const [search, setSearch] = useState("");
+  const [listOpen, setListOpen] = useState(false);
+  const filteredItems = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return term ? itemOptions.filter((item) => item.name.toLowerCase().includes(term)) : itemOptions;
+  }, [itemOptions, search]);
 
   const selectedItem = itemOptions.find((item) => item.id === selectedItemId);
 
@@ -81,25 +89,74 @@ export default function ServiceItemFormModal({
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl p-5 sm:p-8 w-full max-w-lg max-h-[85vh] overflow-y-auto">
-        <h2 className="text-xl sm:text-2xl font-bold text-center uppercase mb-6 text-gray-900">
+        <h2 className={`text-xl sm:text-2xl font-bold text-center uppercase text-gray-900 ${category.note ? "" : "mb-6"}`}>
           {category.name}
         </h2>
+        {category.note && <p className="text-center text-sm text-gray-500 mb-6">{category.note}</p>}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6 sm:items-center mb-4">
-          <select
-            value={selectedItemId}
-            onChange={(e) => setSelectedItemId(e.target.value)}
-            className="border border-gray-300 rounded-lg p-2 w-full text-gray-900"
-          >
-            <option value="" disabled>
-              Select a service
-            </option>
-            {itemOptions.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
+          {/* One search field: click it to see every service (the list
+              scrolls), type to narrow it down, pick one to close it. */}
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
+            <input
+              type="text"
+              role="combobox"
+              aria-expanded={listOpen}
+              aria-controls="service-item-list"
+              aria-label="Search service"
+              value={listOpen ? search : (selectedItem?.name ?? "")}
+              onFocus={() => {
+                setSearch("");
+                setListOpen(true);
+              }}
+              onClick={() => setListOpen(true)}
+              onBlur={() => setListOpen(false)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setListOpen(true);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Escape" && listOpen) {
+                  e.stopPropagation();
+                  setListOpen(false);
+                }
+              }}
+              placeholder="Search service…"
+              className="w-full border border-gray-300 rounded-lg py-2 pl-9 pr-3 text-gray-900 placeholder:text-gray-500 text-sm"
+            />
+            {listOpen && (
+              <ul
+                id="service-item-list"
+                role="listbox"
+                className="list-scroll absolute z-10 mt-1 w-full max-h-[202px] overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg"
+              >
+                {filteredItems.length > 0 ? (
+                  filteredItems.map((item) => (
+                    <li
+                      key={item.id}
+                      role="option"
+                      aria-selected={item.id === selectedItemId}
+                      // mousedown, not click: it runs before the field's blur
+                      // closes the list.
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setSelectedItemId(item.id);
+                        setListOpen(false);
+                      }}
+                      className={`px-3 py-2 cursor-pointer ${
+                        item.id === selectedItemId ? "bg-blue-50 text-blue-700 font-medium" : "text-gray-900 hover:bg-gray-50"
+                      }`}
+                    >
+                      {item.name}
+                    </li>
+                  ))
+                ) : (
+                  <li className="px-3 py-3 text-sm text-gray-500">No services match.</li>
+                )}
+              </ul>
+            )}
+          </div>
 
           <p className="text-base sm:text-lg font-medium text-gray-900">
             Price: {(selectedItem?.pricePerKg ?? 0).toFixed(2)} / {priceKg > 1 ? `${priceKg}KG` : "KG"}

@@ -7,7 +7,7 @@ export type CustomerFilter = "all" | "regular";
 // One row of the Admin Customers page.
 export interface CustomerSummary {
   id: string;
-  // Name on their most recent order.
+  // Name saved on their first order (later names stay in the order history).
   name: string;
   phoneNumber: string | null;
   // Orders that weren't cancelled.

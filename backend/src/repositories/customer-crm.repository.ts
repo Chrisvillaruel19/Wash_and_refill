@@ -36,8 +36,9 @@ function likePattern(term: string) {
 }
 
 // Customer list, one query:
-//  - name     = the name on their most recent order (each order keeps the
-//               name typed for it), falling back to the customer record;
+//  - name     = the name saved when they first ordered (a returning phone
+//               number never overwrites it; each order keeps the name
+//               typed for it, shown in their order history);
 //  - visits   = orders that weren't cancelled;
 //  - first/last visit = from those same orders.
 // Search matches any name used on their orders, or the phone number — typed
@@ -56,10 +57,7 @@ export class CustomerCrmRepository {
       WITH stats AS (
         SELECT
           c.id,
-          COALESCE(
-            (SELECT o2."customerName" FROM "Order" o2 WHERE o2."customerId" = c.id ORDER BY o2."createdAt" DESC LIMIT 1),
-            c."customerName"
-          ) AS name,
+          c."customerName" AS name,
           c."phoneNumber",
           COUNT(o.id) FILTER (WHERE o.status <> 'CANCELLED') AS visits,
           -- A cancelled order isn't a visit.

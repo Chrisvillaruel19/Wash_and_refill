@@ -82,7 +82,7 @@ export default function SetRestockPinModal({
             setPin(e.target.value.replace(/\D/g, "").slice(0, 6));
             setPinError("");
           }}
-          autoComplete="off"
+          autoComplete="new-password"
           maxLength={6}
           aria-invalid={!!pinError}
           aria-describedby={pinError ? "new-restock-pin-error" : undefined}
@@ -104,7 +104,7 @@ export default function SetRestockPinModal({
             setConfirmPinError("");
           }}
           onKeyDown={(e) => e.key === "Enter" && handleSave()}
-          autoComplete="off"
+          autoComplete="new-password"
           maxLength={6}
           aria-invalid={!!confirmPinError}
           aria-describedby={confirmPinError ? "confirm-restock-pin-error" : undefined}

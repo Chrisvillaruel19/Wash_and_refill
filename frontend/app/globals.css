@@ -94,3 +94,12 @@ input[type="number"]::-webkit-inner-spin-button {
 .list-scroll::-webkit-scrollbar-button {
   display: none;
 }
+
+/* Search boxes are type="search" (so browsers never autofill a saved login
+   name into them); hide the browser's own clear button so they look the same
+   as before. */
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}

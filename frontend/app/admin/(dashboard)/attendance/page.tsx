@@ -8,6 +8,7 @@ import { AttendanceRecord } from "../../../staff/(dashboard)/types";
 import Pagination from "../../../components/staffcom/Pagination";
 import AttendanceStatusBadge from "../../../components/staffcom/AttendanceStatusBadge";
 import { usePagination } from "../../../lib/usePagination";
+import { formatWorked } from "../../../lib/formatDuration";
 
 const PAGE_SIZE = 8;
 
@@ -105,7 +106,7 @@ export default function AdminAttendancePage() {
         <div className="relative w-full sm:max-w-xs">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
           <input
-            type="text"
+            type="search"
             placeholder="Search date, name, or status"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -138,7 +139,7 @@ export default function AdminAttendancePage() {
                     <td className="p-3 whitespace-nowrap text-gray-900">{formatTime(r.timeIn)}</td>
                     <td className="p-3 whitespace-nowrap text-gray-900">{formatTime(r.timeOut)}</td>
                     <td className="p-3 whitespace-nowrap text-gray-900">
-                      {r.totalHours !== null ? r.totalHours.toFixed(1) : "-"}
+                      {formatWorked(r)}
                     </td>
                     <td className="p-3 whitespace-nowrap">
                       <AttendanceStatusBadge status={r.status} />

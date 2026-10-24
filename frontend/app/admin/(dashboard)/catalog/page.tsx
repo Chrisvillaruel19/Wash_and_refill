@@ -416,7 +416,7 @@ export default function AdminCatalogPage() {
             <div className="relative w-full sm:max-w-xs">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
               <input
-                type="text"
+                type="search"
                 placeholder="Search type or item name"
                 value={serviceSearch}
                 onChange={(e) => setServiceSearch(e.target.value)}
@@ -510,7 +510,7 @@ export default function AdminCatalogPage() {
             <div className="relative w-full sm:max-w-xs">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
               <input
-                type="text"
+                type="search"
                 placeholder="Search item"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -638,7 +638,7 @@ export default function AdminCatalogPage() {
             <div className="relative w-full sm:max-w-xs">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
               <input
-                type="text"
+                type="search"
                 placeholder="Search item name"
                 value={packageSearch}
                 onChange={(e) => setPackageSearch(e.target.value)}

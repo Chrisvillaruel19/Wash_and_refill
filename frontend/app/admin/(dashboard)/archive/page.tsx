@@ -96,7 +96,7 @@ export default function ArchivePage() {
         <div className="relative w-full sm:w-auto">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
           <input
-            type="text"
+            type="search"
             placeholder="Search name or contact"
             value={search}
             onChange={(e) => setSearch(e.target.value)}

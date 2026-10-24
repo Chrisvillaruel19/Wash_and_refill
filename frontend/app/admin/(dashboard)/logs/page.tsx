@@ -353,7 +353,7 @@ export default function AdminLogsPage() {
         <div className="relative w-full sm:w-72 shrink-0">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
           <input
-            type="text"
+            type="search"
             placeholder={`Search ${SEARCH_HINT[activeTab]}…`}
             aria-label={`Search ${SEARCH_HINT[activeTab]}`}
             value={search}

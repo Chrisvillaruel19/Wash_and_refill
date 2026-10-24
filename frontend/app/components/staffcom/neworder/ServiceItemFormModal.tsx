@@ -100,7 +100,7 @@ export default function ServiceItemFormModal({
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
             <input
-              type="text"
+              type="search"
               role="combobox"
               aria-expanded={listOpen}
               aria-controls="service-item-list"

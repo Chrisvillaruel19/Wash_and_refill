@@ -7,8 +7,10 @@ export class ShiftHandoverRepository {
   // Shared visibility (approved): every authenticated user sees every
   // record — one physical drawer, not per-user data. Paginated, newest
   // first — matches AuditLogRepository.findAll's shape.
-  async findAll(params: { page: number; pageSize: number }, tx: PrismaClientOrTx = prisma) {
+  // userId (optional) = one staff member's handovers only (Admin Sales' per-staff view).
+  async findAll(params: { page: number; pageSize: number; userId?: string }, tx: PrismaClientOrTx = prisma) {
     return tx.shiftHandover.findMany({
+      where: params.userId ? { userId: params.userId } : undefined,
       include: {
         user: { select: { id: true, name: true } },
         // Small, bounded per-handover list (one row per active inventory
@@ -22,8 +24,25 @@ export class ShiftHandoverRepository {
     });
   }
 
-  async count(tx: PrismaClientOrTx = prisma) {
-    return tx.shiftHandover.count();
+  async count(userId?: string, tx: PrismaClientOrTx = prisma) {
+    return tx.shiftHandover.count({ where: userId ? { userId } : undefined });
+  }
+
+  // One row per staff member who ever submitted a handover: how many, the
+  // latest, and totals across all of them (Admin Sales' Cashier Shift Summary).
+  async summarizeByStaff(tx: PrismaClientOrTx = prisma) {
+    return tx.shiftHandover.groupBy({
+      by: ["userId"],
+      _count: { _all: true },
+      _max: { endTime: true },
+      _sum: {
+        laundryEarnings: true,
+        supplySales: true,
+        customServiceSales: true,
+        expectedBalance: true,
+        actualCashCount: true,
+      },
+    });
   }
 
   // Withdrawals: the latest closed shift — its cash count is the drawer's

@@ -8,11 +8,11 @@ const refundRepository = new RefundRepository();
 
 // Shared visibility (approved): every authenticated user sees every
 // handover — one physical drawer, not private per-user data.
-export async function listShiftHandoversService(params: { page: number; pageSize: number }) {
+export async function listShiftHandoversService(params: { page: number; pageSize: number; userId?: string }) {
   try {
     const [records, total, drawerState] = await Promise.all([
       shiftHandoverRepository.findAll(params),
-      shiftHandoverRepository.count(),
+      shiftHandoverRepository.count(params.userId),
       drawerStateRepository.get(),
     ]);
 

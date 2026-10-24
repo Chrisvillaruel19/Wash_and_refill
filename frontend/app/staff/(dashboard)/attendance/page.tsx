@@ -9,6 +9,7 @@ import { AttendanceRecord } from "../types";
 import Pagination from "../../../components/staffcom/Pagination";
 import AttendanceStatusBadge from "../../../components/staffcom/AttendanceStatusBadge";
 import { usePagination } from "../../../lib/usePagination";
+import { formatDuration, formatWorked, workedMinutes } from "../../../lib/formatDuration";
 
 const PAGE_SIZE = 8;
 
@@ -50,12 +51,13 @@ export default function Attendance() {
 
   const activeRecord = records.find((r) => r.staffName === staffName && r.timeIn && !r.timeOut) || null;
 
-  const totalHours = records
-    .filter((r) => r.staffName === staffName && r.totalHours !== null)
-    .reduce((sum, r) => sum + (r.totalHours || 0), 0);
+  // Worked time to the minute, from each record's own time in / time out.
+  const totalMinutes = records
+    .filter((r) => r.staffName === staffName)
+    .reduce((sum, r) => sum + (workedMinutes(r) ?? 0), 0);
 
-  const todayShiftHours = activeRecord && activeRecord.timeIn
-    ? Math.max(0, (now.getTime() - new Date(activeRecord.timeIn).getTime()) / (1000 * 60 * 60))
+  const todayShiftMinutes = activeRecord && activeRecord.timeIn
+    ? Math.max(0, (now.getTime() - new Date(activeRecord.timeIn).getTime()) / 60000)
     : null;
 
   function formatTime(iso: string | null) {
@@ -137,12 +139,12 @@ export default function Attendance() {
           <div>
             <p className="text-blue-100 text-sm">Today shift hours</p>
             <p className="text-white text-xl font-bold">
-              {todayShiftHours !== null ? todayShiftHours.toFixed(1) : "--:--"}
+              {todayShiftMinutes !== null ? formatDuration(todayShiftMinutes) : "--:--"}
             </p>
           </div>
           <div>
             <p className="text-blue-100 text-sm">Total Hours</p>
-            <p className="text-white text-xl font-bold">{totalHours.toFixed(1)}</p>
+            <p className="text-white text-xl font-bold">{formatDuration(totalMinutes)}</p>
           </div>
         </div>
 
@@ -181,7 +183,7 @@ export default function Attendance() {
                     <td className="p-3 whitespace-nowrap text-gray-900">{formatTime(r.timeIn)}</td>
                     <td className="p-3 whitespace-nowrap text-gray-900">{formatTime(r.timeOut)}</td>
                     <td className="p-3 whitespace-nowrap text-gray-900">
-                      {r.totalHours !== null ? r.totalHours.toFixed(1) : "-"}
+                      {formatWorked(r)}
                     </td>
                     <td className="p-3 whitespace-nowrap">
                       <AttendanceStatusBadge status={r.status} />

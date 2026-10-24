@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import {
   createShiftHandoverService,
   listShiftHandoversService,
+  getStaffShiftSummaryService,
   updateDrawerSettingsService,
   getPendingWithdrawalsService,
   getInventoryBeginningService,
@@ -55,11 +56,17 @@ export class ShiftHandoverController {
     }
   };
 
+  public staffSummary = async (_req: Request, res: Response) => {
+    const result = await getStaffShiftSummaryService();
+    return res.status(result.code).json(result);
+  };
+
   public list = async (req: Request, res: Response) => {
     try {
       const page = Number(req.query.page) || 1;
       const pageSize = Math.min(Number(req.query.pageSize) || 20, 100);
-      const result = await listShiftHandoversService({ page, pageSize });
+      const userId = typeof req.query.userId === "string" ? req.query.userId : undefined;
+      const result = await listShiftHandoversService({ page, pageSize, userId });
       return res.status(result.code).json(result);
     } catch (error) {
       console.error("ShiftHandoverController.list error", error);

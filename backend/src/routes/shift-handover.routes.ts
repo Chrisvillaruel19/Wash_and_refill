@@ -36,6 +36,9 @@ router.get(
 // Cash the Admin took out of the open drawer since the last handover — any
 // signed-in user, so Staff's handover preview can include it (the drawer is
 // shared, like the handover list above).
+// Admin Sales: one row per staff member (their handovers open from it).
+router.get("/staff-summary", authMiddleware.execute, requireRole(Role.ADMIN), shiftHandoverController.staffSummary);
+
 router.get("/pending-withdrawals", authMiddleware.execute, shiftHandoverController.pendingWithdrawals);
 
 // The open shift's beginning supply counts (same rule as the snapshot taken

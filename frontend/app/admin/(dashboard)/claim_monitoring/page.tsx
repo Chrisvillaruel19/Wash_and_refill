@@ -261,7 +261,7 @@ export default function ClaimMonitoringPage() {
         <div className="relative w-full sm:flex-1 sm:max-w-xs">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
           <input
-            type="text"
+            type="search"
             placeholder="Search name, contact, date or staff"
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
@@ -321,6 +321,11 @@ export default function ClaimMonitoringPage() {
                       {order.status}
                     </td>
                     <td className="p-3 sm:p-4 whitespace-nowrap">
+                      {/* How it was paid first (a refund goes back the same way),
+                          then the payment status. Unpaid orders have no method. */}
+                      {paymentTone(order) !== "unpaid" && order.paymentMethod && (
+                        <span className="font-medium text-gray-600">{order.paymentMethod} · </span>
+                      )}
                       <span
                         className={`font-semibold ${
                           paymentTone(order) === "paid" ? "text-blue-600" : PAYMENT_TEXT_CLASS[paymentTone(order)]

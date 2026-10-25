@@ -77,7 +77,7 @@ export default function ConfirmMarkPaidModal({
           <button
             onClick={() => paymentMethod && onConfirm(paymentMethod)}
             disabled={submitting || !paymentMethod}
-            className="px-5 py-2 rounded-lg border border-green-500 text-green-600 font-medium hover:bg-green-50 disabled:opacity-50"
+            className="px-5 py-2 rounded-lg bg-gray-900 text-white font-medium hover:bg-gray-800 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting ? "Saving..." : "Confirm Payment"}
           </button>

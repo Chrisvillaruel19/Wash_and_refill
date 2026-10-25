@@ -38,13 +38,24 @@ export interface OrderDetailLine {
   name: string;
   quantity: number;
   subtotal: number;
+  // Display name with the service type ("Barong tagalog (Wash & Dry)").
+  label?: string;
+  // Kilos for a laundry service line.
+  weight?: number;
 }
 
 function mapOrderDetailLine(detail: BackendOrderDetail): OrderDetailLine {
   const type = detail.package ? "PACKAGE" : detail.service ? "SERVICE" : "INVENTORY";
   const name =
     detail.package?.packageName ?? detail.service?.serviceName ?? detail.inventory?.itemName ?? "Item";
-  return { type, name, quantity: detail.quantity, subtotal: Number(detail.subtotal) };
+  return {
+    type,
+    name,
+    quantity: detail.quantity,
+    subtotal: Number(detail.subtotal),
+    label: detailLabel(detail),
+    weight: detail.weight != null ? Number(detail.weight) : undefined,
+  };
 }
 
 interface BackendOrder {

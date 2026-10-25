@@ -1,16 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Wallet, TrendingUp, Settings, HandCoins } from "lucide-react";
+import { Wallet, TrendingUp, Settings, HandCoins, ChevronRight } from "lucide-react";
 import AdminStatCard from "../../../components/admincom/AdminStatCard";
 import AdminWithdrawalFormModal, {
   WithdrawalFormData,
 } from "../../../components/admincom/AdminWithdrawalFormModal";
 import ShiftInventoryModal from "../../../components/admincom/ShiftInventoryModal";
+import StaffShiftsModal from "../../../components/admincom/StaffShiftsModal";
+import { ShiftHandoverRecord } from "../../../staff/(dashboard)/types";
 import DefaultStartingCashModal from "../../../components/admincom/DefaultStartingCashModal";
 import { getSalesBreakdown, SalesBreakdownRow } from "../../../lib/services/ordersApi.service";
 import {
-  getShiftHandoversPage,
+  getStaffShiftSummary,
+  StaffShiftSummary,
   getDefaultStartingCash,
   updateDefaultStartingCash,
 } from "../../../lib/services/shiftHandoverApi.service";
@@ -24,11 +27,10 @@ import {
 import { getAdminDashboard } from "../../../lib/services/dashboard.service";
 import { ApiError } from "../../../lib/apiClient";
 import Pagination from "../../../components/staffcom/Pagination";
-import { useServerPage } from "../../../lib/useServerPage";
 import { usePagination } from "../../../lib/usePagination";
 import { useAutoRefresh } from "../../../lib/useAutoRefresh";
 
-const HANDOVERS_PAGE_SIZE = 6;
+const STAFF_PAGE_SIZE = 8;
 const WITHDRAWALS_PAGE_SIZE = 10;
 
 // "₱10,413.00" / "-₱1.00" — sign before the peso sign, thousands grouped.
@@ -148,26 +150,29 @@ export default function AdminSalesPage() {
   const [startingCashError, setStartingCashError] = useState("");
   const [startingCashSuccess, setStartingCashSuccess] = useState("");
 
-  // Selecting a Cashier Shift Summary card scopes Drop off/Supply Summary
-  // below to exactly that shift's real sales; null = all-time (unscoped).
-  const [selectedShiftId, setSelectedShiftId] = useState<string | null>(null);
-  // Separate from selectedShiftId — opens the compact inventory detail
-  // modal for one card without disturbing the Drop off/Supply scoping above.
-  const [inventoryModalShiftId, setInventoryModalShiftId] = useState<string | null>(null);
+  // Opens the compact supplies detail of one shift (from a staff member's
+  // shift summaries).
+  const [inventoryModalShift, setInventoryModalShift] = useState<ShiftHandoverRecord | null>(null);
+  // The staff member whose shift summaries are open.
+  const [openStaff, setOpenStaff] = useState<StaffShiftSummary | null>(null);
   const [dropOffSummary, setDropOffSummary] = useState<SalesBreakdownRow[]>([]);
   const [supplySummary, setSupplySummary] = useState<SalesBreakdownRow[]>([]);
   const [breakdownError, setBreakdownError] = useState("");
 
-  // Shift handover grid — real server-side pagination (previously dumped
-  // every handover ever into one unbounded grid, same bug class as
-  // Orders/Expenses before Item 6). No filter/search on this view, so no
-  // hybrid fallback is needed.
+  // Cashier Shift Summary: one row per staff member (like Customers); each
+  // opens that staff member's own shift summaries, paginated.
+  const [staffSummary, setStaffSummary] = useState<StaffShiftSummary[]>([]);
+  useEffect(() => {
+    getStaffShiftSummary()
+      .then(setStaffSummary)
+      .catch(() => {});
+  }, [reloadTick]);
   const {
-    page: handoverPage,
-    setPage: setHandoverPage,
-    totalPages: handoverTotalPages,
-    items: handovers,
-  } = useServerPage(getShiftHandoversPage, HANDOVERS_PAGE_SIZE, true, reloadTick);
+    page: staffPage,
+    setPage: setStaffPage,
+    totalPages: staffTotalPages,
+    paginatedItems: pagedStaff,
+  } = usePagination(staffSummary, STAFF_PAGE_SIZE);
 
   // Everything money-related on this page, read fresh. `initial` decides
   // whether a failure blocks the page (first load) or is ignored (a
@@ -241,10 +246,10 @@ export default function AdminSalesPage() {
 
   // Real per-order-detail breakdown from the backend (GET /orders/sales-
   // breakdown) — not computed from `orders` above, which never carries line
-  // items. Refetches whenever the selected shift changes.
+  // items. Covers every shift (all-time).
   useEffect(() => {
     let cancelled = false;
-    getSalesBreakdown(selectedShiftId ? { shiftHandoverId: selectedShiftId } : {})
+    getSalesBreakdown({})
       .then((data) => {
         if (cancelled) return;
         setDropOffSummary(data.packageBreakdown);
@@ -256,12 +261,8 @@ export default function AdminSalesPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedShiftId, reloadTick]);
+  }, [reloadTick]);
 
-  const selectedShift = selectedShiftId ? handovers.find((h) => h.id === selectedShiftId) : undefined;
-  const inventoryModalShift = inventoryModalShiftId
-    ? handovers.find((h) => h.id === inventoryModalShiftId)
-    : undefined;
 
   async function handleWithdrawSave(data: WithdrawalFormData) {
     setWithdrawSubmitting(true);
@@ -352,24 +353,6 @@ export default function AdminSalesPage() {
         </p>
       )}
 
-      {selectedShift && (
-        <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg py-2 px-3 mb-4 text-sm">
-          <span className="text-blue-800">
-            Showing Drop off / Supply Summary for{" "}
-            <span className="font-semibold">
-              {new Date(selectedShift.timestamp).toLocaleDateString()}
-            </span>{" "}
-            — {selectedShift.staffName}
-          </span>
-          <button
-            onClick={() => setSelectedShiftId(null)}
-            className="text-blue-700 font-medium hover:text-blue-900"
-          >
-            Clear
-          </button>
-        </div>
-      )}
-
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 mb-6">
         <h2 className="text-lg font-bold text-gray-900 mb-4">Drop off Summary</h2>
         <div className="overflow-x-auto">
@@ -437,113 +420,72 @@ export default function AdminSalesPage() {
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 mb-6">
         <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
           <h2 className="text-lg font-bold text-gray-900">Cashier Shift Summary</h2>
-          {handovers.length > 0 && (
-            <p className="text-xs text-gray-400">Click a row to filter the summaries above by that shift.</p>
+          {staffSummary.length > 0 && (
+            <p className="text-xs text-gray-400">Click a staff member to see their shift summaries.</p>
           )}
         </div>
-        {handovers.length > 0 ? (
-          // Scrolls sideways inside the card on narrow screens rather than
-          // squeezing 13 money columns.
+        {staffSummary.length > 0 ? (
           <div className="overflow-x-auto border border-gray-200 rounded-lg">
             <table className="w-full text-sm whitespace-nowrap">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  <th className="p-3 text-left font-semibold">Date</th>
                   <th className="p-3 text-left font-semibold">Staff</th>
-                  <th className="p-3 text-right font-semibold">Laundry</th>
-                  <th className="p-3 text-right font-semibold">Supply</th>
-                  <th className="p-3 text-right font-semibold">Custom Service</th>
-                  <th className="p-3 text-right font-semibold">Total Sales</th>
-                  <th className="p-3 text-right font-semibold">GCash</th>
-                  <th className="p-3 text-right font-semibold">Expense</th>
-                  <th className="p-3 text-right font-semibold">Starting Cash</th>
-                  <th className="p-3 text-right font-semibold">Withdrawal</th>
-                  <th className="p-3 text-right font-semibold">Cash Refunds</th>
-                  <th className="p-3 text-right font-semibold">GCash Refunds</th>
-                  <th className="p-3 text-right font-semibold">Expected Cash</th>
-                  <th className="p-3 text-right font-semibold">Cash Counted</th>
+                  <th className="p-3 text-left font-semibold">Last shift</th>
+                  <th className="p-3 text-right font-semibold">Total sales</th>
                   <th className="p-3 text-right font-semibold">Over / Short</th>
-                  <th className="p-3 text-left font-semibold">Notes</th>
-                  <th className="p-3 text-center font-semibold">Supplies</th>
+                  <th className="p-3" aria-label="Open" />
                 </tr>
               </thead>
               <tbody className="tabular-nums">
-                {handovers.map((h) => {
-                  const selected = h.id === selectedShiftId;
-                  const toggle = () => setSelectedShiftId(selected ? null : h.id);
-                  return (
-                    <tr
-                      key={h.id}
-                      tabIndex={0}
-                      aria-selected={selected}
-                      onClick={toggle}
-                      onKeyDown={(e) => {
-                        if (e.target !== e.currentTarget) return;
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          toggle();
-                        }
-                      }}
-                      className={`border-b border-gray-100 last:border-0 cursor-pointer transition-colors ${
-                        selected ? "bg-blue-50 outline outline-2 -outline-offset-2 outline-blue-500" : "hover:bg-gray-50"
+                {pagedStaff.map((s) => (
+                  <tr
+                    key={s.userId}
+                    tabIndex={0}
+                    onClick={() => setOpenStaff(s)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setOpenStaff(s);
+                      }
+                    }}
+                    className="border-b border-gray-100 last:border-0 cursor-pointer hover:bg-gray-50/70 transition-colors"
+                  >
+                    <td className="p-3">
+                      <span className="flex items-center gap-3">
+                        <span
+                          aria-hidden="true"
+                          className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-sky-100 text-sky-700 text-sm font-semibold shrink-0"
+                        >
+                          {s.staffName.trim().charAt(0).toUpperCase() || "?"}
+                        </span>
+                        <span className="font-medium text-gray-900">{s.staffName}</span>
+                      </span>
+                    </td>
+                    <td className="p-3 text-gray-700">
+                      {s.lastShift
+                        ? new Date(s.lastShift).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })
+                        : "—"}
+                    </td>
+                    <td className="p-3 text-right font-medium text-gray-900">{peso(s.totalSales)}</td>
+                    <td
+                      className={`p-3 text-right font-semibold ${
+                        s.overShort < 0 ? "text-red-600" : s.overShort > 0 ? "text-green-600" : "text-gray-500"
                       }`}
                     >
-                      <td className="p-3 text-gray-900">{new Date(h.timestamp).toLocaleDateString()}</td>
-                      <td className="p-3 text-gray-900 font-medium">{h.staffName}</td>
-                      <td className="p-3 text-right text-gray-900">{peso(h.laundrySales)}</td>
-                      <td className="p-3 text-right text-gray-900">{peso(h.supplySales)}</td>
-                      <td className="p-3 text-right text-gray-900">{peso(h.customServiceSales ?? 0)}</td>
-                      <td className="p-3 text-right text-gray-900 font-medium">
-                        {peso(h.laundrySales + h.supplySales + (h.customServiceSales ?? 0))}
-                      </td>
-                      {/* GCash sales; the GCash sent back is its own column. */}
-                      <td className="p-3 text-right text-gray-900">{peso(h.digitalSales ?? 0)}</td>
-                      <td className="p-3 text-right text-gray-900">{peso(h.expense)}</td>
-                      <td className="p-3 text-right text-gray-900">{peso(h.cashDrawer)}</td>
-                      <td className="p-3 text-right text-gray-900">{peso(h.withdrawals)}</td>
-                      <td className="p-3 text-right text-gray-900">{peso(h.refundsPaid ?? 0)}</td>
-                      <td
-                        className={`p-3 text-right whitespace-nowrap ${
-                          (h.gcashRefunds ?? 0) > 0 ? "text-red-600" : "text-gray-900"
-                        }`}
-                      >
-                        {(h.gcashRefunds ?? 0) > 0 ? `−${peso(h.gcashRefunds ?? 0)}` : peso(0)}
-                      </td>
-                      <td className="p-3 text-right text-gray-900 font-medium">{peso(h.expectedCash)}</td>
-                      <td className="p-3 text-right text-gray-900 font-medium">{peso(h.actualCashCounted)}</td>
-                      <td
-                        className={`p-3 text-right font-semibold ${
-                          h.shortage < 0 ? "text-red-600" : h.shortage > 0 ? "text-green-600" : "text-gray-500"
-                        }`}
-                      >
-                        {peso(h.shortage)}
-                      </td>
-                      <td className="p-3 text-gray-700 whitespace-normal min-w-[160px] max-w-[260px] break-words">
-                        {h.notes || <span className="text-gray-300">—</span>}
-                      </td>
-                      <td className="p-3 text-center">
-                        {/* stopPropagation so viewing inventory doesn't also toggle row selection. */}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setInventoryModalShiftId(h.id);
-                          }}
-                          className="text-blue-600 font-medium hover:text-blue-800 hover:underline"
-                        >
-                          View
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                      {peso(s.overShort)}
+                    </td>
+                    <td className="p-3 text-right text-gray-400">
+                      <ChevronRight size={18} className="inline" aria-hidden="true" />
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         ) : (
           <p className="text-gray-400 text-center py-4">No shift handovers submitted yet.</p>
         )}
-        <Pagination page={handoverPage} totalPages={handoverTotalPages} onPageChange={setHandoverPage} />
+        <Pagination page={staffPage} totalPages={staffTotalPages} onPageChange={setStaffPage} />
       </div>
 
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
@@ -633,12 +575,20 @@ export default function AdminSalesPage() {
         />
       )}
 
+      {openStaff && (
+        <StaffShiftsModal
+          staff={openStaff}
+          onViewSupplies={setInventoryModalShift}
+          onClose={() => setOpenStaff(null)}
+        />
+      )}
+
       {inventoryModalShift && (
         <ShiftInventoryModal
           staffName={inventoryModalShift.staffName}
           timestamp={inventoryModalShift.timestamp}
           rows={inventoryModalShift.inventorySnapshot ?? []}
-          onClose={() => setInventoryModalShiftId(null)}
+          onClose={() => setInventoryModalShift(null)}
         />
       )}
 

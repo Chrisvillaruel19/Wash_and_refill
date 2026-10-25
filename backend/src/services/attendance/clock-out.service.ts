@@ -54,8 +54,10 @@ export async function clockOutService(userId: string, role: Role | undefined, id
       }
 
       const now = new Date();
-      const hours = (now.getTime() - existing.timeIn.getTime()) / (1000 * 60 * 60);
-      const totalHours = Math.round(hours * 10) / 10;
+      // Saved to the minute (not 0.1-hour steps, which turned 3 minutes
+      // into 0.1 and 2 h 40 min into 2.7).
+      const minutes = Math.round((now.getTime() - existing.timeIn.getTime()) / 60000);
+      const totalHours = Math.round((minutes / 60) * 10000) / 10000;
 
       const updated = await attendanceRepository.closeSession(
         id,

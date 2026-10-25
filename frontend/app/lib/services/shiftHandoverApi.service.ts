@@ -94,6 +94,44 @@ export async function getShiftHandoversPage(
   return { items: result.shiftHandovers.map(mapShiftHandover), totalPages: result.pagination.totalPages };
 }
 
+// One staff member's handovers, a page at a time (Admin Sales' staff view).
+export async function getStaffShiftHandoversPage(
+  userId: string,
+  page: number,
+  pageSize: number
+): Promise<{ items: ShiftHandoverRecord[]; totalPages: number; total: number }> {
+  const result = await apiClient.get<{
+    shiftHandovers: BackendShiftHandover[];
+    pagination: { totalPages: number; total: number };
+  }>(`/shift-handover?userId=${encodeURIComponent(userId)}&page=${page}&pageSize=${pageSize}`);
+  return {
+    items: result.shiftHandovers.map(mapShiftHandover),
+    totalPages: result.pagination.totalPages,
+    total: result.pagination.total,
+  };
+}
+
+// Admin Sales' Cashier Shift Summary: one row per staff member.
+export interface StaffShiftSummary {
+  userId: string;
+  staffName: string;
+  shifts: number;
+  lastShift: string | null;
+  totalSales: number;
+  // Net counted − expected across all their shifts (negative = short).
+  overShort: number;
+}
+
+export async function getStaffShiftSummary(): Promise<StaffShiftSummary[]> {
+  const result = await apiClient.get<{ staff: StaffShiftSummary[] }>("/shift-handover/staff-summary");
+  return result.staff.map((s) => ({
+    ...s,
+    shifts: Number(s.shifts),
+    totalSales: Number(s.totalSales),
+    overShort: Number(s.overShort),
+  }));
+}
+
 // The shared drawer's most recent state, needed only as a single record
 // (Shift Handover's starting balance) — GET /shift-handover is already
 // sorted endTime desc, so pageSize=1 hands back exactly that record without

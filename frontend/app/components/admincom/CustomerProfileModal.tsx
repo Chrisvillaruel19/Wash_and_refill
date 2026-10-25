@@ -82,13 +82,13 @@ export default function CustomerProfileModal({
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div
-        className="bg-sky-50 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-xl"
+        className="bg-sky-50 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-xl"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-label="Customer profile"
       >
-        <div className="sticky top-0 z-10 flex items-start justify-between gap-3 bg-white px-5 sm:px-6 py-4 border-b border-gray-200 rounded-t-2xl">
+        <div className="shrink-0 flex items-start justify-between gap-3 bg-white px-5 sm:px-6 py-4 border-b border-gray-200">
           <div className="min-w-0">
             <h2 className="text-xl font-bold text-gray-900 truncate">{profile?.customer.name ?? "Customer"}</h2>
             <p className="flex items-center gap-1.5 text-sm text-gray-500">
@@ -106,13 +106,15 @@ export default function CustomerProfileModal({
           </button>
         </div>
 
-        <div className="p-5 sm:p-6 space-y-5">
+        {/* Name and stats stay put; only the order list scrolls. On a very
+            short screen the whole body scrolls instead. */}
+        <div className="min-h-0 flex-1 flex flex-col gap-5 overflow-y-auto list-scroll p-5 sm:p-6">
           {loadError && <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg py-2 px-3">{loadError}</p>}
           {!profile && !loadError && <p className="text-gray-400 text-sm">Loading customer...</p>}
 
           {profile && (
             <>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="shrink-0 grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <Stat
                   label="Visits"
                   value={String(profile.stats.visits)}
@@ -131,16 +133,18 @@ export default function CustomerProfileModal({
                 />
               </div>
 
-              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <h3 className="px-4 py-3 text-sm font-semibold text-gray-800 border-b border-gray-100">
+              <div className="min-h-[260px] flex-1 flex flex-col bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <h3 className="shrink-0 px-4 py-3 text-sm font-semibold text-gray-800 border-b border-gray-100">
                   Order history ({profile.orders.length})
                 </h3>
                 {profile.orders.length === 0 ? (
                   <p className="p-4 text-sm text-gray-400 text-center">No orders yet.</p>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <>
+                  {/* Scrolls on its own; the column headings stay on top. */}
+                  <div className="min-h-0 flex-1 overflow-auto list-scroll">
                     <table className="w-full text-sm">
-                      <thead>
+                      <thead className="sticky top-0 z-10">
                         <tr className="bg-gray-50 text-gray-600 text-xs uppercase tracking-wide">
                           <th className="p-3 text-left font-semibold">Date</th>
                           <th className="p-3 text-left font-semibold">Name used</th>
@@ -176,10 +180,13 @@ export default function CustomerProfileModal({
                         })}
                       </tbody>
                     </table>
-                    <div className="px-4 pb-4">
+                  </div>
+                  {orderTotalPages > 1 && (
+                    <div className="shrink-0 border-t border-gray-100 px-4 pb-3">
                       <Pagination page={orderPage} totalPages={orderTotalPages} onPageChange={setOrderPage} />
                     </div>
-                  </div>
+                  )}
+                  </>
                 )}
               </div>
             </>

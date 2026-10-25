@@ -539,9 +539,9 @@ export default function ShiftHandover() {
       <div className="bg-white rounded-xl shadow-md ring-1 ring-gray-200/80 p-4 sm:p-6">
         <h2 className="text-lg font-bold text-gray-900 mb-4">Cash Reconciliation</h2>
 
-        {/* How Expected Cash is reached, top to bottom — same formula the
-            server uses on submit. Lines that took cash out list their items
-            in a collapsible row so the sum stays readable. */}
+        {/* How Expected Cash is reached, top to bottom — drawer cash only,
+            same formula the server uses on submit. Lines that took cash out
+            list their items in a collapsible row so the sum stays readable. */}
         <div className="border border-gray-200 rounded-lg mb-4 text-sm tabular-nums">
           {carriedOver !== 0 ? (
             <CashLine label="Starting cash" value={drawerStart}>
@@ -560,11 +560,6 @@ export default function ShiftHandover() {
             <CashLine label="Starting cash" value={drawerStart} />
           )}
           <CashLine label="Cash sales" value={cashSalesTotal} sign="+" />
-          <CashLine label="GCash sales" value={digitalSalesTotal} sign="+" />
-          <div className="flex justify-between px-3 py-2 border-b border-gray-100 font-semibold text-gray-900">
-            <span>Total</span>
-            <span>₱{(drawerStart + cashSalesTotal + digitalSalesTotal).toFixed(2)}</span>
-          </div>
           {refundsPaidTotal > 0 && (
             <CashLine label="Refunds (Cash)" value={refundsPaidTotal} sign="−">
               {pendingWithdrawals?.refundsPaid.map((p) => (
@@ -574,19 +569,6 @@ export default function ShiftHandover() {
                     {p.reason}
                   </span>
                   <span>₱{p.amount.toFixed(2)}</span>
-                </li>
-              ))}
-            </CashLine>
-          )}
-          {gcashRefundsTotal > 0 && (
-            <CashLine label="Refunds (GCash)" value={gcashRefundsTotal} sign="−">
-              {pendingWithdrawals?.gcashRefunds.map((g) => (
-                <li key={g.id} className="flex justify-between gap-3">
-                  <span>
-                    {new Date(g.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} · {g.customerName} —{" "}
-                    {g.reason}
-                  </span>
-                  <span>₱{g.amount.toFixed(2)}</span>
                 </li>
               ))}
             </CashLine>
@@ -604,21 +586,6 @@ export default function ShiftHandover() {
               ))}
             </CashLine>
           )}
-          {/* GCash goes to the shop's GCash, never the drawer: what's left of
-              it after refunds comes back out here, so the lines always add up
-              to the cash really in the drawer. Hidden when nothing is left
-              (every GCash sale refunded). */}
-          {Math.round(gcashAfterRefunds * 100) !== 0 && (
-            <CashLine
-              label={
-                gcashAfterRefunds > 0
-                  ? "Less: GCash (not in drawer)"
-                  : "GCash refunded for an earlier sale (not from drawer)"
-              }
-              value={Math.abs(gcashAfterRefunds)}
-              sign={gcashAfterRefunds > 0 ? "−" : "+"}
-            />
-          )}
           <div className="flex justify-between px-3 py-2 bg-gray-50 font-semibold text-gray-900 rounded-b-lg">
             <span>Expected cash in drawer</span>
             <span>₱{expectedCash.toFixed(2)}</span>
@@ -633,7 +600,7 @@ export default function ShiftHandover() {
           </p>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
           <div>
             <p className="text-sm text-gray-500">Expected Cash</p>
             <p className="text-xl font-bold text-gray-900">₱{expectedCash.toFixed(2)}</p>
@@ -672,6 +639,25 @@ export default function ShiftHandover() {
               </p>
             ) : (
               <p className="text-xl font-bold text-gray-400">—</p>
+            )}
+          </div>
+          {/* GCash goes to the shop's GCash, never the drawer — so it stays
+              out of the sum above and is shown here on its own, after the
+              refunds the Admin sent from GCash since the last handover. */}
+          <div>
+            <p className="text-sm text-gray-500">GCash sales (not in drawer)</p>
+            <p className="text-xl font-bold text-gray-900">
+              {gcashAfterRefunds < 0 ? "−" : ""}₱{Math.abs(gcashAfterRefunds).toFixed(2)}
+            </p>
+            {gcashRefundsTotal > 0 && (
+              <p
+                className="text-xs text-gray-500"
+                title={pendingWithdrawals?.gcashRefunds
+                  .map((g) => `${g.customerName} — ${g.reason}: ₱${g.amount.toFixed(2)}`)
+                  .join("\n")}
+              >
+                ₱{digitalSalesTotal.toFixed(2)} sales − ₱{gcashRefundsTotal.toFixed(2)} refunded
+              </p>
             )}
           </div>
         </div>

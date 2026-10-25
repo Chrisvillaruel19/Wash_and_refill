@@ -5,6 +5,7 @@ import { Search, ChevronRight, Users, Repeat, UserPlus, ArrowUpDown } from "luci
 import AdminStatCard from "../../../components/admincom/AdminStatCard";
 import Pagination from "../../../components/staffcom/Pagination";
 import CustomerProfileModal from "../../../components/admincom/CustomerProfileModal";
+import CustomerAvatar from "../../../components/admincom/CustomerAvatar";
 import {
   CustomerFilter,
   CustomerOverview,
@@ -49,29 +50,6 @@ function lastVisitLabel(iso: string | null) {
   if (days === 1) return "Yesterday";
   if (days < 7) return `${days} days ago`;
   return d.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
-}
-
-// Initials + a stable color per customer, so the list is easy to scan.
-const AVATAR_COLORS = [
-  "bg-sky-100 text-sky-700",
-  "bg-emerald-100 text-emerald-700",
-  "bg-violet-100 text-violet-700",
-  "bg-amber-100 text-amber-700",
-  "bg-rose-100 text-rose-700",
-  "bg-teal-100 text-teal-700",
-];
-function Avatar({ name, seed }: { name: string; seed: string }) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  const initials = parts.length === 0 ? "?" : (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
-  const color = AVATAR_COLORS[[...seed].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 0) % AVATAR_COLORS.length];
-  return (
-    <span
-      aria-hidden="true"
-      className={`inline-flex items-center justify-center w-9 h-9 rounded-full text-sm font-semibold shrink-0 ${color}`}
-    >
-      {initials}
-    </span>
-  );
 }
 
 // Admin CRM: every customer the shop has served (linked by phone number),
@@ -253,7 +231,7 @@ export default function CustomersPage() {
                     >
                       <td className="py-3 px-4 sm:px-5">
                         <div className="flex items-center gap-3 min-w-[180px]">
-                          <Avatar name={c.name} seed={c.id} />
+                          <CustomerAvatar name={c.name} seed={c.id} />
                           <div className="min-w-0">
                             <p className="flex items-center gap-1.5 font-semibold text-gray-900">
                               <span className="truncate">{c.name}</span>

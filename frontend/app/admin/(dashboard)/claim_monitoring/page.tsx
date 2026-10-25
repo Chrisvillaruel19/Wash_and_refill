@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Clock, RefreshCw, CheckCircle2, Search, Download } from "lucide-react";
+import { Clock, RefreshCw, CheckCircle2, Search, Download, ChevronRight } from "lucide-react";
 import AdminStatCard from "../../../components/admincom/AdminStatCard";
 import RefundOrderModal, { RefundFormData } from "../../../components/admincom/RefundOrderModal";
+import OrderDetailsModal from "../../../components/admincom/OrderDetailsModal";
+import CustomerAvatar from "../../../components/admincom/CustomerAvatar";
 import Pagination from "../../../components/staffcom/Pagination";
 import { usePagination } from "../../../lib/usePagination";
 import { useServerPage } from "../../../lib/useServerPage";
@@ -14,7 +16,6 @@ import {
   refundOrder,
 } from "../../../lib/services/ordersApi.service";
 import { getAdminDashboard } from "../../../lib/services/dashboard.service";
-import { formatGroupedItems } from "../../../lib/groupItems";
 import { exportOrdersToExcel } from "../../../lib/exportOrdersToExcel";
 import { ApiError } from "../../../lib/apiClient";
 import { paymentLabel, paymentTone, PAYMENT_TEXT_CLASS } from "../../../lib/paymentDisplay";
@@ -47,13 +48,25 @@ function matchesMonitoringFilter(order: Order, filter: MonitoringFilter, searchT
   );
 }
 
+// Only the Admin refunds, and only cancelled (full amount) or claimed
+// (partial or full) paid orders, until nothing's left.
+function canRefund(order: Order) {
+  return order.payStatus === "Paid" && (order.status === "Cancelled" || order.status === "Claimed");
+}
+
+// Status pills — same colors as the order details window.
 const statusStyles: Record<OrderStatus, string> = {
-  Pending: "text-orange-500",
-  "In progress": "text-blue-600",
-  Ready: "text-purple-600",
-  Claimed: "text-green-600",
-  Cancelled: "text-red-500",
+  Pending: "text-orange-700 border-orange-200 bg-orange-50",
+  "In progress": "text-blue-700 border-blue-200 bg-blue-50",
+  Ready: "text-purple-700 border-purple-200 bg-purple-50",
+  Claimed: "text-green-700 border-green-200 bg-green-50",
+  Cancelled: "text-red-700 border-red-200 bg-red-50",
 };
+
+// "09171234567" → "0917 123 4567"; anything else as-is.
+function formatPhone(phone: string) {
+  return /^\d{11}$/.test(phone) ? `${phone.slice(0, 4)} ${phone.slice(4, 7)} ${phone.slice(7)}` : phone;
+}
 
 export default function ClaimMonitoringPage() {
   const [activeFilter, setActiveFilter] = useState<MonitoringFilter>("All");
@@ -64,6 +77,8 @@ export default function ClaimMonitoringPage() {
   // Same pattern as Staff Service/Sales.
   const [itemsByOrderId, setItemsByOrderId] = useState<Record<string, string[]>>({});
   const [refundTarget, setRefundTarget] = useState<Order | null>(null);
+  // The order whose full details ("View more") are open.
+  const [detailsOrder, setDetailsOrder] = useState<Order | null>(null);
   const [actionSubmitting, setActionSubmitting] = useState(false);
   const [actionError, setActionError] = useState("");
   // Bumped after a refund to force a refetch of whichever data
@@ -241,91 +256,104 @@ export default function ClaimMonitoringPage() {
         />
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-6">
-        <div className="flex gap-2 overflow-x-auto pb-1 sm:pb-0 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
-          {filters.map((f) => (
-            <button
-              key={f}
-              onClick={() => setActiveFilter(f)}
-              className={`shrink-0 whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
-                activeFilter === f
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "text-gray-600 border-gray-300 hover:bg-gray-50"
-              }`}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
-
-        <div className="relative w-full sm:flex-1 sm:max-w-xs">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
-          <input
-            type="search"
-            placeholder="Search name, contact, date or staff"
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            name="monitoring-search"
-            aria-label="Search orders by customer name, contact number, date or staff"
-            autoComplete="off"
-            className="w-full border border-gray-300 rounded-lg py-2 pl-9 pr-3 bg-white text-gray-900 placeholder:text-gray-500 text-sm"
-          />
-        </div>
-
-        <button
-          onClick={handleExport}
-          disabled={exporting}
-          className="sm:ml-auto inline-flex items-center justify-center gap-2 shrink-0 whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium bg-green-600 text-white hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          <Download size={16} />
-          {exporting ? "Exporting..." : "Export to Excel"}
-        </button>
-      </div>
-
-      {exportError && <p className="text-red-500 text-sm -mt-4 mb-4">{exportError}</p>}
-
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
+        {/* Card header like Customers: filters and search, export on the right. */}
+        <div className="px-4 sm:px-5 py-4 border-b border-gray-100">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+              {filters.map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setActiveFilter(f)}
+                  className={`shrink-0 whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium border transition-colors cursor-pointer ${
+                    activeFilter === f
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "text-gray-600 border-gray-300 hover:bg-gray-50"
+                  }`}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+            <div className="relative w-full sm:w-72">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
+              <input
+                type="search"
+                placeholder="Search name, contact, date or staff"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                name="monitoring-search"
+                aria-label="Search orders by customer name, contact number, date or staff"
+                autoComplete="off"
+                className="w-full border border-gray-300 rounded-lg py-2 pl-9 pr-3 bg-white text-gray-900 placeholder:text-gray-500 text-sm"
+              />
+            </div>
+            <button
+              onClick={handleExport}
+              disabled={exporting}
+              className="sm:ml-auto inline-flex items-center justify-center gap-2 shrink-0 whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium bg-green-600 text-white hover:bg-green-700 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <Download size={16} />
+              {exporting ? "Exporting..." : "Export to Excel"}
+            </button>
+          </div>
+        </div>
+
+        {exportError && (
+          <p className="m-4 text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg py-2 px-3">{exportError}</p>
+        )}
+
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
+            {/* Only the columns that fit without sideways scrolling; click an
+                order to see everything (staff, laundry items, payment method). */}
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                <th className="p-3 sm:p-4 whitespace-nowrap">Customer</th>
-                <th className="p-3 sm:p-4 whitespace-nowrap">Date</th>
-                <th className="p-3 sm:p-4 whitespace-nowrap">Contact</th>
-                <th className="p-3 sm:p-4 whitespace-nowrap">Staff</th>
-                <th className="p-3 sm:p-4 whitespace-nowrap">Laundry Items</th>
-                <th className="p-3 sm:p-4 whitespace-nowrap">Total</th>
-                <th className="p-3 sm:p-4 whitespace-nowrap">Status</th>
-                <th className="p-3 sm:p-4 whitespace-nowrap">Payment</th>
-                <th className="p-3 sm:p-4 whitespace-nowrap">Action</th>
+              <tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
+                <th className="py-3 px-4 sm:px-5 font-semibold">Customer</th>
+                <th className="py-3 px-3 font-semibold">Date</th>
+                <th className="py-3 px-3 font-semibold">Contact</th>
+                <th className="py-3 px-3 font-semibold">Total</th>
+                <th className="py-3 px-3 font-semibold">Status</th>
+                <th className="py-3 px-3 font-semibold">Payment</th>
+                <th className="py-3 px-3 font-semibold">Action</th>
+                <th className="py-3 pr-4 w-8" aria-hidden="true" />
               </tr>
             </thead>
-            <tbody className={tableLoading ? "opacity-50" : undefined}>
+            <tbody className={`transition-opacity ${tableLoading ? "opacity-50" : ""}`}>
               {displayedItems.length > 0 ? (
                 displayedItems.map((order) => (
-                  <tr key={order.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/70 transition-colors">
-                    <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">{order.customer}</td>
-                    <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">{order.date}</td>
-                    <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">{order.contact}</td>
-                    <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">{order.staffName || "N/A"}</td>
-                    <td
-                      className="p-3 sm:p-4 font-medium max-w-[200px] truncate text-gray-900"
-                      title={order.items && order.items.length > 0 ? formatGroupedItems(order.items) : undefined}
-                    >
-                      {order.items && order.items.length > 0
-                        ? formatGroupedItems(order.items)
-                        : "—"}
+                  <tr
+                    key={order.id}
+                    tabIndex={0}
+                    onClick={() => setDetailsOrder(order)}
+                    onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return;
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setDetailsOrder(order);
+                      }
+                    }}
+                    className="group border-t border-gray-100 cursor-pointer transition-colors hover:bg-sky-50/70 focus:outline-none focus-visible:bg-sky-50"
+                  >
+                    <td className="py-3 px-4 sm:px-5">
+                      <div className="flex items-center gap-3 min-w-[160px]">
+                        <CustomerAvatar name={order.customer} seed={`${order.customer}${order.contact}`} />
+                        <span className="truncate font-semibold text-gray-900">{order.customer}</span>
+                      </div>
                     </td>
-                    <td className="p-3 sm:p-4 whitespace-nowrap text-gray-900">₱{order.amount.toFixed(2)}</td>
-                    <td className={`p-3 sm:p-4 font-semibold whitespace-nowrap ${statusStyles[order.status]}`}>
-                      {order.status}
+                    <td className="py-3 px-3 whitespace-nowrap text-gray-700">{order.date}</td>
+                    <td className="py-3 px-3 whitespace-nowrap text-gray-700 tabular-nums">
+                      {order.contact ? formatPhone(order.contact) : <span className="text-gray-400">No number</span>}
                     </td>
-                    <td className="p-3 sm:p-4 whitespace-nowrap">
-                      {/* How it was paid first (a refund goes back the same way),
-                          then the payment status. Unpaid orders have no method. */}
-                      {paymentTone(order) !== "unpaid" && order.paymentMethod && (
-                        <span className="font-medium text-gray-600">{order.paymentMethod} · </span>
-                      )}
+                    <td className="py-3 px-3 whitespace-nowrap font-medium text-gray-900 tabular-nums">
+                      ₱{order.amount.toFixed(2)}
+                    </td>
+                    <td className="py-3 px-3 whitespace-nowrap">
+                      <span className={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-semibold ${statusStyles[order.status]}`}>
+                        {order.status}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 whitespace-nowrap">
                       <span
                         className={`font-semibold ${
                           paymentTone(order) === "paid" ? "text-blue-600" : PAYMENT_TEXT_CLASS[paymentTone(order)]
@@ -334,16 +362,15 @@ export default function ClaimMonitoringPage() {
                         {paymentLabel(order)}
                       </span>
                     </td>
-                    <td className="p-3 sm:p-4 whitespace-nowrap">
-                      {/* Only the Admin refunds, and only cancelled (full amount)
-                          or claimed (partial or full) paid orders, until nothing's left. */}
-                      {order.payStatus === "Paid" && (order.status === "Cancelled" || order.status === "Claimed") ? (
+                    {/* stopPropagation: Refund opens the refund window, not the details. */}
+                    <td className="py-3 px-3 whitespace-nowrap cursor-default" onClick={(e) => e.stopPropagation()}>
+                      {canRefund(order) ? (
                         <button
                           onClick={() => {
                             setActionError("");
                             setRefundTarget(order);
                           }}
-                          className="text-xs font-medium text-red-500 border border-red-300 rounded-lg px-3 py-1 hover:bg-red-50"
+                          className="text-xs font-medium text-red-500 border border-red-300 rounded-lg px-3 py-1 hover:bg-red-50 cursor-pointer"
                         >
                           Refund
                         </button>
@@ -357,11 +384,14 @@ export default function ClaimMonitoringPage() {
                         </span>
                       )}
                     </td>
+                    <td className="py-3 pr-4 text-gray-300 group-hover:text-sky-500 transition-colors">
+                      <ChevronRight size={18} />
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={9} className="p-8 text-center text-gray-400">
+                  <td colSpan={8} className="py-12 text-center text-gray-400">
                     No orders found.
                   </td>
                 </tr>
@@ -369,8 +399,26 @@ export default function ClaimMonitoringPage() {
             </tbody>
           </table>
         </div>
+
+        {totalPages > 1 && (
+          <div className="border-t border-gray-100 px-4 py-3">
+            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+          </div>
+        )}
       </div>
-      <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+
+      {detailsOrder && (
+        <OrderDetailsModal
+          order={detailsOrder}
+          canRefund={canRefund(detailsOrder)}
+          onRefund={() => {
+            setActionError("");
+            setRefundTarget(detailsOrder);
+            setDetailsOrder(null);
+          }}
+          onClose={() => setDetailsOrder(null)}
+        />
+      )}
 
       {refundTarget && (
         <RefundOrderModal
